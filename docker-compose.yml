@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: security_perspective
+      POSTGRES_USER: security
+      POSTGRES_PASSWORD: security
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U security -d security_perspective"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://security:security@db:5432/security_perspective
+      FORTIWEB_MOCK: "true"
+      FORTIWEB_BASE_URL: https://fortiweb.example/api/v2
+      FORTIWEB_TOKEN: replace-with-real-token
+      APP_USERS_JSON: '{"admin":{"password":"admin123","role":"admin"},"analyst":{"password":"analyst123","role":"analyst"},"viewer":{"password":"viewer123","role":"viewer"}}'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://security:security@db:5432/security_perspective
+      FORTIWEB_MOCK: "true"
+      FORTIWEB_BASE_URL: https://fortiweb.example/api/v2
+      FORTIWEB_TOKEN: replace-with-real-token
+      APP_USERS_JSON: '{"admin":{"password":"admin123","role":"admin"},"analyst":{"password":"analyst123","role":"analyst"},"viewer":{"password":"viewer123","role":"viewer"}}'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./data/certs:/etc/nginx/certs:ro
+
+volumes:
+  postgres_data:

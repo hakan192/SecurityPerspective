@@ -1,0 +1,16 @@
+{
+  "controls": [
+    {"id": "waf_policy_enabled", "category": "Protection Policy", "weight": 2, "expected": true},
+    {"id": "signature_update_auto", "category": "Threat Intelligence", "weight": 1, "expected": true},
+    {"id": "bot_protection_enabled", "category": "Advanced Security", "weight": 1, "expected": true},
+    {"id": "https_redirect_enabled", "category": "Transport Security", "weight": 1, "expected": true},
+    {"id": "logging_enabled", "category": "Monitoring", "weight": 1, "expected": true}
+  ],
+  "maturity_levels": [
+    {"name": "Initial", "min_score": 0},
+    {"name": "Developing", "min_score": 40},
+    {"name": "Defined", "min_score": 60},
+    {"name": "Managed", "min_score": 80},
+    {"name": "Optimized", "min_score": 95}
+  ]
+}
