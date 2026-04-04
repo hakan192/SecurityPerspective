@@ -1,0 +1,91 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: #111827;
+  background: #f3f4f6;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  padding: 24px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 420px;
+}
+
+.snapshot {
+  width: 100%;
+  margin-bottom: 8px;
+  text-align: left;
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.snapshot.selected {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+pre {
+  background: #111827;
+  color: #d1d5db;
+  padding: 12px;
+  border-radius: 10px;
+  max-height: 340px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.cards {
+  display: flex;
+  gap: 12px;
+}
+
+.card {
+  background: #eef2ff;
+  padding: 10px;
+  border-radius: 8px;
+  flex: 1;
+}
+
+.card-title {
+  font-size: 12px;
+  color: #475569;
+}
+
+.card-value {
+  font-size: 24px;
+  font-weight: 700;
+}
