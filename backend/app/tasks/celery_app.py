@@ -9,6 +9,7 @@ celery_app = Celery(
     include=['app.tasks.tasks'],
 )
 
+celery_app.conf.broker_connection_retry_on_startup = True
 celery_app.conf.beat_schedule = {
     'collect-fortiweb-config-every-30-mins': {
         'task': 'app.tasks.tasks.collect_and_parse_snapshot',

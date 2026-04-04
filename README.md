@@ -26,6 +26,8 @@ Containerized FortiWeb configuration maturity platform.
    - Dashboard includes score cards and category pie visualization.
 7. **Stakeholder access model**
    - LDAP login endpoint provisions app user with role (`admin` / `analyst` / `stakeholder`) for RBAC extension.
+8. **Operational stability**
+   - Startup resiliency: backend waits for database readiness before schema initialization; compose healthchecks gate startup dependencies.
 
 ## Run with Docker
 ```bash
