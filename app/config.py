@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     ldap_bind_password: str = "change-me"
     ldap_search_base: str = "ou=users,dc=example,dc=local"
 
+    local_admin_username: str = "admin"
+    local_admin_password: str = "admin123!"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

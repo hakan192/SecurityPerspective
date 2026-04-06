@@ -14,8 +14,8 @@ from app.celery_app import celery_app
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.models import FortiWebSnapshot, MaturityAssessment, ParsedConfig
-from app.schemas import AssessmentOut, ParsedConfigOut, SnapshotOut
-from app.security import require_analyst_or_admin, require_role
+from app.schemas import AssessmentOut, LoginRequest, LoginResponse, ParsedConfigOut, SnapshotOut
+from app.security import require_analyst_or_admin, require_role, verify_local_admin
 from app.services import assess_snapshot, create_snapshot, fetch_fortiweb_config, parse_snapshot, seed_baseline_controls
 
 app = FastAPI(title=settings.app_name)
@@ -90,6 +90,14 @@ def health_ready():
 
     status = "ready" if all(checks.values()) else "degraded"
     return {"status": status, "checks": checks}
+
+
+@app.post("/auth/login", response_model=LoginResponse)
+def login(payload: LoginRequest):
+    if not verify_local_admin(payload.username, payload.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Phase-1 local token placeholder (replace with JWT in next phase)
+    return LoginResponse(access_token="local-admin-token")
 
 
 @app.post("/collect", response_model=SnapshotOut)

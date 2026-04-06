@@ -43,6 +43,14 @@ docker compose up --build
 
 Copy values from `.env.example` and adjust for your environment.
 
+## Local admin login (Phase 1)
+
+- Frontend starts with a login screen at `http://localhost:5173`.
+- Backend auth endpoint: `POST /auth/login`.
+- Default local admin credentials are configured via:
+  - `LOCAL_ADMIN_USERNAME` (default `admin`)
+  - `LOCAL_ADMIN_PASSWORD` (default `admin123!`)
+
 ## Notes
 
 - LDAP auth wiring is added as a backend skeleton helper (`ldap_authenticate`) and not yet connected to login/session middleware.

@@ -37,3 +37,7 @@ def ldap_authenticate(username: str, password: str) -> bool:
     user_dn = bind_connection.entries[0].entry_dn
     user_connection = Connection(server, user=user_dn, password=password, auto_bind=True)
     return bool(user_connection.bound)
+
+
+def verify_local_admin(username: str, password: str) -> bool:
+    return username == settings.local_admin_username and password == settings.local_admin_password
