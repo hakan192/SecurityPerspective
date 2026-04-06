@@ -59,6 +59,8 @@ function AppShell({ session, onLogout }) {
   const [wafResponse, setWafResponse] = useState(null)
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
+  const [collectingWaf, setCollectingWaf] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
 
   const loadWafResponse = async () => {
     setLoadingWaf(true)
@@ -70,9 +72,32 @@ function AppShell({ session, onLogout }) {
       }
       const data = await res.json()
       setWafResponse(data.payload)
+      setStatusMessage('Loaded latest WAF API response.')
     } catch (err) {
       setWafError(err.message)
     } finally {
+      setLoadingWaf(false)
+    }
+  }
+
+  const collectWafResponse = async () => {
+    setCollectingWaf(true)
+    setWafError('')
+    try {
+      const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
+        method: 'POST',
+        headers: { 'X-Role': 'admin' }
+      })
+      if (!response.ok) {
+        throw new Error('Failed to collect WAF data from FortiWeb.')
+      }
+      const data = await response.json()
+      setWafResponse(data.payload)
+      setStatusMessage('Successfully collected WAF configuration from FortiWeb.')
+    } catch (err) {
+      setWafError(err.message)
+    } finally {
+      setCollectingWaf(false)
       setLoadingWaf(false)
     }
   }
@@ -92,10 +117,12 @@ function AppShell({ session, onLogout }) {
         </div>
         <div style={styles.profileBox}>
           <div style={{ fontWeight: 700 }}>Profile</div>
-          <div>Logged in: {session?.username || 'admin'}</div>
+          <div>Logged in: <b>{session?.username || 'admin'}</b></div>
           <button style={styles.logoutBtn} onClick={onLogout}>Logout</button>
         </div>
       </header>
+
+      {statusMessage && <div style={styles.statusBanner}>{statusMessage}</div>}
 
       <div style={styles.mainLayout}>
         {sidebarOpen && (
@@ -120,13 +147,24 @@ function AppShell({ session, onLogout }) {
           {activeTab === 'waf' && (
             <section style={styles.panel}>
               <div style={styles.panelHeader}>
-                <h3 style={{ margin: 0 }}>API response</h3>
-                <button style={styles.primaryBtnSmall} onClick={loadWafResponse} disabled={loadingWaf}>
-                  {loadingWaf ? 'Refreshing...' : 'Refresh'}
-                </button>
+                <h3 style={{ margin: 0 }}>WAF Configuration API Response</h3>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button style={styles.secondaryBtnSmall} onClick={collectWafResponse} disabled={collectingWaf}>
+                    {collectingWaf ? 'Collecting...' : 'Collect from WAF'}
+                  </button>
+                  <button style={styles.primaryBtnSmall} onClick={loadWafResponse} disabled={loadingWaf}>
+                    {loadingWaf ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
               </div>
               {loadingWaf && <p>Loading WAF response...</p>}
               {wafError && <p style={styles.errorText}>{wafError}</p>}
+              {!loadingWaf && !wafError && !wafResponse && (
+                <div style={styles.emptyState}>
+                  <p>No response data yet.</p>
+                  <p>Click <b>Collect from WAF</b> to fetch data from FortiWeb.</p>
+                </div>
+              )}
               {!loadingWaf && !wafError && wafResponse && (
                 <pre style={styles.responseBox}>{JSON.stringify(wafResponse, null, 2)}</pre>
               )}
@@ -198,16 +236,16 @@ const styles = {
   },
   appRoot: {
     minHeight: '100vh',
-    background: '#f1f5f9',
+    background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)',
     padding: '0.75rem',
     display: 'grid',
     gridTemplateRows: 'auto 1fr',
     gap: '0.75rem'
   },
   topHeader: {
-    background: 'white',
+    background: '#ffffff',
     borderRadius: '12px',
-    border: '1px solid #dbeafe',
+    border: '1px solid #c7d2fe',
     padding: '0.75rem 1rem',
     display: 'flex',
     alignItems: 'center',
@@ -243,12 +281,13 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: 'auto 1fr',
     gap: '0.75rem',
-    minHeight: 0
+    minHeight: 0,
+    flex: 1
   },
   sidebar: {
     width: '220px',
     background: 'white',
-    border: '1px solid #dbeafe',
+    border: '1px solid #c7d2fe',
     borderRadius: '12px',
     padding: '0.75rem',
     display: 'grid',
@@ -256,7 +295,7 @@ const styles = {
     gap: '0.6rem'
   },
   navBtn: {
-    border: '1px solid #cbd5e1',
+    border: '1px solid #bfdbfe',
     borderRadius: '10px',
     background: 'white',
     padding: '0.65rem',
@@ -285,7 +324,7 @@ const styles = {
   contentArea: { minWidth: 0 },
   panel: {
     background: 'white',
-    border: '1px solid #dbeafe',
+    border: '1px solid #c7d2fe',
     borderRadius: '12px',
     padding: '1rem',
     minHeight: '72vh'
@@ -299,6 +338,21 @@ const styles = {
     padding: '0.45rem 0.7rem',
     cursor: 'pointer'
   },
+  secondaryBtnSmall: {
+    border: '1px solid #0ea5e9',
+    background: '#e0f2fe',
+    color: '#0369a1',
+    borderRadius: '8px',
+    padding: '0.45rem 0.7rem',
+    cursor: 'pointer'
+  },
+  emptyState: {
+    border: '1px dashed #94a3b8',
+    borderRadius: '10px',
+    padding: '1rem',
+    background: '#f8fafc',
+    color: '#334155'
+  },
   responseBox: {
     background: '#0f172a',
     color: '#e2e8f0',
@@ -308,5 +362,12 @@ const styles = {
     overflow: 'auto',
     fontSize: '0.82rem'
   },
-  errorText: { color: '#991b1b' }
+  errorText: { color: '#991b1b' },
+  statusBanner: {
+    background: '#dcfce7',
+    border: '1px solid #86efac',
+    color: '#166534',
+    padding: '0.6rem 0.8rem',
+    borderRadius: '10px'
+  }
 }
