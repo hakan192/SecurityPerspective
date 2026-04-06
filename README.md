@@ -76,5 +76,6 @@ Copy values from `.env.example` and adjust for your environment.
 ## Troubleshooting
 
 - If login shows `Failed to fetch`, ensure backend is running and CORS origins include your frontend URL via `CORS_ALLOW_ORIGINS`.
+- If frontend is opened via public IP (example `http://100.54.91.32:5173`), API base now auto-resolves to that host (`http://<host>:8000`) and CORS regex can allow dynamic origins via `CORS_ALLOW_ORIGIN_REGEX`.
 - If `docker compose ps db` shows `no configuration file provided`, run the command from the project directory or use:
   - `docker compose -f /home/ubuntu/SecurityPerspective/docker-compose.yml ps db`

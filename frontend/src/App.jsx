@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const resolvedHost = window.location.hostname || 'localhost'
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL
+const API_BASE =
+  configuredApiBase && configuredApiBase.includes('localhost') && !['localhost', '127.0.0.1'].includes(resolvedHost)
+    ? configuredApiBase.replace('localhost', resolvedHost)
+    : configuredApiBase || `http://${resolvedHost}:8000`
 
 function LoginCard({ onLogin }) {
   const [username, setUsername] = useState('admin')
