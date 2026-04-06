@@ -91,6 +91,7 @@ Copy values from `.env.example` and adjust for your environment.
   - maturity trend block
   - recent findings panel
   - configuration source status blocks
+- Exact logo file path used by GUI: `frontend/public/branding/securityperspective-logo.png`
 
 ## Notes
 

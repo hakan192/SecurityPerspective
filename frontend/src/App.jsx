@@ -8,13 +8,23 @@ const API_BASE =
     : configuredApiBase || `http://${resolvedHost}:8000`
 
 function LogoMark() {
+  const [logoFailed, setLogoFailed] = useState(false)
   return (
     <div style={styles.logoWrap}>
-      <svg width="32" height="32" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <path d="M32 4L56 14V30C56 44 45 55 32 60C19 55 8 44 8 30V14L32 4Z" stroke="#4FC3F7" strokeWidth="4" />
-        <path d="M12 30C18 21 25 17 32 17C39 17 46 21 52 30" stroke="#7DD3FC" strokeWidth="4" strokeLinecap="round" />
-        <circle cx="32" cy="31" r="8" fill="#38BDF8" />
-      </svg>
+      {!logoFailed ? (
+        <img
+          src="/branding/securityperspective-logo.png"
+          alt="SecurityPerspective Logo"
+          style={styles.logoImage}
+          onError={() => setLogoFailed(true)}
+        />
+      ) : (
+        <svg width="32" height="32" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <path d="M32 4L56 14V30C56 44 45 55 32 60C19 55 8 44 8 30V14L32 4Z" stroke="#4FC3F7" strokeWidth="4" />
+          <path d="M12 30C18 21 25 17 32 17C39 17 46 21 52 30" stroke="#7DD3FC" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="32" cy="31" r="8" fill="#38BDF8" />
+        </svg>
+      )}
       <div style={styles.logoText}><span style={{ color: '#F8FAFC' }}>Security</span><span style={{ color: '#38BDF8' }}>Perspective</span></div>
     </div>
   )
@@ -243,6 +253,7 @@ const styles = {
     borderRadius: '16px', padding: '1.5rem', boxShadow: '0 18px 30px rgba(2,6,23,0.5)', color: '#e2e8f0'
   },
   logoWrap: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
+  logoImage: { width: '34px', height: '34px', objectFit: 'contain', borderRadius: '6px' },
   logoText: { fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.2px' },
   loginSubtitle: { color: '#94a3b8', marginBottom: '1rem' },
   form: { display: 'grid', gap: '0.55rem' },
