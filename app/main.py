@@ -1,4 +1,6 @@
 from io import BytesIO
+import logging
+import time
 from typing import Annotated
 
 import redis
@@ -19,6 +21,7 @@ from app.services import assess_snapshot, create_snapshot, fetch_fortiweb_config
 app = FastAPI(title=settings.app_name)
 scheduler = BackgroundScheduler()
 redis_client = redis.from_url(settings.redis_url)
+logger = logging.getLogger(__name__)
 
 
 def run_collection_job():
@@ -34,6 +37,18 @@ def run_collection_job():
 
 @app.on_event("startup")
 def startup_event():
+    for attempt in range(1, 16):
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            redis_client.ping()
+            break
+        except Exception as exc:
+            logger.warning("Startup dependency check failed (attempt %s/15): %s", attempt, exc)
+            if attempt == 15:
+                raise
+            time.sleep(2)
+
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:

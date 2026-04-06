@@ -27,6 +27,7 @@ docker compose up --build
 - Backend API: http://localhost:8000
 - API docs: http://localhost:8000/docs
 - Frontend: http://localhost:5173
+- PostgreSQL (host access): localhost:5433
 
 ## Health checks
 
