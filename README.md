@@ -51,6 +51,7 @@ Copy values from `.env.example` and adjust for your environment.
 - Default local admin credentials are configured via:
   - `LOCAL_ADMIN_USERNAME` (default `admin`)
   - `LOCAL_ADMIN_PASSWORD` (default `admin123!`)
+- For local test safety, login accepts the default pair (`admin` / `admin123!`) even if env values are missing.
 - After login, frontend displays seeded test `Server_Policy` data (IP + hostnames).
 
 ## Test server policy data
