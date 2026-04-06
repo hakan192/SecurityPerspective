@@ -59,6 +59,14 @@ Copy values from `.env.example` and adjust for your environment.
 - Table name in PostgreSQL: `\"Server_Policy\"`
 - Seeded sample rows are created on startup for development/testing.
 
+## Exchange rate test integration
+
+- Source API: `https://open.er-api.com/v6/latest/USD`
+- Collect endpoint: `POST /exchange-rates/collect`
+- View latest normalized rates: `GET /exchange-rates/latest`
+- View raw snapshots: `GET /exchange-rates/snapshots`
+- Frontend dashboard shows exchange rates after login and allows collecting latest data.
+
 ## Notes
 
 - LDAP auth wiring is added as a backend skeleton helper (`ldap_authenticate`) and not yet connected to login/session middleware.

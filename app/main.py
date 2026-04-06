@@ -14,16 +14,27 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.models import FortiWebSnapshot, MaturityAssessment, ParsedConfig, ServerPolicy
-from app.schemas import AssessmentOut, LoginRequest, LoginResponse, ParsedConfigOut, ServerPolicyOut, SnapshotOut
+from app.models import ExchangeRateSnapshot, FortiWebSnapshot, MaturityAssessment, ParsedConfig, ServerPolicy
+from app.schemas import (
+    AssessmentOut,
+    ExchangeRateOut,
+    ExchangeRateSnapshotOut,
+    LoginRequest,
+    LoginResponse,
+    ParsedConfigOut,
+    ServerPolicyOut,
+    SnapshotOut,
+)
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
 from app.services import (
     assess_snapshot,
     create_snapshot,
     fetch_fortiweb_config,
     parse_snapshot,
+    collect_exchange_rates,
     seed_baseline_controls,
     seed_server_policy_samples,
+    latest_exchange_rates,
 )
 
 app = FastAPI(title=settings.app_name)
@@ -136,6 +147,30 @@ def list_server_policies(
     _: Annotated[str, Depends(require_role)] = "viewer",
 ):
     return db.query(ServerPolicy).order_by(ServerPolicy.id.asc()).all()
+
+
+@app.post("/exchange-rates/collect", response_model=ExchangeRateSnapshotOut)
+def collect_exchange_rates_snapshot(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    return collect_exchange_rates(db)
+
+
+@app.get("/exchange-rates/snapshots", response_model=list[ExchangeRateSnapshotOut])
+def list_exchange_rate_snapshots(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    return db.query(ExchangeRateSnapshot).order_by(ExchangeRateSnapshot.fetched_at.desc()).limit(20).all()
+
+
+@app.get("/exchange-rates/latest", response_model=list[ExchangeRateOut])
+def list_latest_exchange_rates(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    return latest_exchange_rates(db)
 
 
 @app.post("/collect/async")

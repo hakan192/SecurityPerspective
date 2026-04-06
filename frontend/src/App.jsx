@@ -59,6 +59,10 @@ function Dashboard({ onLogout }) {
   const [policies, setPolicies] = useState([])
   const [loadingPolicies, setLoadingPolicies] = useState(true)
   const [policyError, setPolicyError] = useState('')
+  const [rates, setRates] = useState([])
+  const [loadingRates, setLoadingRates] = useState(true)
+  const [rateError, setRateError] = useState('')
+  const [collectingRates, setCollectingRates] = useState(false)
 
   useEffect(() => {
     const fetchPolicies = async () => {
@@ -79,6 +83,47 @@ function Dashboard({ onLogout }) {
     }
     fetchPolicies()
   }, [])
+
+  useEffect(() => {
+    const fetchRates = async () => {
+      setLoadingRates(true)
+      setRateError('')
+      try {
+        const response = await fetch(`${API_BASE}/exchange-rates/latest`)
+        if (!response.ok) {
+          throw new Error('Unable to load exchange rates')
+        }
+        const data = await response.json()
+        setRates(data)
+      } catch (err) {
+        setRateError(err.message)
+      } finally {
+        setLoadingRates(false)
+      }
+    }
+    fetchRates()
+  }, [])
+
+  const collectRates = async () => {
+    setCollectingRates(true)
+    setRateError('')
+    try {
+      const response = await fetch(`${API_BASE}/exchange-rates/collect`, {
+        method: 'POST',
+        headers: { 'X-Role': 'admin' }
+      })
+      if (!response.ok) {
+        throw new Error('Failed to collect exchange rates')
+      }
+      const latest = await fetch(`${API_BASE}/exchange-rates/latest`)
+      const rows = await latest.json()
+      setRates(rows)
+    } catch (err) {
+      setRateError(err.message)
+    } finally {
+      setCollectingRates(false)
+    }
+  }
 
   return (
     <main style={styles.dashboard}>
@@ -111,6 +156,37 @@ function Dashboard({ onLogout }) {
                 <tr key={row.id}>
                   <td style={styles.td}>{row.ip}</td>
                   <td style={styles.td}>{row.hostnames}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+      <section style={{ ...styles.panel, marginTop: '1rem' }}>
+        <div style={styles.sectionHeader}>
+          <h3 style={{ margin: 0 }}>USD Exchange Rates</h3>
+          <button style={styles.collectBtn} onClick={collectRates} disabled={collectingRates}>
+            {collectingRates ? 'Collecting...' : 'Collect Latest'}
+          </button>
+        </div>
+        {loadingRates && <p>Loading exchange rates...</p>}
+        {rateError && <p style={styles.errorText}>{rateError}</p>}
+        {!loadingRates && !rateError && rates.length === 0 && (
+          <p>No exchange-rate data yet. Click “Collect Latest”.</p>
+        )}
+        {!loadingRates && !rateError && rates.length > 0 && (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Currency</th>
+                <th style={styles.th}>Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rates.slice(0, 20).map((row) => (
+                <tr key={row.currency}>
+                  <td style={styles.td}>{row.currency}</td>
+                  <td style={styles.td}>{row.rate}</td>
                 </tr>
               ))}
             </tbody>
@@ -214,6 +290,20 @@ const styles = {
     borderRadius: '10px',
     padding: '1rem',
     background: 'white'
+  },
+  sectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '0.75rem'
+  },
+  collectBtn: {
+    border: 0,
+    background: '#0ea5e9',
+    color: 'white',
+    padding: '0.45rem 0.8rem',
+    borderRadius: '8px',
+    cursor: 'pointer'
   },
   table: {
     width: '100%',
