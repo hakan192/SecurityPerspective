@@ -6,6 +6,7 @@ from typing import Annotated
 import redis
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -29,6 +30,15 @@ app = FastAPI(title=settings.app_name)
 scheduler = BackgroundScheduler()
 redis_client = redis.from_url(settings.redis_url)
 logger = logging.getLogger(__name__)
+cors_origins = [origin.strip() for origin in settings.cors_allow_origins.split(",") if origin.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def run_collection_job():

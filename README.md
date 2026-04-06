@@ -21,6 +21,7 @@ Phase 1 foundation for a containerized security assessment platform:
 ## Services
 
 ```bash
+cd /path/to/SecurityPerspective
 docker compose up --build
 ```
 
@@ -62,3 +63,9 @@ Copy values from `.env.example` and adjust for your environment.
 
 - LDAP auth wiring is added as a backend skeleton helper (`ldap_authenticate`) and not yet connected to login/session middleware.
 - Reporting helpers (`app/reporting.py`) are placeholders for later PDF and tabular export implementation.
+
+## Troubleshooting
+
+- If login shows `Failed to fetch`, ensure backend is running and CORS origins include your frontend URL via `CORS_ALLOW_ORIGINS`.
+- If `docker compose ps db` shows `no configuration file provided`, run the command from the project directory or use:
+  - `docker compose -f /home/ubuntu/SecurityPerspective/docker-compose.yml ps db`
