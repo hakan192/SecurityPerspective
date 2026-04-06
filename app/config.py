@@ -11,10 +11,11 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://redis:6379/1"
     celery_result_backend: str = "redis://redis:6379/2"
 
-    fortiweb_base_url: str = "https://fortiweb.example.local"
+    fortiweb_base_url: str = "https://3.236.139.71:8443"
     fortiweb_token: str = "change-me"
     fortiweb_verify_ssl: bool = False
     fortiweb_config_endpoint: str = "/api/v2.0/cmdb/waf"
+    fortiweb_server_policy_endpoint: str = "/api/v2.0/cmdb/server-policy/policy"
 
     scheduler_enabled: bool = False
     scheduler_minutes: int = 60

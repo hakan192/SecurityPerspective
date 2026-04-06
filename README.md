@@ -68,6 +68,14 @@ Copy values from `.env.example` and adjust for your environment.
 - View raw snapshots: `GET /exchange-rates/snapshots`
 - Frontend dashboard shows exchange rates after login and allows collecting latest data.
 
+## FortiWeb server-policy integration
+
+- WAF base URL default: `https://3.236.139.71:8443`
+- WAF endpoint: `/api/v2.0/cmdb/server-policy/policy`
+- Collect endpoint: `POST /fortiweb/server-policy/collect`
+- View latest collected raw JSON: `GET /fortiweb/server-policy/latest`
+- Frontend dashboard includes “Collect from WAF” and renders the raw JSON response after login.
+
 ## Notes
 
 - LDAP auth wiring is added as a backend skeleton helper (`ldap_authenticate`) and not yet connected to login/session middleware.

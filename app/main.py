@@ -32,6 +32,7 @@ from app.services import (
     fetch_fortiweb_config,
     parse_snapshot,
     collect_exchange_rates,
+    fetch_fortiweb_server_policy,
     seed_baseline_controls,
     seed_server_policy_samples,
     latest_exchange_rates,
@@ -139,6 +140,31 @@ def collect_on_demand(
     snapshot = create_snapshot(db, settings.fortiweb_config_endpoint, payload)
     parse_snapshot(db, snapshot)
     assess_snapshot(db, snapshot.id)
+    return snapshot
+
+
+@app.post("/fortiweb/server-policy/collect", response_model=SnapshotOut)
+def collect_fortiweb_server_policy(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    payload = fetch_fortiweb_server_policy()
+    return create_snapshot(db, settings.fortiweb_server_policy_endpoint, payload)
+
+
+@app.get("/fortiweb/server-policy/latest", response_model=SnapshotOut)
+def latest_fortiweb_server_policy(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    snapshot = (
+        db.query(FortiWebSnapshot)
+        .filter(FortiWebSnapshot.endpoint == settings.fortiweb_server_policy_endpoint)
+        .order_by(FortiWebSnapshot.collected_at.desc())
+        .first()
+    )
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Server policy snapshot not found")
     return snapshot
 
 

@@ -68,6 +68,10 @@ function Dashboard({ onLogout }) {
   const [loadingRates, setLoadingRates] = useState(true)
   const [rateError, setRateError] = useState('')
   const [collectingRates, setCollectingRates] = useState(false)
+  const [wafPayload, setWafPayload] = useState(null)
+  const [wafError, setWafError] = useState('')
+  const [loadingWaf, setLoadingWaf] = useState(true)
+  const [collectingWaf, setCollectingWaf] = useState(false)
 
   useEffect(() => {
     const fetchPolicies = async () => {
@@ -87,6 +91,26 @@ function Dashboard({ onLogout }) {
       }
     }
     fetchPolicies()
+  }, [])
+
+  useEffect(() => {
+    const fetchWafServerPolicy = async () => {
+      setLoadingWaf(true)
+      setWafError('')
+      try {
+        const response = await fetch(`${API_BASE}/fortiweb/server-policy/latest`)
+        if (!response.ok) {
+          throw new Error('No FortiWeb server-policy snapshot yet')
+        }
+        const data = await response.json()
+        setWafPayload(data.payload)
+      } catch (err) {
+        setWafError(err.message)
+      } finally {
+        setLoadingWaf(false)
+      }
+    }
+    fetchWafServerPolicy()
   }, [])
 
   useEffect(() => {
@@ -130,6 +154,27 @@ function Dashboard({ onLogout }) {
     }
   }
 
+  const collectWafPolicy = async () => {
+    setCollectingWaf(true)
+    setWafError('')
+    try {
+      const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
+        method: 'POST',
+        headers: { 'X-Role': 'admin' }
+      })
+      if (!response.ok) {
+        throw new Error('Failed to collect FortiWeb server policy')
+      }
+      const snapshot = await response.json()
+      setWafPayload(snapshot.payload)
+    } catch (err) {
+      setWafError(err.message)
+    } finally {
+      setCollectingWaf(false)
+      setLoadingWaf(false)
+    }
+  }
+
   return (
     <main style={styles.dashboard}>
       <div style={styles.topbar}>
@@ -165,6 +210,19 @@ function Dashboard({ onLogout }) {
               ))}
             </tbody>
           </table>
+        )}
+      </section>
+      <section style={{ ...styles.panel, marginTop: '1rem' }}>
+        <div style={styles.sectionHeader}>
+          <h3 style={{ margin: 0 }}>FortiWeb Server Policy Response</h3>
+          <button style={styles.collectBtn} onClick={collectWafPolicy} disabled={collectingWaf}>
+            {collectingWaf ? 'Collecting...' : 'Collect from WAF'}
+          </button>
+        </div>
+        {loadingWaf && <p>Loading server policy snapshot...</p>}
+        {wafError && <p style={styles.errorText}>{wafError}</p>}
+        {!loadingWaf && !wafError && wafPayload && (
+          <pre style={styles.jsonBox}>{JSON.stringify(wafPayload, null, 2)}</pre>
         )}
       </section>
       <section style={{ ...styles.panel, marginTop: '1rem' }}>
@@ -325,5 +383,14 @@ const styles = {
   },
   errorText: {
     color: '#991b1b'
+  },
+  jsonBox: {
+    background: '#0f172a',
+    color: '#e2e8f0',
+    borderRadius: '10px',
+    padding: '0.75rem',
+    maxHeight: '320px',
+    overflow: 'auto',
+    fontSize: '0.82rem'
   }
 }

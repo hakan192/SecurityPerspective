@@ -10,9 +10,27 @@ from app.models import BaselineControl, ExchangeRateSnapshot, FortiWebSnapshot, 
 
 def fetch_fortiweb_config() -> dict:
     url = f"{settings.fortiweb_base_url.rstrip('/')}{settings.fortiweb_config_endpoint}"
+    headers = {}
+    if settings.fortiweb_token and settings.fortiweb_token != "change-me":
+        headers["Authorization"] = f"Bearer {settings.fortiweb_token}"
     response = requests.get(
         url,
-        headers={"Authorization": f"Bearer {settings.fortiweb_token}"},
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_fortiweb_server_policy() -> dict:
+    url = f"{settings.fortiweb_base_url.rstrip('/')}{settings.fortiweb_server_policy_endpoint}"
+    headers = {}
+    if settings.fortiweb_token and settings.fortiweb_token != "change-me":
+        headers["Authorization"] = f"Bearer {settings.fortiweb_token}"
+    response = requests.get(
+        url,
+        headers=headers,
         timeout=30,
         verify=settings.fortiweb_verify_ssl,
     )
