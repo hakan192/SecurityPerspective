@@ -36,227 +36,112 @@ function LoginCard({ onLogin }) {
   }
 
   return (
-    <div style={styles.card}>
-      <h1 style={styles.title}>Security Perspective</h1>
-      <p style={styles.subtitle}>Sign in to access configuration and maturity insights</p>
-      <form onSubmit={submit} style={styles.form}>
-        <label style={styles.label}>Username</label>
-        <input style={styles.input} value={username} onChange={(e) => setUsername(e.target.value)} />
-        <label style={styles.label}>Password</label>
-        <input
-          type="password"
-          style={styles.input}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter password"
-        />
-        {error && <div style={styles.error}>{error}</div>}
-        <button style={styles.button} disabled={loading}>
-          {loading ? 'Signing in...' : 'Login'}
-        </button>
-      </form>
-      <p style={styles.helper}>Default local admin: <b>admin</b></p>
+    <div style={styles.loginPage}>
+      <div style={styles.loginCard}>
+        <h1 style={styles.loginTitle}>SecurityPerspective</h1>
+        <p style={styles.loginSubtitle}>Sign in to continue</p>
+        <form onSubmit={submit} style={styles.form}>
+          <label style={styles.label}>Username</label>
+          <input style={styles.input} value={username} onChange={(e) => setUsername(e.target.value)} />
+          <label style={styles.label}>Password</label>
+          <input type="password" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} />
+          {error && <div style={styles.error}>{error}</div>}
+          <button style={styles.primaryBtn} disabled={loading}>{loading ? 'Signing in...' : 'Login'}</button>
+        </form>
+      </div>
     </div>
   )
 }
 
-function Dashboard({ onLogout }) {
-  const [policies, setPolicies] = useState([])
-  const [loadingPolicies, setLoadingPolicies] = useState(true)
-  const [policyError, setPolicyError] = useState('')
-  const [rates, setRates] = useState([])
-  const [loadingRates, setLoadingRates] = useState(true)
-  const [rateError, setRateError] = useState('')
-  const [collectingRates, setCollectingRates] = useState(false)
-  const [wafPayload, setWafPayload] = useState(null)
+function AppShell({ session, onLogout }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [activeTab, setActiveTab] = useState('waf')
+  const [wafResponse, setWafResponse] = useState(null)
+  const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
-  const [loadingWaf, setLoadingWaf] = useState(true)
-  const [collectingWaf, setCollectingWaf] = useState(false)
 
-  useEffect(() => {
-    const fetchPolicies = async () => {
-      setLoadingPolicies(true)
-      setPolicyError('')
-      try {
-        const response = await fetch(`${API_BASE}/server-policies`)
-        if (!response.ok) {
-          throw new Error('Unable to load server policy data')
-        }
-        const data = await response.json()
-        setPolicies(data)
-      } catch (err) {
-        setPolicyError(err.message)
-      } finally {
-        setLoadingPolicies(false)
-      }
-    }
-    fetchPolicies()
-  }, [])
-
-  useEffect(() => {
-    const fetchWafServerPolicy = async () => {
-      setLoadingWaf(true)
-      setWafError('')
-      try {
-        const response = await fetch(`${API_BASE}/fortiweb/server-policy/latest`)
-        if (!response.ok) {
-          throw new Error('No FortiWeb server-policy snapshot yet')
-        }
-        const data = await response.json()
-        setWafPayload(data.payload)
-      } catch (err) {
-        setWafError(err.message)
-      } finally {
-        setLoadingWaf(false)
-      }
-    }
-    fetchWafServerPolicy()
-  }, [])
-
-  useEffect(() => {
-    const fetchRates = async () => {
-      setLoadingRates(true)
-      setRateError('')
-      try {
-        const response = await fetch(`${API_BASE}/exchange-rates/latest`)
-        if (!response.ok) {
-          throw new Error('Unable to load exchange rates')
-        }
-        const data = await response.json()
-        setRates(data)
-      } catch (err) {
-        setRateError(err.message)
-      } finally {
-        setLoadingRates(false)
-      }
-    }
-    fetchRates()
-  }, [])
-
-  const collectRates = async () => {
-    setCollectingRates(true)
-    setRateError('')
-    try {
-      const response = await fetch(`${API_BASE}/exchange-rates/collect`, {
-        method: 'POST',
-        headers: { 'X-Role': 'admin' }
-      })
-      if (!response.ok) {
-        throw new Error('Failed to collect exchange rates')
-      }
-      const latest = await fetch(`${API_BASE}/exchange-rates/latest`)
-      const rows = await latest.json()
-      setRates(rows)
-    } catch (err) {
-      setRateError(err.message)
-    } finally {
-      setCollectingRates(false)
-    }
-  }
-
-  const collectWafPolicy = async () => {
-    setCollectingWaf(true)
+  const loadWafResponse = async () => {
+    setLoadingWaf(true)
     setWafError('')
     try {
-      const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
-        method: 'POST',
-        headers: { 'X-Role': 'admin' }
-      })
-      if (!response.ok) {
-        throw new Error('Failed to collect FortiWeb server policy')
+      const res = await fetch(`${API_BASE}/fortiweb/server-policy/latest`)
+      if (!res.ok) {
+        throw new Error('No WAF API response found. Collect data first.')
       }
-      const snapshot = await response.json()
-      setWafPayload(snapshot.payload)
+      const data = await res.json()
+      setWafResponse(data.payload)
     } catch (err) {
       setWafError(err.message)
     } finally {
-      setCollectingWaf(false)
       setLoadingWaf(false)
     }
   }
 
+  useEffect(() => {
+    if (activeTab === 'waf') {
+      loadWafResponse()
+    }
+  }, [activeTab])
+
   return (
-    <main style={styles.dashboard}>
-      <div style={styles.topbar}>
-        <h2 style={{ margin: 0 }}>Welcome, Admin</h2>
-        <button style={styles.logout} onClick={onLogout}>Logout</button>
+    <div style={styles.appRoot}>
+      <header style={styles.topHeader}>
+        <div style={styles.leftHeader}>
+          <button style={styles.iconBtn} onClick={() => setSidebarOpen((v) => !v)} title="Toggle sidebar">☰</button>
+          <h2 style={styles.platformName}>SecurityPerspective</h2>
+        </div>
+        <div style={styles.profileBox}>
+          <div style={{ fontWeight: 700 }}>Profile</div>
+          <div>Logged in: {session?.username || 'admin'}</div>
+          <button style={styles.logoutBtn} onClick={onLogout}>Logout</button>
+        </div>
+      </header>
+
+      <div style={styles.mainLayout}>
+        {sidebarOpen && (
+          <aside style={styles.sidebar}>
+            <button
+              style={activeTab === 'waf' ? styles.navBtnActive : styles.navBtn}
+              onClick={() => setActiveTab('waf')}
+            >
+              WAF Configuration
+            </button>
+            <button
+              style={activeTab === 'maturity' ? styles.navBtnActive : styles.navBtn}
+              onClick={() => setActiveTab('maturity')}
+            >
+              Maturity Level
+            </button>
+            <button style={styles.settingsBtn}>⚙ Platform Settings</button>
+          </aside>
+        )}
+
+        <main style={styles.contentArea}>
+          {activeTab === 'waf' && (
+            <section style={styles.panel}>
+              <div style={styles.panelHeader}>
+                <h3 style={{ margin: 0 }}>API response</h3>
+                <button style={styles.primaryBtnSmall} onClick={loadWafResponse} disabled={loadingWaf}>
+                  {loadingWaf ? 'Refreshing...' : 'Refresh'}
+                </button>
+              </div>
+              {loadingWaf && <p>Loading WAF response...</p>}
+              {wafError && <p style={styles.errorText}>{wafError}</p>}
+              {!loadingWaf && !wafError && wafResponse && (
+                <pre style={styles.responseBox}>{JSON.stringify(wafResponse, null, 2)}</pre>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'maturity' && (
+            <section style={styles.panel}>
+              <h3 style={{ marginTop: 0 }}>Maturity Level</h3>
+              <p>Maturity scoring panel placeholder. Next step: visualize per-control and category scores.</p>
+            </section>
+          )}
+        </main>
       </div>
-      <section style={styles.panel}>
-        <h3>Phase 1 Status</h3>
-        <ul>
-          <li>FortiWeb data collection APIs are available.</li>
-          <li>PostgreSQL + Redis + Celery services are wired.</li>
-          <li>Next step: build full configuration and maturity dashboards.</li>
-        </ul>
-      </section>
-      <section style={{ ...styles.panel, marginTop: '1rem' }}>
-        <h3>Server Policy (Test Data)</h3>
-        {loadingPolicies && <p>Loading server policies...</p>}
-        {policyError && <p style={styles.errorText}>{policyError}</p>}
-        {!loadingPolicies && !policyError && (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>IP</th>
-                <th style={styles.th}>Hostnames</th>
-              </tr>
-            </thead>
-            <tbody>
-              {policies.map((row) => (
-                <tr key={row.id}>
-                  <td style={styles.td}>{row.ip}</td>
-                  <td style={styles.td}>{row.hostnames}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-      <section style={{ ...styles.panel, marginTop: '1rem' }}>
-        <div style={styles.sectionHeader}>
-          <h3 style={{ margin: 0 }}>FortiWeb Server Policy Response</h3>
-          <button style={styles.collectBtn} onClick={collectWafPolicy} disabled={collectingWaf}>
-            {collectingWaf ? 'Collecting...' : 'Collect from WAF'}
-          </button>
-        </div>
-        {loadingWaf && <p>Loading server policy snapshot...</p>}
-        {wafError && <p style={styles.errorText}>{wafError}</p>}
-        {!loadingWaf && !wafError && wafPayload && (
-          <pre style={styles.jsonBox}>{JSON.stringify(wafPayload, null, 2)}</pre>
-        )}
-      </section>
-      <section style={{ ...styles.panel, marginTop: '1rem' }}>
-        <div style={styles.sectionHeader}>
-          <h3 style={{ margin: 0 }}>USD Exchange Rates</h3>
-          <button style={styles.collectBtn} onClick={collectRates} disabled={collectingRates}>
-            {collectingRates ? 'Collecting...' : 'Collect Latest'}
-          </button>
-        </div>
-        {loadingRates && <p>Loading exchange rates...</p>}
-        {rateError && <p style={styles.errorText}>{rateError}</p>}
-        {!loadingRates && !rateError && rates.length === 0 && (
-          <p>No exchange-rate data yet. Click “Collect Latest”.</p>
-        )}
-        {!loadingRates && !rateError && rates.length > 0 && (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Currency</th>
-                <th style={styles.th}>Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rates.slice(0, 20).map((row) => (
-                <tr key={row.currency}>
-                  <td style={styles.td}>{row.currency}</td>
-                  <td style={styles.td}>{row.rate}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+    </div>
   )
 }
 
@@ -276,121 +161,152 @@ export default function App() {
     setSession(null)
   }
 
-  return (
-    <div style={styles.page}>
-      {!session ? <LoginCard onLogin={handleLogin} /> : <Dashboard onLogout={handleLogout} />}
-    </div>
-  )
+  return session ? <AppShell session={session} onLogout={handleLogout} /> : <LoginCard onLogin={handleLogin} />
 }
 
 const styles = {
-  page: {
+  loginPage: {
     minHeight: '100vh',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
     background: 'linear-gradient(135deg, #0f172a, #1d4ed8)',
+    display: 'grid',
+    placeItems: 'center',
     padding: '1rem'
   },
-  card: {
+  loginCard: {
     width: '100%',
     maxWidth: '420px',
     background: 'rgba(255,255,255,0.95)',
-    borderRadius: '18px',
-    boxShadow: '0 20px 35px rgba(0,0,0,0.25)',
-    padding: '2rem'
+    borderRadius: '16px',
+    padding: '1.5rem',
+    boxShadow: '0 16px 28px rgba(0,0,0,0.22)'
   },
-  title: { marginBottom: '0.5rem', color: '#0f172a' },
-  subtitle: { marginTop: 0, color: '#334155' },
-  form: { display: 'grid', gap: '0.65rem' },
-  label: { fontSize: '0.9rem', color: '#334155' },
-  input: {
-    padding: '0.7rem',
-    border: '1px solid #cbd5e1',
-    borderRadius: '10px',
-    outline: 'none'
-  },
-  button: {
-    marginTop: '0.8rem',
-    padding: '0.85rem',
+  loginTitle: { margin: 0 },
+  loginSubtitle: { marginTop: '0.4rem', color: '#334155' },
+  form: { display: 'grid', gap: '0.6rem' },
+  label: { fontSize: '0.9rem' },
+  input: { padding: '0.7rem', borderRadius: '10px', border: '1px solid #cbd5e1' },
+  error: { background: '#fee2e2', color: '#991b1b', borderRadius: '8px', padding: '0.5rem' },
+  primaryBtn: {
+    marginTop: '0.6rem',
+    padding: '0.75rem',
     border: 0,
     borderRadius: '10px',
-    color: 'white',
     background: '#2563eb',
-    fontWeight: 600,
+    color: 'white',
+    fontWeight: 700,
     cursor: 'pointer'
   },
-  error: {
-    marginTop: '0.5rem',
-    padding: '0.5rem',
-    background: '#fee2e2',
-    color: '#991b1b',
-    borderRadius: '8px'
+  appRoot: {
+    minHeight: '100vh',
+    background: '#f1f5f9',
+    padding: '0.75rem',
+    display: 'grid',
+    gridTemplateRows: 'auto 1fr',
+    gap: '0.75rem'
   },
-  helper: { marginTop: '1rem', color: '#64748b', fontSize: '0.9rem' },
-  dashboard: {
-    width: '100%',
-    maxWidth: '850px',
-    background: '#f8fafc',
-    borderRadius: '16px',
-    padding: '1.25rem'
-  },
-  topbar: {
+  topHeader: {
+    background: 'white',
+    borderRadius: '12px',
+    border: '1px solid #dbeafe',
+    padding: '0.75rem 1rem',
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '1rem'
+    justifyContent: 'space-between'
   },
-  logout: {
+  leftHeader: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
+  iconBtn: {
     border: '1px solid #cbd5e1',
     background: 'white',
     borderRadius: '8px',
-    padding: '0.45rem 0.9rem',
+    width: '34px',
+    height: '34px',
     cursor: 'pointer'
   },
-  panel: {
-    border: '1px solid #e2e8f0',
-    borderRadius: '10px',
-    padding: '1rem',
-    background: 'white'
+  platformName: { margin: 0 },
+  profileBox: {
+    border: '1px solid #cbd5e1',
+    borderRadius: '12px',
+    padding: '0.5rem 0.75rem',
+    display: 'grid',
+    gap: '0.25rem',
+    fontSize: '0.9rem'
   },
-  sectionHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '0.75rem'
-  },
-  collectBtn: {
+  logoutBtn: {
     border: 0,
-    background: '#0ea5e9',
+    background: '#ef4444',
     color: 'white',
-    padding: '0.45rem 0.8rem',
     borderRadius: '8px',
+    padding: '0.35rem 0.6rem',
     cursor: 'pointer'
   },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse'
+  mainLayout: {
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr',
+    gap: '0.75rem',
+    minHeight: 0
   },
-  th: {
+  sidebar: {
+    width: '220px',
+    background: 'white',
+    border: '1px solid #dbeafe',
+    borderRadius: '12px',
+    padding: '0.75rem',
+    display: 'grid',
+    alignContent: 'start',
+    gap: '0.6rem'
+  },
+  navBtn: {
+    border: '1px solid #cbd5e1',
+    borderRadius: '10px',
+    background: 'white',
+    padding: '0.65rem',
     textAlign: 'left',
-    borderBottom: '1px solid #e2e8f0',
-    padding: '0.5rem'
+    cursor: 'pointer'
   },
-  td: {
-    borderBottom: '1px solid #f1f5f9',
-    padding: '0.5rem'
+  navBtnActive: {
+    border: '1px solid #2563eb',
+    borderRadius: '10px',
+    background: '#dbeafe',
+    padding: '0.65rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    color: '#1e3a8a',
+    fontWeight: 700
   },
-  errorText: {
-    color: '#991b1b'
+  settingsBtn: {
+    marginTop: 'auto',
+    border: '1px solid #cbd5e1',
+    borderRadius: '20px',
+    background: 'white',
+    padding: '0.45rem 0.6rem',
+    cursor: 'pointer',
+    textAlign: 'left'
   },
-  jsonBox: {
+  contentArea: { minWidth: 0 },
+  panel: {
+    background: 'white',
+    border: '1px solid #dbeafe',
+    borderRadius: '12px',
+    padding: '1rem',
+    minHeight: '72vh'
+  },
+  panelHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' },
+  primaryBtnSmall: {
+    border: 0,
+    background: '#2563eb',
+    color: 'white',
+    borderRadius: '8px',
+    padding: '0.45rem 0.7rem',
+    cursor: 'pointer'
+  },
+  responseBox: {
     background: '#0f172a',
     color: '#e2e8f0',
     borderRadius: '10px',
     padding: '0.75rem',
-    maxHeight: '320px',
+    maxHeight: '63vh',
     overflow: 'auto',
     fontSize: '0.82rem'
-  }
+  },
+  errorText: { color: '#991b1b' }
 }

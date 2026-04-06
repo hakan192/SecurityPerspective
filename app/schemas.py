@@ -49,6 +49,7 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     role: str = "admin"
+    username: str = "admin"
 
 
 class ServerPolicyOut(BaseModel):

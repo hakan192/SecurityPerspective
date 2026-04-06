@@ -77,6 +77,16 @@ Copy values from `.env.example` and adjust for your environment.
 - View latest collected raw JSON: `GET /fortiweb/server-policy/latest`
 - Frontend dashboard includes “Collect from WAF” and renders the raw JSON response after login.
 
+## Frontend layout (Phase 1 refresh)
+
+- Top-left: platform name **SecurityPerspective**
+- Top-right: profile card with logged-in user and logout
+- Collapsible left sidebar with:
+  - `WAF Configuration`
+  - `Maturity Level`
+  - `⚙ Platform Settings` button at bottom
+- When `WAF Configuration` tab is active, the main panel displays the latest WAF API response JSON.
+
 ## Notes
 
 - LDAP auth wiring is added as a backend skeleton helper (`ldap_authenticate`) and not yet connected to login/session middleware.

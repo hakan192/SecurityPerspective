@@ -128,7 +128,7 @@ def login(payload: LoginRequest):
     if not verify_local_admin(payload.username, payload.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     # Phase-1 local token placeholder (replace with JWT in next phase)
-    return LoginResponse(access_token="local-admin-token")
+    return LoginResponse(access_token="local-admin-token", username=payload.username)
 
 
 @app.post("/collect", response_model=SnapshotOut)
