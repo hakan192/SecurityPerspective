@@ -54,3 +54,11 @@ class MaturityAssessment(Base):
     overall_score: Mapped[float] = mapped_column(Float, default=0.0)
     maturity_level: Mapped[str] = mapped_column(String(120))
     details: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class ServerPolicy(Base):
+    __tablename__ = "Server_Policy"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ip: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    hostnames: Mapped[str] = mapped_column(String(255), nullable=False)

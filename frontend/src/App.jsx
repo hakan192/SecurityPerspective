@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -56,6 +56,30 @@ function LoginCard({ onLogin }) {
 }
 
 function Dashboard({ onLogout }) {
+  const [policies, setPolicies] = useState([])
+  const [loadingPolicies, setLoadingPolicies] = useState(true)
+  const [policyError, setPolicyError] = useState('')
+
+  useEffect(() => {
+    const fetchPolicies = async () => {
+      setLoadingPolicies(true)
+      setPolicyError('')
+      try {
+        const response = await fetch(`${API_BASE}/server-policies`)
+        if (!response.ok) {
+          throw new Error('Unable to load server policy data')
+        }
+        const data = await response.json()
+        setPolicies(data)
+      } catch (err) {
+        setPolicyError(err.message)
+      } finally {
+        setLoadingPolicies(false)
+      }
+    }
+    fetchPolicies()
+  }, [])
+
   return (
     <main style={styles.dashboard}>
       <div style={styles.topbar}>
@@ -69,6 +93,29 @@ function Dashboard({ onLogout }) {
           <li>PostgreSQL + Redis + Celery services are wired.</li>
           <li>Next step: build full configuration and maturity dashboards.</li>
         </ul>
+      </section>
+      <section style={{ ...styles.panel, marginTop: '1rem' }}>
+        <h3>Server Policy (Test Data)</h3>
+        {loadingPolicies && <p>Loading server policies...</p>}
+        {policyError && <p style={styles.errorText}>{policyError}</p>}
+        {!loadingPolicies && !policyError && (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>IP</th>
+                <th style={styles.th}>Hostnames</th>
+              </tr>
+            </thead>
+            <tbody>
+              {policies.map((row) => (
+                <tr key={row.id}>
+                  <td style={styles.td}>{row.ip}</td>
+                  <td style={styles.td}>{row.hostnames}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </main>
   )
@@ -167,5 +214,21 @@ const styles = {
     borderRadius: '10px',
     padding: '1rem',
     background: 'white'
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse'
+  },
+  th: {
+    textAlign: 'left',
+    borderBottom: '1px solid #e2e8f0',
+    padding: '0.5rem'
+  },
+  td: {
+    borderBottom: '1px solid #f1f5f9',
+    padding: '0.5rem'
+  },
+  errorText: {
+    color: '#991b1b'
   }
 }

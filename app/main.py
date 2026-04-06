@@ -13,10 +13,17 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.models import FortiWebSnapshot, MaturityAssessment, ParsedConfig
-from app.schemas import AssessmentOut, LoginRequest, LoginResponse, ParsedConfigOut, SnapshotOut
+from app.models import FortiWebSnapshot, MaturityAssessment, ParsedConfig, ServerPolicy
+from app.schemas import AssessmentOut, LoginRequest, LoginResponse, ParsedConfigOut, ServerPolicyOut, SnapshotOut
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
-from app.services import assess_snapshot, create_snapshot, fetch_fortiweb_config, parse_snapshot, seed_baseline_controls
+from app.services import (
+    assess_snapshot,
+    create_snapshot,
+    fetch_fortiweb_config,
+    parse_snapshot,
+    seed_baseline_controls,
+    seed_server_policy_samples,
+)
 
 app = FastAPI(title=settings.app_name)
 scheduler = BackgroundScheduler()
@@ -53,6 +60,7 @@ def startup_event():
     db = SessionLocal()
     try:
         seed_baseline_controls(db)
+        seed_server_policy_samples(db)
     finally:
         db.close()
 
@@ -110,6 +118,14 @@ def collect_on_demand(
     parse_snapshot(db, snapshot)
     assess_snapshot(db, snapshot.id)
     return snapshot
+
+
+@app.get("/server-policies", response_model=list[ServerPolicyOut])
+def list_server_policies(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    return db.query(ServerPolicy).order_by(ServerPolicy.id.asc()).all()
 
 
 @app.post("/collect/async")

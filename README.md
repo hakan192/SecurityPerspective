@@ -50,6 +50,13 @@ Copy values from `.env.example` and adjust for your environment.
 - Default local admin credentials are configured via:
   - `LOCAL_ADMIN_USERNAME` (default `admin`)
   - `LOCAL_ADMIN_PASSWORD` (default `admin123!`)
+- After login, frontend displays seeded test `Server_Policy` data (IP + hostnames).
+
+## Test server policy data
+
+- API endpoint: `GET /server-policies`
+- Table name in PostgreSQL: `\"Server_Policy\"`
+- Seeded sample rows are created on startup for development/testing.
 
 ## Notes
 

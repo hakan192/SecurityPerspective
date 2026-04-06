@@ -49,3 +49,12 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     role: str = "admin"
+
+
+class ServerPolicyOut(BaseModel):
+    id: int
+    ip: str
+    hostnames: str
+
+    class Config:
+        from_attributes = True

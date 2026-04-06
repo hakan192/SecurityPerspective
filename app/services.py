@@ -5,7 +5,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import BaselineControl, FortiWebSnapshot, MaturityAssessment, ParsedConfig
+from app.models import BaselineControl, FortiWebSnapshot, MaturityAssessment, ParsedConfig, ServerPolicy
 
 
 def fetch_fortiweb_config() -> dict:
@@ -181,4 +181,18 @@ def seed_baseline_controls(db: Session):
         ),
     ]
     db.add_all(defaults)
+    db.commit()
+
+
+def seed_server_policy_samples(db: Session):
+    if db.query(ServerPolicy).count():
+        return
+
+    db.add_all(
+        [
+            ServerPolicy(ip="10.10.1.10", hostnames="app.internal.local"),
+            ServerPolicy(ip="10.10.1.11", hostnames="portal.internal.local"),
+            ServerPolicy(ip="10.10.1.12", hostnames="api.internal.local"),
+        ]
+    )
     db.commit()
