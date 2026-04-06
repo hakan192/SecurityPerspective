@@ -86,6 +86,11 @@ Copy values from `.env.example` and adjust for your environment.
   - `Maturity Level`
   - `⚙ Platform Settings` button at bottom
 - When `WAF Configuration` tab is active, the main panel displays the latest WAF API response JSON.
+- Dark-blue executive dashboard style for maturity view includes:
+  - overview cards
+  - maturity trend block
+  - recent findings panel
+  - configuration source status blocks
 
 ## Notes
 
