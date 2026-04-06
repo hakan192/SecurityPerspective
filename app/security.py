@@ -1,5 +1,4 @@
 from fastapi import Header, HTTPException
-from ldap3 import ALL, Connection, Server
 
 from app.config import settings
 
@@ -19,6 +18,8 @@ def require_analyst_or_admin(x_role: str = Header(default="viewer")) -> str:
 def ldap_authenticate(username: str, password: str) -> bool:
     if not settings.ldap_enabled:
         return False
+
+    from ldap3 import ALL, Connection, Server
 
     server = Server(settings.ldap_server_uri, get_info=ALL)
     bind_connection = Connection(
