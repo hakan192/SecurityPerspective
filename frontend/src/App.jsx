@@ -106,7 +106,7 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 }
 
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
