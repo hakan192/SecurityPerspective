@@ -106,6 +106,7 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 }
 
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeNav, setActiveNav] = useState('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -187,8 +188,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   return (
     <div className={`dashboard-page ${darkMode ? 'dark' : 'light'}`}>
       <div className="ambient-layer" />
-      <div className="dashboard-shell">
-        <aside className="sidebar">
+      <div className={`dashboard-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+        <aside className={`sidebar ${sidebarOpen ? 'is-open' : 'is-closed'}`}>
           <div>
             <button onClick={() => setActiveNav('home')} className="home-link">
               <div className="brand-logo-shell">
@@ -205,7 +206,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               {navItems.map((item) => {
                 const active = activeNav === item.id
                 return (
-                  <button key={item.id} type="button" onClick={() => setActiveNav(item.id)} className={`nav-item ${active ? 'active' : ''}`}>
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveNav(item.id)
+                        setSidebarOpen(false)
+                      }}
+                      className={`nav-item ${active ? 'active' : ''}`}
+                    >
                     <div>
                       <div className="nav-title">{item.label}</div>
                       <div className="nav-desc">{item.description}</div>
@@ -225,6 +234,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
         <main className="main-panel">
           <header className="topbar">
             <div>
+              <button type="button" onClick={() => setSidebarOpen((prev) => !prev)} className="theme-btn sidebar-toggle">
+                {sidebarOpen ? 'Close menu' : 'Open menu'}
+              </button>
               <div className="kicker">Workspace</div>
               <h1 className="workspace-title">{activeNav === 'home' ? 'Search' : activeNav === 'waf' ? 'WAF Configuration' : 'Executive Overview'}</h1>
             </div>

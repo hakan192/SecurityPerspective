@@ -161,11 +161,15 @@ input,
   grid-template-columns: 300px 1fr;
   background: rgba(255, 255, 255, 0.74);
   backdrop-filter: blur(10px);
+  transition: grid-template-columns 0.25s ease;
 }
 
 .dark .dashboard-shell { background: rgba(2, 6, 23, 0.8); border-color: rgba(100, 116, 139, 0.35); }
 
 .sidebar { border-right: 1px solid rgba(148, 163, 184, 0.35); padding: 1.1rem; display: flex; flex-direction: column; justify-content: space-between; }
+.sidebar.is-closed { display: none; }
+.dashboard-shell.sidebar-closed { grid-template-columns: 1fr; }
+.dashboard-shell.sidebar-open { grid-template-columns: 300px 1fr; }
 
 .home-link { background: transparent; border: 0; cursor: pointer; padding: 0; text-align: left; color: inherit; }
 
@@ -183,6 +187,7 @@ input,
 .main-panel { display: flex; flex-direction: column; min-width: 0; }
 .topbar { border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding: 1.2rem 1.4rem; }
 .workspace-title { margin: 0.2rem 0 0; font-size: 1.65rem; letter-spacing: -0.03em; }
+.sidebar-toggle { margin-bottom: 0.45rem; }
 .profile-menu { position: relative; }
 .avatar-btn { width: 46px; height: 46px; font-weight: 700; cursor: pointer; }
 
