@@ -13,7 +13,7 @@ Phase 1 foundation for a containerized security assessment platform:
 
 - Repository structure initialized for backend + frontend.
 - Dockerfiles for backend and frontend.
-- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, and React frontend.
+- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, React frontend, and NGINX reverse proxy.
 - Environment configuration template (`.env.example`).
 - Backend skeleton with health endpoints.
 - Existing FortiWeb snapshot, parsing, and maturity-scoring APIs retained as starter capability.
@@ -25,9 +25,10 @@ cd /path/to/SecurityPerspective
 docker compose up --build
 ```
 
-- Backend API: http://localhost:8000
-- API docs: http://localhost:8000/docs
-- Frontend: http://localhost:5173
+- NGINX gateway (recommended): http://localhost
+- Backend API (direct): http://localhost:8000
+- API docs (via NGINX): http://localhost/docs
+- Frontend (direct Vite): http://localhost:5173
 - PostgreSQL (host access): localhost:5433
 
 ## Health checks
