@@ -13,7 +13,7 @@ Phase 1 foundation for a containerized security assessment platform:
 
 - Repository structure initialized for backend + frontend.
 - Dockerfiles for backend and frontend.
-- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, and React frontend.
+- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, React frontend, and Nginx reverse proxy.
 - Environment configuration template (`.env.example`).
 - Backend skeleton with health endpoints.
 - Existing FortiWeb snapshot, parsing, and maturity-scoring APIs retained as starter capability.
@@ -25,9 +25,9 @@ cd /path/to/SecurityPerspective
 docker compose up --build
 ```
 
-- Backend API: http://localhost:8000
-- API docs: http://localhost:8000/docs
-- Frontend: http://localhost:5173
+- Nginx gateway (frontend + API): http://localhost
+- Backend API via Nginx: http://localhost/api
+- API docs via Nginx: http://localhost/api/docs
 - PostgreSQL (host access): localhost:5433
 
 ## Health checks
@@ -46,7 +46,7 @@ Copy values from `.env.example` and adjust for your environment.
 
 ## Local admin login (Phase 1)
 
-- Frontend starts with a login screen at `http://localhost:5173`.
+- Frontend starts with a login screen at `http://localhost` (served through Nginx).
 - Backend auth endpoint: `POST /auth/login`.
 - Default local admin credentials are configured via:
   - `LOCAL_ADMIN_USERNAME` (default `admin`)
@@ -104,7 +104,7 @@ Copy values from `.env.example` and adjust for your environment.
 
 ## Troubleshooting
 
-- If login shows `Failed to fetch`, ensure backend is running and CORS origins include your frontend URL via `CORS_ALLOW_ORIGINS`.
-- If frontend is opened via public IP (example `http://100.54.91.32:5173`), API base now auto-resolves to that host (`http://<host>:8000`) and CORS regex can allow dynamic origins via `CORS_ALLOW_ORIGIN_REGEX`.
+- If login shows `Failed to fetch`, ensure the `nginx`, `frontend`, and `backend` services are healthy (`docker compose ps`) and that frontend requests are using `/api` through Nginx.
+- If frontend is opened via public IP (example `http://100.54.91.32`), ensure that IP resolves to the Nginx service and that `/api` routes are reachable.
 - If `docker compose ps db` shows `no configuration file provided`, run the command from the project directory or use:
   - `docker compose -f /home/ubuntu/SecurityPerspective/docker-compose.yml ps db`
