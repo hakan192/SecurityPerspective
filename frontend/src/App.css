@@ -187,7 +187,39 @@ input,
 .main-panel { display: flex; flex-direction: column; min-width: 0; }
 .topbar { border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding: 1.2rem 1.4rem; }
 .workspace-title { margin: 0.2rem 0 0; font-size: 1.65rem; letter-spacing: -0.03em; }
-.sidebar-toggle { margin-bottom: 0.45rem; }
+.sidebar-icon-btn {
+  position: relative;
+  margin-bottom: 0.45rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(255, 255, 255, 0.82);
+  color: inherit;
+  cursor: pointer;
+}
+.dark .sidebar-icon-btn { background: rgba(30, 41, 59, 0.75); border-color: rgba(100, 116, 139, 0.45); }
+.sidebar-icon { font-size: 1rem; }
+.sidebar-tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  background: #020617;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0.38rem 0.6rem;
+  border-radius: 0.6rem;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.sidebar-icon-btn:hover .sidebar-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
 .profile-menu { position: relative; }
 .avatar-btn { width: 46px; height: 46px; font-weight: 700; cursor: pointer; }
 

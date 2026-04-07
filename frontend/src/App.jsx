@@ -234,8 +234,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
         <main className="main-panel">
           <header className="topbar">
             <div>
-              <button type="button" onClick={() => setSidebarOpen((prev) => !prev)} className="theme-btn sidebar-toggle">
-                {sidebarOpen ? 'Close menu' : 'Open menu'}
+              <button type="button" onClick={() => setSidebarOpen((prev) => !prev)} className="sidebar-icon-btn" aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}>
+                <span className="sidebar-icon" aria-hidden="true">◧</span>
+                <span className="sidebar-tooltip">{sidebarOpen ? 'Close sidebar' : 'Open sidebar'}</span>
               </button>
               <div className="kicker">Workspace</div>
               <h1 className="workspace-title">{activeNav === 'home' ? 'Search' : activeNav === 'waf' ? 'WAF Configuration' : 'Executive Overview'}</h1>
