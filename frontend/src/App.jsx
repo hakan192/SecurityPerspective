@@ -21,18 +21,12 @@ const navItems = [
   }
 ]
 
-function LoginCard({ onLogin }) {
+function LoginCard({ onLogin, darkMode, onToggleTheme }) {
   const logoSrc = '/branding/securityperspective-logo.png'
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
-  const [darkMode, setDarkMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    setDarkMode(prefersDark)
-  }, [])
 
   const submit = async (event) => {
     event.preventDefault()
@@ -65,7 +59,7 @@ function LoginCard({ onLogin }) {
               <span>Security</span> <span className="gradient-text">Perspective</span>
             </h1>
           </div>
-          <button type="button" onClick={() => setDarkMode((prev) => !prev)} className="theme-btn">
+          <button type="button" onClick={onToggleTheme} className="theme-btn">
             {darkMode ? 'Light' : 'Dark'}
           </button>
         </div>
@@ -88,9 +82,8 @@ function LoginCard({ onLogin }) {
   )
 }
 
-function AppShell({ session, onLogout }) {
+function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const logoSrc = '/branding/securityperspective-logo.png'
-  const [darkMode, setDarkMode] = useState(false)
   const [activeNav, setActiveNav] = useState('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -102,11 +95,6 @@ function AppShell({ session, onLogout }) {
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
-
-  useEffect(() => {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    setDarkMode(prefersDark)
-  }, [])
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -220,7 +208,7 @@ function AppShell({ session, onLogout }) {
             </div>
 
             <div className="topbar-right">
-              <button type="button" onClick={() => setDarkMode((prev) => !prev)} className="theme-btn">
+              <button type="button" onClick={onToggleTheme} className="theme-btn">
                 {darkMode ? 'Light' : 'Dark'}
               </button>
 
@@ -279,10 +267,25 @@ function AppShell({ session, onLogout }) {
 }
 
 export default function App() {
+  const [darkMode, setDarkMode] = useState(() => {
+    const storedTheme = localStorage.getItem('sp_theme')
+    if (storedTheme === 'dark') return true
+    if (storedTheme === 'light') return false
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
   const [session, setSession] = useState(() => {
     const raw = localStorage.getItem('sp_session')
     return raw ? JSON.parse(raw) : null
   })
+
+  useEffect(() => {
+    localStorage.setItem('sp_theme', darkMode ? 'dark' : 'light')
+  }, [darkMode])
+
+  const toggleTheme = () => {
+    setDarkMode((prev) => !prev)
+  }
 
   const handleLogin = (data) => {
     localStorage.setItem('sp_session', JSON.stringify(data))
@@ -294,5 +297,7 @@ export default function App() {
     setSession(null)
   }
 
-  return session ? <AppShell session={session} onLogout={handleLogout} /> : <LoginCard onLogin={handleLogin} />
+  return session
+    ? <AppShell session={session} onLogout={handleLogout} darkMode={darkMode} onToggleTheme={toggleTheme} />
+    : <LoginCard onLogin={handleLogin} darkMode={darkMode} onToggleTheme={toggleTheme} />
 }
