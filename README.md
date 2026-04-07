@@ -36,18 +36,14 @@ docker compose up --build
 
 ### HTTPS certificate setup for NGINX
 
-Create TLS cert/key files before starting the stack (required for the NGINX container):
+NGINX auto-generates a self-signed certificate at container startup if `nginx/certs/server.crt` and `nginx/certs/server.key` do not exist.
 
-```bash
-mkdir -p nginx/certs
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout nginx/certs/server.key \
-  -out nginx/certs/server.crt \
-  -subj "/CN=localhost"
-```
+To use your own certificate instead, place files at:
+
+- `nginx/certs/server.crt`
+- `nginx/certs/server.key`
 
 > For production, replace the self-signed files with certificates from your CA.
-
 ## Health checks
 
 - `GET /health/live` — process liveness
