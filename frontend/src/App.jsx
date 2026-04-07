@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const resolvedHost = window.location.hostname || 'localhost'
@@ -21,8 +21,31 @@ const navItems = [
   }
 ]
 
+function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
+  const gradientId = useId()
+
+  return (
+    <svg className={className} viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="SecurityPerspective logo" role="img">
+      <defs>
+        <linearGradient id={gradientId} x1="112" y1="96" x2="400" y2="416" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#00A94F" />
+          <stop offset="100%" stopColor="#004481" />
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" rx="140" fill="#0F172A" />
+      <path
+        d="M256 110C310 110 355 125 390 150V240C390 315 340 380 256 402C172 380 122 315 122 240V150C157 125 202 110 256 110Z"
+        stroke={`url(#${gradientId})`}
+        strokeWidth="28"
+        strokeLinejoin="round"
+      />
+      <ellipse cx="256" cy="250" rx="95" ry="60" stroke={`url(#${gradientId})`} strokeWidth="24" />
+      <circle cx="256" cy="250" r="28" fill="#00A94F" />
+    </svg>
+  )
+}
+
 function LoginCard({ onLogin, darkMode, onToggleTheme }) {
-  const logoSrc = '/branding/securityperspective-logo.png'
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -53,7 +76,7 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
         <div className="login-head">
           <div className="brand-wrap">
             <div className="brand-logo-shell">
-              <img src={logoSrc} alt="SecurityPerspective logo" className="brand-logo" />
+              <SecurityPerspectiveLogo />
             </div>
             <h1 className="brand-title">
               <span>Security</span> <span className="gradient-text">Perspective</span>
@@ -83,7 +106,6 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 }
 
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
-  const logoSrc = '/branding/securityperspective-logo.png'
   const [activeNav, setActiveNav] = useState('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -170,7 +192,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
           <div>
             <button onClick={() => setActiveNav('home')} className="home-link">
               <div className="brand-logo-shell">
-                <img src={logoSrc} alt="SecurityPerspective logo" className="brand-logo" />
+                <SecurityPerspectiveLogo />
               </div>
               <div>
                 <div className="kicker">Security Platform</div>
