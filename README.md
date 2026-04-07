@@ -13,7 +13,7 @@ Phase 1 foundation for a containerized security assessment platform:
 
 - Repository structure initialized for backend + frontend.
 - Dockerfiles for backend and frontend.
-- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, React frontend, and NGINX reverse proxy.
+- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, React frontend, and NGINX reverse proxy with HTTPS support.
 - Environment configuration template (`.env.example`).
 - Backend skeleton with health endpoints.
 - Existing FortiWeb snapshot, parsing, and maturity-scoring APIs retained as starter capability.
@@ -27,11 +27,26 @@ docker compose up --build
 
 - Backend API: http://localhost:8000
 - API docs: http://localhost:8000/docs
-- NGINX entrypoint (frontend + proxied backend docs/health): http://localhost
+- NGINX entrypoint (frontend + proxied backend docs/health): https://localhost
 - Frontend (direct dev server): http://localhost:5173
-- API docs (through NGINX): http://localhost/docs
+- API docs (through NGINX): https://localhost/docs
 - Backend API (direct): http://localhost:8000
 - PostgreSQL (host access): localhost:5433
+
+
+### HTTPS certificate setup for NGINX
+
+Create TLS cert/key files before starting the stack (required for the NGINX container):
+
+```bash
+mkdir -p nginx/certs
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout nginx/certs/server.key \
+  -out nginx/certs/server.crt \
+  -subj "/CN=localhost"
+```
+
+> For production, replace the self-signed files with certificates from your CA.
 
 ## Health checks
 
