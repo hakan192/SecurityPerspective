@@ -8,6 +8,8 @@ const API_BASE =
     ? configuredApiBase.replace('localhost', resolvedHost)
     : configuredApiBase || `http://${resolvedHost}:8000`
 
+const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
+
 const navItems = [
   {
     id: 'waf',
@@ -20,6 +22,57 @@ const navItems = [
     description: 'Leadership-ready security posture summaries'
   }
 ]
+
+function extractServerPolicyNames(payload) {
+  const seen = new Set()
+  const names = []
+
+  const addName = (value) => {
+    if (typeof value !== 'string') return
+    const trimmed = value.trim()
+    if (!trimmed || seen.has(trimmed)) return
+    seen.add(trimmed)
+    names.push(trimmed)
+  }
+
+  const parseMaybeJson = (value) => {
+    if (typeof value !== 'string') return null
+    try {
+      return JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+
+  const walk = (node, rawJsonContext = false) => {
+    if (!node) return
+
+    if (Array.isArray(node)) {
+      node.forEach((item) => walk(item, rawJsonContext))
+      return
+    }
+
+    if (typeof node !== 'object') return
+
+    if (typeof node.name === 'string' && (rawJsonContext || 'name' in node)) {
+      addName(node.name)
+    }
+
+    Object.entries(node).forEach(([key, value]) => {
+      if (key === 'raw_json') {
+        const parsed = parseMaybeJson(value)
+        if (parsed) walk(parsed, true)
+      } else if (key === 'results' && Array.isArray(value)) {
+        value.forEach((item) => walk(item, rawJsonContext))
+      } else {
+        walk(value, rawJsonContext)
+      }
+    })
+  }
+
+  walk(payload)
+  return names
+}
 
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
@@ -112,12 +165,14 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [prompt, setPrompt] = useState('')
   const [searchResult, setSearchResult] = useState('')
   const [wafResponse, setWafResponse] = useState(null)
+  const [selectedPolicyName, setSelectedPolicyName] = useState('')
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
   const menuRef = useRef(null)
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
+  const serverPolicyNames = useMemo(() => extractServerPolicyNames(wafResponse), [wafResponse])
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -134,7 +189,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setLoadingWaf(true)
     setWafError('')
     try {
-      const res = await fetch(`${API_BASE}/fortiweb/server-policy/latest`)
+      const res = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
       if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
       const data = await res.json()
       setWafResponse(data.payload)
@@ -206,15 +261,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               {navItems.map((item) => {
                 const active = activeNav === item.id
                 return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveNav(item.id)
-                        setSidebarOpen(false)
-                      }}
-                      className={`nav-item ${active ? 'active' : ''}`}
-                    >
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveNav(item.id)
+                      setSidebarOpen(false)
+                    }}
+                    className={`nav-item ${active ? 'active' : ''}`}
+                  >
                     <div>
                       <div className="nav-title">{item.label}</div>
                       <div className="nav-desc">{item.description}</div>
@@ -279,9 +334,12 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             )}
 
             {activeNav === 'waf' && (
-              <section className="waf-panel">
+              <section className="waf-panel modern-waf">
                 <div className="waf-header-row">
-                  <div className="nav-title">Latest API response</div>
+                  <div>
+                    <div className="nav-title">Server policy cards</div>
+                    <div className="waf-endpoint">API endpoint: {SERVER_POLICY_ENDPOINT}</div>
+                  </div>
                   <div className="waf-buttons">
                     <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
                     <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
@@ -289,7 +347,29 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                 </div>
                 {loadingWaf && <p className="nav-desc">Loading...</p>}
                 {wafError && <p className="error-box">{wafError}</p>}
-                {!loadingWaf && !wafError && wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}
+                {!loadingWaf && !wafError && (
+                  <>
+                    <div className="waf-card-grid">
+                      {serverPolicyNames.length === 0 && <p className="nav-desc">No policy names found in raw_json.name fields.</p>}
+                      {serverPolicyNames.map((policyName) => {
+                        const selected = selectedPolicyName === policyName
+                        return (
+                          <button
+                            key={policyName}
+                            type="button"
+                            className={`policy-card ${selected ? 'selected' : ''}`}
+                            onClick={() => setSelectedPolicyName(selected ? '' : policyName)}
+                          >
+                            <p className="policy-label">Policy Name</p>
+                            <p className="policy-name">{policyName}</p>
+                            {selected && <p className="policy-meta">Expanded view enabled for this policy card.</p>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}
+                  </>
+                )}
               </section>
             )}
 

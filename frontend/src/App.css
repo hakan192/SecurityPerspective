@@ -241,7 +241,85 @@ input,
 
 .waf-panel { width: min(100%, 980px); min-height: 520px; border-radius: 1rem; border: 1px solid rgba(148,163,184,0.35); background: rgba(255,255,255,0.62); padding: 1rem; }
 .dark .waf-panel { background: rgba(15,23,42,0.65); }
-.waf-response { max-height: 65vh; overflow: auto; padding: 0.9rem; border-radius: 0.8rem; border: 1px solid rgba(148,163,184,0.35); background: rgba(2,6,23,0.75); color: #dbeafe; font-size: 0.82rem; }
+
+.modern-waf {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 0.9rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+
+.waf-endpoint {
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.dark .waf-endpoint {
+  color: #cbd5e1;
+}
+
+.waf-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.policy-card {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 1rem;
+  padding: 0.95rem;
+  text-align: left;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.72));
+  color: inherit;
+  min-height: 92px;
+  cursor: pointer;
+  transition: transform 0.18s ease, min-height 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.dark .policy-card {
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.7));
+}
+
+.policy-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.2);
+}
+
+.policy-card.selected {
+  min-height: 150px;
+  border-color: rgba(16, 185, 129, 0.68);
+  box-shadow: 0 16px 30px rgba(16, 185, 129, 0.18);
+}
+
+.policy-label {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.dark .policy-label {
+  color: #94a3b8;
+}
+
+.policy-name {
+  margin: 0.3rem 0 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.policy-meta {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.dark .policy-meta {
+  color: #cbd5e1;
+}
+
+.waf-response { max-height: 45vh; overflow: auto; padding: 0.9rem; border-radius: 0.8rem; border: 1px solid rgba(148,163,184,0.35); background: rgba(2,6,23,0.75); color: #dbeafe; font-size: 0.82rem; }
 
 @media (max-width: 1024px) {
   .dashboard-shell { grid-template-columns: 1fr; }
