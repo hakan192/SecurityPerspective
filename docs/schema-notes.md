@@ -62,3 +62,15 @@ SELECT ingest_server_policies(
   '{"results":[{"name":"sp-prod","server-pool":"pool-a","web-protection-profile":"wpp-a","traffic-mirror":"disable"}]}'::jsonb
 );
 ```
+
+## Mapping of full server-policy sample payload
+Migration `sql/004_server_policies_from_sample_response.sql` extends `server_policies` so the provided API response can be materially stored (not only as `raw_json`).
+
+Mapped fields include:
+- identity: `id` → `fortiweb_id`, `policy-id` → `policy_id`, `name` → `server_policy_name`
+- relationship fields: `web-protection-profile`, `server-pool`
+- operations/visibility: `status`, `protocol`, `deployment-mode`, `v-zone`
+- runtime toggles: `ssl`, `http2`, `tlog`, `monitor-mode`, `traffic-mirror`
+- reporting helpers: `traffic-mirror-profile`, `traffic-mirror-type`, `allow-hosts`, `replacemsg`, timeout/threshold columns
+
+`raw_json` still stores the complete source object for lossless retention.
