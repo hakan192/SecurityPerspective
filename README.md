@@ -13,7 +13,7 @@ Phase 1 foundation for a containerized security assessment platform:
 
 - Repository structure initialized for backend + frontend.
 - Dockerfiles for backend and frontend.
-- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, and React frontend.
+- Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, React frontend, and Nginx gateway.
 - Environment configuration template (`.env.example`).
 - Backend skeleton with health endpoints.
 - Existing FortiWeb snapshot, parsing, and maturity-scoring APIs retained as starter capability.
@@ -25,9 +25,10 @@ cd /path/to/SecurityPerspective
 docker compose up --build
 ```
 
-- Backend API: http://localhost:8000
-- API docs: http://localhost:8000/docs
-- Frontend: http://localhost:5173
+- Nginx entrypoint (frontend + API proxy): http://localhost
+- Backend API (direct): http://localhost:8000
+- API docs (direct): http://localhost:8000/docs
+- API docs via Nginx: http://localhost/api/docs
 - PostgreSQL (host access): localhost:5433
 
 ## Health checks
@@ -46,7 +47,7 @@ Copy values from `.env.example` and adjust for your environment.
 
 ## Local admin login (Phase 1)
 
-- Frontend starts with a login screen at `http://localhost:5173`.
+- Frontend starts with a login screen at `http://localhost` (Nginx entrypoint).
 - Backend auth endpoint: `POST /auth/login`.
 - Default local admin credentials are configured via:
   - `LOCAL_ADMIN_USERNAME` (default `admin`)
@@ -76,6 +77,7 @@ Copy values from `.env.example` and adjust for your environment.
 - Collect endpoint: `POST /fortiweb/server-policy/collect`
 - View latest collected raw JSON: `GET /fortiweb/server-policy/latest`
 - Frontend dashboard includes “Collect from WAF” and renders the raw JSON response after login.
+- In Docker Compose, frontend API requests are routed through Nginx at `/api/*` to backend service port `8000`.
 
 ## Frontend layout (Phase 1 refresh)
 

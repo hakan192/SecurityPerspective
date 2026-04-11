@@ -14,13 +14,15 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.models import ExchangeRateSnapshot, FortiWebSnapshot, MaturityAssessment, ParsedConfig, ServerPolicy
+from app.models import ExchangeRateSnapshot, FortiWebSnapshot, ManagedDevice, MaturityAssessment, ParsedConfig, ServerPolicy
 from app.schemas import (
     AssessmentOut,
     ExchangeRateOut,
     ExchangeRateSnapshotOut,
     LoginRequest,
     LoginResponse,
+    ManagedDeviceCreate,
+    ManagedDeviceOut,
     ParsedConfigOut,
     ServerPolicyOut,
     SnapshotOut,
@@ -84,6 +86,15 @@ def startup_event():
     try:
         seed_baseline_controls(db)
         seed_server_policy_samples(db)
+        if db.query(ManagedDevice).count() == 0:
+            db.add_all(
+                [
+                    ManagedDevice(name="FortiWeb-Prod-TR-01", ip="10.10.1.15", model="FortiWeb VM", environment="Production", region="Istanbul", firmware="7.4.2", status="Online", last_sync="5 min ago"),
+                    ManagedDevice(name="FortiWeb-DR-01", ip="10.20.1.22", model="FortiWeb 4000E", environment="Disaster Recovery", region="Ankara", firmware="7.2.6", status="Warning", last_sync="42 min ago"),
+                    ManagedDevice(name="FortiWeb-Test-01", ip="10.30.8.9", model="FortiWeb VM", environment="Test", region="Izmir", firmware="7.4.1", status="Offline", last_sync="3 hours ago"),
+                ]
+            )
+            db.commit()
     finally:
         db.close()
 
@@ -174,6 +185,53 @@ def list_server_policies(
     _: Annotated[str, Depends(require_role)] = "viewer",
 ):
     return db.query(ServerPolicy).order_by(ServerPolicy.id.asc()).all()
+
+
+@app.get("/devices", response_model=list[ManagedDeviceOut])
+def list_devices(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    return db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
+
+
+@app.get("/devices/{device_id}", response_model=ManagedDeviceOut)
+def get_device(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    device = db.query(ManagedDevice).filter(ManagedDevice.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    return device
+
+
+@app.post("/devices", response_model=ManagedDeviceOut)
+def create_device(
+    payload: ManagedDeviceCreate,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    device = ManagedDevice(**payload.model_dump())
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@app.delete("/devices/{device_id}")
+def delete_device(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    device = db.query(ManagedDevice).filter(ManagedDevice.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    db.delete(device)
+    db.commit()
+    return {"status": "deleted", "id": device_id}
 
 
 @app.post("/exchange-rates/collect", response_model=ExchangeRateSnapshotOut)
