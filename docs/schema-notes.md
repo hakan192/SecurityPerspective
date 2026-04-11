@@ -31,3 +31,14 @@ Additional required composite references implemented:
 - The SQL is PostgreSQL-compatible and intended for bootstrap initialization (`sql/001_init.sql`).
 - `ON DELETE SET NULL` is used for optional named references, preserving child records when a referenced profile/object is removed.
 - `ON DELETE CASCADE` is used for all rows tied directly to `devices`.
+
+## Historical retention for executive reporting
+A second migration (`sql/002_history.sql`) adds durable history and reporting helpers:
+
+- `config_change_log`: append-only audit history table populated by triggers on every config table.
+  - Captures `device_id`, table/object name, operation (`INSERT|UPDATE|DELETE`), timestamp, and full row snapshot (`row_data`).
+  - Enables point-in-time reconstruction and trend analysis.
+- `executive_sync_summary`: optional sync-level KPI rollup table for executive dashboards.
+  - One row per `sync_runs.id` with core object counts and optional `raw_json` payload for extra metrics.
+
+This keeps operational tables normalized/current while preserving complete historical context for longitudinal reporting.
