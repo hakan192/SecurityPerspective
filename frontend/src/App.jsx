@@ -23,6 +23,12 @@ const navItems = [
   }
 ]
 
+const seededDevices = [
+  { id: 'fw-prod-tr-01', name: 'FortiWeb-Prod-TR-01', ip: '10.10.1.15', model: 'FortiWeb VM · v7.4.2', environment: 'Production', region: 'Istanbul', lastSync: '5 min ago', status: 'Online' },
+  { id: 'fw-dr-01', name: 'FortiWeb-DR-01', ip: '10.20.1.22', model: 'FortiWeb 4000E · v7.2.6', environment: 'Disaster Recovery', region: 'Ankara', lastSync: '42 min ago', status: 'Warning' },
+  { id: 'fw-test-01', name: 'FortiWeb-Test-01', ip: '10.30.8.9', model: 'FortiWeb VM · v7.4.1', environment: 'Test', region: 'Izmir', lastSync: '3 hours ago', status: 'Offline' }
+]
+
 function extractServerPolicyNames(payload) {
   const seen = new Set()
   const names = []
@@ -170,11 +176,41 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [selectedPolicyName, setSelectedPolicyName] = useState('')
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
+  const [devices, setDevices] = useState(seededDevices)
+  const [deviceSearch, setDeviceSearch] = useState('')
+  const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
+  const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false)
+  const [newDevice, setNewDevice] = useState({
+    name: 'FortiWeb-Prod-02',
+    ip: '10.10.1.25',
+    environment: 'Production',
+    region: 'Istanbul',
+    model: 'FortiWeb VM',
+    firmware: '7.4.2'
+  })
   const menuRef = useRef(null)
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
   const serverPolicyNames = useMemo(() => extractServerPolicyNames(wafResponse), [wafResponse])
+  const filteredDevices = useMemo(() => {
+    const search = deviceSearch.trim().toLowerCase()
+    return devices.filter((device) => {
+      const statusMatch = deviceStatusFilter === 'All' || device.status === deviceStatusFilter
+      if (!statusMatch) return false
+      if (!search) return true
+      return [device.name, device.ip, device.region, device.environment].join(' ').toLowerCase().includes(search)
+    })
+  }, [deviceSearch, deviceStatusFilter, devices])
+  const deviceStats = useMemo(
+    () => ({
+      total: devices.length,
+      online: devices.filter((d) => d.status === 'Online').length,
+      warning: devices.filter((d) => d.status === 'Warning').length,
+      offline: devices.filter((d) => d.status === 'Offline').length
+    }),
+    [devices]
+  )
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -253,6 +289,27 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
     setSettingsGearSpinning(true)
     window.setTimeout(() => setSettingsGearSpinning(false), 650)
+  }
+
+  const updateNewDeviceField = (field, value) => {
+    setNewDevice((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const saveNewDevice = () => {
+    setDevices((prev) => [
+      {
+        id: `${newDevice.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`,
+        name: newDevice.name,
+        ip: newDevice.ip,
+        model: `${newDevice.model} · v${newDevice.firmware}`,
+        environment: newDevice.environment,
+        region: newDevice.region,
+        lastSync: 'Just now',
+        status: 'Online'
+      },
+      ...prev
+    ])
+    setAddDeviceModalOpen(false)
   }
 
   return (
@@ -404,7 +461,78 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             )}
 
             {activeNav === 'overview' && <div className="hero-text muted">This page will be designed next.</div>}
-            {activeNav === 'device-config' && <div className="hero-text muted">Device config tab is now active from Platform Settings.</div>}
+            {activeNav === 'device-config' && (
+              <section className="device-page">
+                <div className="device-topbar">
+                  <div>
+                    <span className="device-kicker">● Device Management</span>
+                    <h2 className="device-title">Manage FortiWeb Devices</h2>
+                    <p className="device-subtitle">Add, review, filter, and remove devices connected to your WAF configuration platform.</p>
+                  </div>
+                  <button type="button" className="add-device-btn" onClick={() => setAddDeviceModalOpen(true)}>+ Add Device</button>
+                </div>
+
+                <div className="device-stats-grid">
+                  <article className="device-stat-card"><p>Total Devices</p><h3>{deviceStats.total}</h3><span>Across all environments</span></article>
+                  <article className="device-stat-card"><p>Online</p><h3>{deviceStats.online}</h3><span>Healthy and reachable</span></article>
+                  <article className="device-stat-card"><p>Warning</p><h3>{deviceStats.warning}</h3><span>Needs attention</span></article>
+                  <article className="device-stat-card"><p>Offline</p><h3>{deviceStats.offline}</h3><span>No recent sync</span></article>
+                </div>
+
+                <div className="device-filter-row">
+                  <input type="text" placeholder="Search by device name, IP, or region" value={deviceSearch} onChange={(e) => setDeviceSearch(e.target.value)} />
+                  <select value={deviceStatusFilter} onChange={(e) => setDeviceStatusFilter(e.target.value)}>
+                    <option>All</option>
+                    <option>Online</option>
+                    <option>Warning</option>
+                    <option>Offline</option>
+                  </select>
+                </div>
+
+                <div className="device-list">
+                  {filteredDevices.map((device) => (
+                    <article className="device-card" key={device.id}>
+                      <div>
+                        <h3 className="device-card-name">{device.name} <span className={`status-pill ${device.status.toLowerCase()}`}>{device.status}</span></h3>
+                        <div className="device-card-meta">{device.ip}</div>
+                        <div className="device-card-meta">{device.model}</div>
+                      </div>
+                      <div><p className="device-label">Environment</p><strong>{device.environment}</strong></div>
+                      <div><p className="device-label">Region</p><strong>{device.region}</strong></div>
+                      <div><p className="device-label">Last Sync</p><strong>{device.lastSync}</strong></div>
+                      <div className="device-actions"><button type="button">View</button><button type="button" className="danger">Delete</button></div>
+                    </article>
+                  ))}
+                </div>
+
+                {addDeviceModalOpen && (
+                  <div className="device-modal-overlay" role="dialog" aria-modal="true">
+                    <div className="device-modal">
+                      <div className="device-modal-head">
+                        <div>
+                          <h3>Add Device</h3>
+                          <p>Register a new FortiWeb device for API sync and configuration tracking.</p>
+                        </div>
+                        <button type="button" className="device-modal-close" onClick={() => setAddDeviceModalOpen(false)}>×</button>
+                      </div>
+
+                      <div className="device-modal-grid">
+                        <label>Device Name<input value={newDevice.name} onChange={(e) => updateNewDeviceField('name', e.target.value)} /></label>
+                        <label>Management IP<input value={newDevice.ip} onChange={(e) => updateNewDeviceField('ip', e.target.value)} /></label>
+                        <label>Environment<select value={newDevice.environment} onChange={(e) => updateNewDeviceField('environment', e.target.value)}><option>Production</option><option>Disaster Recovery</option><option>Test</option></select></label>
+                        <label>Region<input value={newDevice.region} onChange={(e) => updateNewDeviceField('region', e.target.value)} /></label>
+                        <label>Model<select value={newDevice.model} onChange={(e) => updateNewDeviceField('model', e.target.value)}><option>FortiWeb VM</option><option>FortiWeb 4000E</option></select></label>
+                        <label>Firmware Version<input value={newDevice.firmware} onChange={(e) => updateNewDeviceField('firmware', e.target.value)} /></label>
+                      </div>
+                      <div className="device-modal-actions">
+                        <button type="button" onClick={() => setAddDeviceModalOpen(false)}>Cancel</button>
+                        <button type="button" className="primary" onClick={saveNewDevice}>Save Device</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
           </section>
         </main>
       </div>
