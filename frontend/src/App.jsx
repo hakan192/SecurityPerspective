@@ -161,7 +161,7 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
-  const [deviceConfigVisible, setDeviceConfigVisible] = useState(false)
+  const [settingsExpanded, setSettingsExpanded] = useState(false)
   const [settingsGearSpinning, setSettingsGearSpinning] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -175,21 +175,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
   const serverPolicyNames = useMemo(() => extractServerPolicyNames(wafResponse), [wafResponse])
-  const navigationItems = useMemo(
-    () => [
-      ...navItems,
-      ...(deviceConfigVisible
-        ? [
-            {
-              id: 'device-config',
-              label: 'Device Config',
-              description: 'Appliance/device setup and sync status'
-            }
-          ]
-        : [])
-    ],
-    [deviceConfigVisible]
-  )
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -258,9 +243,14 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   const openPlatformSettings = () => {
-    setDeviceConfigVisible(true)
-    setActiveNav('device-config')
-    setSidebarOpen(false)
+    const nextExpandedState = !settingsExpanded
+    setSettingsExpanded(nextExpandedState)
+    if (nextExpandedState) {
+      setActiveNav('device-config')
+      setSidebarOpen(false)
+    } else if (activeNav === 'device-config') {
+      setActiveNav('home')
+    }
     setSettingsGearSpinning(true)
     window.setTimeout(() => setSettingsGearSpinning(false), 650)
   }
@@ -283,7 +273,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </div>
             </button>
             <nav className="nav-list">
-              {navigationItems.map((item) => {
+              {navItems.map((item) => {
                 const active = activeNav === item.id
                 return (
                   <button
@@ -306,9 +296,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             </nav>
           </div>
 
-          <button type="button" className={`settings-btn ${settingsGearSpinning ? 'spinning' : ''}`} onClick={openPlatformSettings}>
-            <span className="settings-gear" aria-hidden="true">⚙</span> Platform Settings
-          </button>
+          <div className={`settings-box ${settingsExpanded ? 'expanded' : ''}`}>
+            <button type="button" className={`settings-btn ${settingsGearSpinning ? 'spinning' : ''}`} onClick={openPlatformSettings}>
+              <span className="settings-gear" aria-hidden="true">⚙</span> Platform Settings
+            </button>
+            {settingsExpanded && (
+              <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => setActiveNav('device-config')}>
+                Device Config
+              </button>
+            )}
+          </div>
         </aside>
 
         <main className="main-panel">

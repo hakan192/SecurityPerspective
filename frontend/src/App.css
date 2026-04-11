@@ -182,9 +182,54 @@ input,
 .status-dot { width: 10px; height: 10px; border-radius: 999px; background: #94a3b8; margin-top: 0.4rem; }
 .nav-item.active .status-dot { background: #10b981; }
 
-.settings-btn { width: 100%; text-align: left; display: flex; align-items: center; gap: 0.45rem; }
+.settings-box {
+  width: 100%;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.45rem;
+  min-height: 58px;
+  transition: min-height 0.25s ease;
+}
+
+.dark .settings-box {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.settings-box.expanded {
+  min-height: 108px;
+}
+
+.settings-btn {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+}
 .settings-gear { display: inline-flex; }
 .settings-btn.spinning .settings-gear { animation: gear-spin 0.65s linear; }
+.settings-subitem {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.8);
+  color: inherit;
+  text-align: left;
+  padding: 0.52rem 0.7rem;
+  cursor: pointer;
+}
+
+.dark .settings-subitem {
+  background: rgba(30, 41, 59, 0.75);
+}
+
+.settings-subitem.active {
+  border-color: rgba(16, 185, 129, 0.55);
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.14), rgba(14, 165, 233, 0.1));
+}
 
 @keyframes gear-spin {
   from { transform: rotate(0deg); }
