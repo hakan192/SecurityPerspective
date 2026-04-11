@@ -74,3 +74,29 @@ class ExchangeRateSnapshotOut(BaseModel):
 class ExchangeRateOut(BaseModel):
     currency: str
     rate: float
+
+
+class ManagedDeviceCreate(BaseModel):
+    name: str
+    ip: str
+    model: str
+    environment: str
+    region: str
+    firmware: str
+    status: str = "Online"
+    last_sync: str = "Just now"
+
+
+class ManagedDeviceOut(BaseModel):
+    id: int
+    name: str
+    ip: str
+    model: str
+    environment: str
+    region: str
+    firmware: str
+    status: str
+    last_sync: str
+
+    class Config:
+        from_attributes = True

@@ -23,12 +23,6 @@ const navItems = [
   }
 ]
 
-const seededDevices = [
-  { id: 'fw-prod-tr-01', name: 'FortiWeb-Prod-TR-01', ip: '10.10.1.15', model: 'FortiWeb VM · v7.4.2', environment: 'Production', region: 'Istanbul', lastSync: '5 min ago', status: 'Online' },
-  { id: 'fw-dr-01', name: 'FortiWeb-DR-01', ip: '10.20.1.22', model: 'FortiWeb 4000E · v7.2.6', environment: 'Disaster Recovery', region: 'Ankara', lastSync: '42 min ago', status: 'Warning' },
-  { id: 'fw-test-01', name: 'FortiWeb-Test-01', ip: '10.30.8.9', model: 'FortiWeb VM · v7.4.1', environment: 'Test', region: 'Izmir', lastSync: '3 hours ago', status: 'Offline' }
-]
-
 function extractServerPolicyNames(payload) {
   const seen = new Set()
   const names = []
@@ -176,10 +170,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [selectedPolicyName, setSelectedPolicyName] = useState('')
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
-  const [devices, setDevices] = useState(seededDevices)
+  const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false)
+  const [viewedDevice, setViewedDevice] = useState(null)
+  const [deviceError, setDeviceError] = useState('')
+  const [loadingDevices, setLoadingDevices] = useState(false)
   const [newDevice, setNewDevice] = useState({
     name: 'FortiWeb-Prod-02',
     ip: '10.10.1.25',
@@ -260,6 +257,25 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     if (activeNav === 'waf' || activeNav === 'home') loadWafResponse()
   }, [activeNav])
 
+  const loadDevices = async () => {
+    setLoadingDevices(true)
+    setDeviceError('')
+    try {
+      const res = await fetch(`${API_BASE}/devices`)
+      if (!res.ok) throw new Error('Failed to load devices')
+      const data = await res.json()
+      setDevices(data)
+    } catch (err) {
+      setDeviceError(err.message)
+    } finally {
+      setLoadingDevices(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeNav === 'device-config') loadDevices()
+  }, [activeNav])
+
   const submitSearch = (event) => {
     event.preventDefault()
     if (!prompt.trim()) {
@@ -294,21 +310,57 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setNewDevice((prev) => ({ ...prev, [field]: value }))
   }
 
-  const saveNewDevice = () => {
-    setDevices((prev) => [
-      {
-        id: `${newDevice.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`,
-        name: newDevice.name,
-        ip: newDevice.ip,
-        model: `${newDevice.model} · v${newDevice.firmware}`,
-        environment: newDevice.environment,
-        region: newDevice.region,
-        lastSync: 'Just now',
-        status: 'Online'
-      },
-      ...prev
-    ])
-    setAddDeviceModalOpen(false)
+  const saveNewDevice = async () => {
+    setDeviceError('')
+    try {
+      const res = await fetch(`${API_BASE}/devices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+        body: JSON.stringify({
+          name: newDevice.name,
+          ip: newDevice.ip,
+          model: newDevice.model,
+          environment: newDevice.environment,
+          region: newDevice.region,
+          firmware: newDevice.firmware,
+          status: 'Online',
+          last_sync: 'Just now'
+        })
+      })
+      if (!res.ok) throw new Error('Failed to save device')
+      const created = await res.json()
+      setDevices((prev) => [created, ...prev])
+      setAddDeviceModalOpen(false)
+    } catch (err) {
+      setDeviceError(err.message)
+    }
+  }
+
+  const viewDevice = async (deviceId) => {
+    setDeviceError('')
+    try {
+      const res = await fetch(`${API_BASE}/devices/${deviceId}`)
+      if (!res.ok) throw new Error('Failed to load device details')
+      const device = await res.json()
+      setViewedDevice(device)
+    } catch (err) {
+      setDeviceError(err.message)
+    }
+  }
+
+  const deleteDevice = async (deviceId) => {
+    setDeviceError('')
+    try {
+      const res = await fetch(`${API_BASE}/devices/${deviceId}`, {
+        method: 'DELETE',
+        headers: { 'X-Role': 'admin' }
+      })
+      if (!res.ok) throw new Error('Failed to delete device')
+      setDevices((prev) => prev.filter((device) => device.id !== deviceId))
+      if (viewedDevice?.id === deviceId) setViewedDevice(null)
+    } catch (err) {
+      setDeviceError(err.message)
+    }
   }
 
   return (
@@ -488,17 +540,19 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                 </div>
 
                 <div className="device-list">
+                  {loadingDevices && <p className="nav-desc">Loading devices...</p>}
+                  {deviceError && <p className="error-box">{deviceError}</p>}
                   {filteredDevices.map((device) => (
                     <article className="device-card" key={device.id}>
                       <div>
                         <h3 className="device-card-name">{device.name} <span className={`status-pill ${device.status.toLowerCase()}`}>{device.status}</span></h3>
                         <div className="device-card-meta">{device.ip}</div>
-                        <div className="device-card-meta">{device.model}</div>
+                        <div className="device-card-meta">{device.model} · v{device.firmware}</div>
                       </div>
                       <div><p className="device-label">Environment</p><strong>{device.environment}</strong></div>
                       <div><p className="device-label">Region</p><strong>{device.region}</strong></div>
-                      <div><p className="device-label">Last Sync</p><strong>{device.lastSync}</strong></div>
-                      <div className="device-actions"><button type="button">View</button><button type="button" className="danger">Delete</button></div>
+                      <div><p className="device-label">Last Sync</p><strong>{device.last_sync}</strong></div>
+                      <div className="device-actions"><button type="button" onClick={() => viewDevice(device.id)}>View</button><button type="button" className="danger" onClick={() => deleteDevice(device.id)}>Delete</button></div>
                     </article>
                   ))}
                 </div>
@@ -525,6 +579,28 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       <div className="device-modal-actions">
                         <button type="button" onClick={() => setAddDeviceModalOpen(false)}>Cancel</button>
                         <button type="button" className="primary" onClick={saveNewDevice}>Save Device</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {viewedDevice && (
+                  <div className="device-modal-overlay" role="dialog" aria-modal="true">
+                    <div className="device-modal">
+                      <div className="device-modal-head">
+                        <div>
+                          <h3>{viewedDevice.name}</h3>
+                          <p>Device details from database record.</p>
+                        </div>
+                        <button type="button" className="device-modal-close" onClick={() => setViewedDevice(null)}>×</button>
+                      </div>
+                      <div className="device-modal-grid">
+                        <label>Management IP<input value={viewedDevice.ip} readOnly /></label>
+                        <label>Status<input value={viewedDevice.status} readOnly /></label>
+                        <label>Environment<input value={viewedDevice.environment} readOnly /></label>
+                        <label>Region<input value={viewedDevice.region} readOnly /></label>
+                        <label>Model<input value={viewedDevice.model} readOnly /></label>
+                        <label>Firmware<input value={viewedDevice.firmware} readOnly /></label>
                       </div>
                     </div>
                   </div>

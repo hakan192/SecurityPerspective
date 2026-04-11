@@ -71,3 +71,17 @@ class ExchangeRateSnapshot(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     base_code: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class ManagedDevice(Base):
+    __tablename__ = "managed_devices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    ip: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(255), nullable=False)
+    environment: Mapped[str] = mapped_column(String(120), nullable=False)
+    region: Mapped[str] = mapped_column(String(120), nullable=False)
+    firmware: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), nullable=False, default="Online")
+    last_sync: Mapped[str] = mapped_column(String(120), nullable=False, default="Just now")
