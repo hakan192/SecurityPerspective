@@ -42,3 +42,23 @@ A second migration (`sql/002_history.sql`) adds durable history and reporting he
   - One row per `sync_runs.id` with core object counts and optional `raw_json` payload for extra metrics.
 
 This keeps operational tables normalized/current while preserving complete historical context for longitudinal reporting.
+
+## Loading `server-policies` API payloads
+A third migration (`sql/003_ingest_server_policies.sql`) adds:
+
+- `fortiweb_text_to_bool(text)` to normalize API booleans like `enable/disable`.
+- `ingest_server_policies(device_id, payload_jsonb)` to parse full API payloads and upsert rows into `server_policies`.
+
+Supported payload shapes:
+- `{ "results": [ ... ] }`
+- `[ ... ]`
+- `{ ...single object... }`
+
+Example call:
+
+```sql
+SELECT ingest_server_policies(
+  1,
+  '{"results":[{"name":"sp-prod","server-pool":"pool-a","web-protection-profile":"wpp-a","traffic-mirror":"disable"}]}'::jsonb
+);
+```
