@@ -283,7 +283,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setSettingsExpanded(nextExpandedState)
     if (nextExpandedState) {
       setActiveNav('device-config')
-      setSidebarOpen(false)
     } else if (activeNav === 'device-config') {
       setActiveNav('home')
     }
@@ -338,7 +337,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     type="button"
                     onClick={() => {
                       setActiveNav(item.id)
-                      setSidebarOpen(false)
                     }}
                     className={`nav-item ${active ? 'active' : ''}`}
                   >
