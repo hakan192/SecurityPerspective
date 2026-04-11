@@ -108,3 +108,19 @@ Copy values from `.env.example` and adjust for your environment.
 - If frontend is opened via public IP (example `http://100.54.91.32:5173`), API base now auto-resolves to that host (`http://<host>:8000`) and CORS regex can allow dynamic origins via `CORS_ALLOW_ORIGIN_REGEX`.
 - If `docker compose ps db` shows `no configuration file provided`, run the command from the project directory or use:
   - `docker compose -f /home/ubuntu/SecurityPerspective/docker-compose.yml ps db`
+
+## Server-policy JSON parser CLI
+
+Use this helper when you have a full FortiWeb server-policy API JSON response and want to parse required fields and store them in PostgreSQL.
+
+```bash
+python -m app.server_policy_parser \
+  --json-file /path/to/server_policies.json \
+  --device-name fw-ank-prod
+```
+
+Behavior:
+- accepts payloads shaped as `{ "results": [...] }`, a top-level array, or a single object
+- parses required fields (name/profile/pool/traffic-mirror and key reporting fields)
+- upserts rows into `server_policies` by `(device_id, server_policy_name)`
+- stores full object in `raw_json`
