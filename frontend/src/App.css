@@ -182,7 +182,14 @@ input,
 .status-dot { width: 10px; height: 10px; border-radius: 999px; background: #94a3b8; margin-top: 0.4rem; }
 .nav-item.active .status-dot { background: #10b981; }
 
-.settings-btn { width: 100%; text-align: left; }
+.settings-btn { width: 100%; text-align: left; display: flex; align-items: center; gap: 0.45rem; }
+.settings-gear { display: inline-flex; }
+.settings-btn.spinning .settings-gear { animation: gear-spin 0.65s linear; }
+
+@keyframes gear-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 .main-panel { display: flex; flex-direction: column; min-width: 0; }
 .topbar { border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding: 1.2rem 1.4rem; }
