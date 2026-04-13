@@ -151,7 +151,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const selectedWafDevicePolicies = useMemo(() => {
     if (!selectedWafDeviceData) return []
     if (selectedWafDeviceData.error) {
-      return [`Error: ${selectedWafDeviceData.error}`]
+      return [{ server_policy_name: `Error: ${selectedWafDeviceData.error}` }]
     }
     return Array.isArray(selectedWafDeviceData.server_policies) ? selectedWafDeviceData.server_policies : []
   }, [selectedWafDeviceData])
@@ -482,7 +482,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       <p className="nav-desc">No devices or server policies found.</p>
                     ) : (
                       <div className="waf-card-grid">
-                        {selectedWafDevicePolicies.map((policyName, index) => (
+                        {selectedWafDevicePolicies.map((policy, index) => {
+                          const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
+                          const policyIp = typeof policy === 'string' ? '' : policy.ip
+                          const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
+                          const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
+                          const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
+                          const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
+                          const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
+                          const http2 = typeof policy === 'string' ? null : policy.http2
+                          return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
                             key={`${selectedWafDevice}-${policyName}-${index}`}
@@ -490,8 +499,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           >
                             <p className="policy-label">Server Policy Name</p>
                             <p className="policy-name">{policyName}</p>
+                            <p className="policy-meta">IP: {policyIp || '-'}</p>
+                            <p className="policy-meta">TLS13 Custom Cipher: {tls13CustomCipher || '-'}</p>
+                            <p className="policy-meta">TLS v1.0: {tlsV10 === null ? '-' : String(tlsV10)}</p>
+                            <p className="policy-meta">TLS v1.1: {tlsV11 === null ? '-' : String(tlsV11)}</p>
+                            <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
+                            <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
+                            <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
                           </article>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                     {wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}

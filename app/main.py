@@ -264,8 +264,8 @@ def collect_fortiweb_server_policy(
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
     devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
-    payload = fetch_and_store_server_policies_by_device(db, devices)
-    return {"payload": payload}
+    fetch_and_store_server_policies_by_device(db, devices)
+    return {"payload": load_server_policies_from_db(db)}
 
 
 @app.get("/fortiweb/server-policy/latest")

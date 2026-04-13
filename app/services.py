@@ -326,9 +326,20 @@ def load_server_policies_from_db(db: Session) -> dict:
                 d.id AS device_id,
                 d.name AS device_name,
                 d.ip AS device_ip,
-                sp.server_policy_name
+                sp.server_policy_name,
+                sp.server_pool_name,
+                pool.ip AS server_pool_ip,
+                pool.tls13_custom_cipher,
+                pool.tls_v10,
+                pool.tls_v11,
+                pool.tls_v12,
+                pool.tls_v13,
+                pool.http2
             FROM managed_devices d
             LEFT JOIN server_policy sp ON sp.device_id = d.id
+            LEFT JOIN server_pool pool
+                ON pool.device_id = sp.device_id
+                AND pool.server_pool_name = sp.server_pool_name
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -346,6 +357,18 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "error": "",
             }
         if row["server_policy_name"]:
-            by_device[device_id]["server_policies"].append(row["server_policy_name"])
+            by_device[device_id]["server_policies"].append(
+                {
+                    "server_policy_name": row["server_policy_name"],
+                    "server_pool_name": row["server_pool_name"],
+                    "ip": row["server_pool_ip"],
+                    "tls13_custom_cipher": row["tls13_custom_cipher"],
+                    "tls_v10": row["tls_v10"],
+                    "tls_v11": row["tls_v11"],
+                    "tls_v12": row["tls_v12"],
+                    "tls_v13": row["tls_v13"],
+                    "http2": row["http2"],
+                }
+            )
 
     return {"devices": list(by_device.values())}
