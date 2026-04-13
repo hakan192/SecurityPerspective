@@ -52,30 +52,6 @@ class LoginResponse(BaseModel):
     username: str = "admin"
 
 
-class ServerPolicyOut(BaseModel):
-    id: int
-    ip: str
-    hostnames: str
-
-    class Config:
-        from_attributes = True
-
-
-class ExchangeRateSnapshotOut(BaseModel):
-    id: int
-    fetched_at: datetime
-    base_code: str
-    payload: dict
-
-    class Config:
-        from_attributes = True
-
-
-class ExchangeRateOut(BaseModel):
-    currency: str
-    rate: float
-
-
 class ManagedDeviceCreate(BaseModel):
     name: str
     ip: str

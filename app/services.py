@@ -5,7 +5,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import BaselineControl, ExchangeRateSnapshot, FortiWebSnapshot, MaturityAssessment, ParsedConfig, ServerPolicy
+from app.models import BaselineControl, FortiWebSnapshot, MaturityAssessment, ParsedConfig
 
 
 def fetch_fortiweb_config() -> dict:
@@ -201,42 +201,3 @@ def seed_baseline_controls(db: Session):
     db.add_all(defaults)
     db.commit()
 
-
-def seed_server_policy_samples(db: Session):
-    if db.query(ServerPolicy).count():
-        return
-
-    db.add_all(
-        [
-            ServerPolicy(ip="10.10.1.10", hostnames="app.internal.local"),
-            ServerPolicy(ip="10.10.1.11", hostnames="portal.internal.local"),
-            ServerPolicy(ip="10.10.1.12", hostnames="api.internal.local"),
-        ]
-    )
-    db.commit()
-
-
-def fetch_usd_exchange_rates() -> dict:
-    response = requests.get("https://open.er-api.com/v6/latest/USD", timeout=30)
-    response.raise_for_status()
-    return response.json()
-
-
-def collect_exchange_rates(db: Session) -> ExchangeRateSnapshot:
-    payload = fetch_usd_exchange_rates()
-    snapshot = ExchangeRateSnapshot(
-        base_code=payload.get("base_code", "USD"),
-        payload=payload,
-    )
-    db.add(snapshot)
-    db.commit()
-    db.refresh(snapshot)
-    return snapshot
-
-
-def latest_exchange_rates(db: Session) -> list[dict]:
-    snapshot = db.query(ExchangeRateSnapshot).order_by(ExchangeRateSnapshot.fetched_at.desc()).first()
-    if not snapshot:
-        return []
-    rates = snapshot.payload.get("rates", {})
-    return [{"currency": key, "rate": float(value)} for key, value in sorted(rates.items())]
