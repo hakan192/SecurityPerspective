@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class SnapshotOut(BaseModel):
@@ -62,6 +62,13 @@ class ManagedDeviceCreate(BaseModel):
     apikey: str
     status: str = "Online"
     last_sync: str = "Just now"
+
+    @field_validator("apikey")
+    @classmethod
+    def validate_apikey_not_empty(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("APIKEY cannot be Empty")
+        return value
 
 
 class ManagedDeviceOut(BaseModel):

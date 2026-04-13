@@ -314,6 +314,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const saveNewDevice = async () => {
     setDeviceError('')
     try {
+      if (!newDevice.apikey.trim()) {
+        throw new Error('APIKEY cannot be Empty')
+      }
       const res = await fetch(`${API_BASE}/devices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
