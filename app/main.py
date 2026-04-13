@@ -64,6 +64,7 @@ def startup_event():
         connection.execute(text("DROP TABLE IF EXISTS fortiweb_snapshots CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS maturity_assessments CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS parsed_configs CASCADE"))
+        connection.execute(text('DROP TABLE IF EXISTS "Server_Policy" CASCADE'))
         connection.execute(text("DROP TABLE IF EXISTS server_policy CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS server_pool CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS baseline_controls_id_seq CASCADE"))
@@ -71,6 +72,7 @@ def startup_event():
         connection.execute(text("DROP SEQUENCE IF EXISTS fortiweb_snapshots_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS maturity_assessments_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS parsed_configs_id_seq CASCADE"))
+        connection.execute(text('DROP SEQUENCE IF EXISTS "Server_Policy_id_seq" CASCADE'))
         connection.execute(
             text(
                 """
