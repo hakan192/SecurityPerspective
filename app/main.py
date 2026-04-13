@@ -64,6 +64,8 @@ def startup_event():
         connection.execute(text("DROP TABLE IF EXISTS fortiweb_snapshots CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS maturity_assessments CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS parsed_configs CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS server_policy CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS server_pool CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS baseline_controls_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS exchange_rate_snapshots_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS fortiweb_snapshots_id_seq CASCADE"))
@@ -85,12 +87,80 @@ def startup_event():
         connection.execute(
             text(
                 """
-                CREATE TABLE IF NOT EXISTS server_pool (
+                CREATE TABLE IF NOT EXISTS certificate_local (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    certificate_name text NOT NULL,
+                    PRIMARY KEY (device_id, certificate_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS certificate_sni (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    sni_name text NOT NULL,
+                    PRIMARY KEY (device_id, sni_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS intermediate_certificate_groups (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    intermediate_certificate_group_name text NOT NULL,
+                    PRIMARY KEY (device_id, intermediate_certificate_group_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS server_pool (
+                    id bigserial PRIMARY KEY,
+                    device_id bigint NOT NULL,
                     server_pool_name text NOT NULL,
+                    ip inet,
+                    certificate_name text,
+                    sni_certificate_name text,
+                    intermediate_certificate_group_name text,
+                    ssl_custom_cipher text,
+                    tls13_custom_cipher text,
+                    tls_v10 boolean,
+                    tls_v11 boolean,
+                    tls_v12 boolean,
+                    tls_v13 boolean,
+                    http2 boolean,
+                    raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
-                    PRIMARY KEY (device_id, server_pool_name)
+
+                    CONSTRAINT fk_server_pool_device
+                        FOREIGN KEY (device_id)
+                        REFERENCES managed_devices(id)
+                        ON DELETE CASCADE,
+
+                    CONSTRAINT uq_server_pool_device_name
+                        UNIQUE (device_id, server_pool_name),
+
+                    CONSTRAINT fk_server_pool_certificate
+                        FOREIGN KEY (device_id, certificate_name)
+                        REFERENCES certificate_local(device_id, certificate_name)
+                        ON DELETE SET NULL,
+
+                    CONSTRAINT fk_server_pool_sni_certificate
+                        FOREIGN KEY (device_id, sni_certificate_name)
+                        REFERENCES certificate_sni(device_id, sni_name)
+                        ON DELETE SET NULL,
+
+                    CONSTRAINT fk_server_pool_intermediate_group
+                        FOREIGN KEY (device_id, intermediate_certificate_group_name)
+                        REFERENCES intermediate_certificate_groups(device_id, intermediate_certificate_group_name)
+                        ON DELETE SET NULL
                 )
                 """
             )

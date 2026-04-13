@@ -1,5 +1,6 @@
 import json
 from urllib.parse import urlparse
+from urllib.parse import quote
 
 import requests
 from sqlalchemy import text
@@ -78,21 +79,6 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                 },
             )
 
-        if row["server_pool_name"]:
-            db.execute(
-                text(
-                    """
-                    INSERT INTO server_pool (device_id, server_pool_name)
-                    VALUES (:device_id, :server_pool_name)
-                    ON CONFLICT (device_id, server_pool_name) DO NOTHING
-                    """
-                ),
-                {
-                    "device_id": device_id,
-                    "server_pool_name": row["server_pool_name"],
-                },
-            )
-
         db.execute(
             text(
                 """
@@ -131,6 +117,162 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
         )
 
 
+def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
+
+    return {
+        "server_pool_name": server_pool_name,
+        "ip": _normalize_optional_text(result.get("ip") or result.get("address")),
+        "certificate_name": _normalize_optional_text(result.get("certificate_name") or result.get("certificate")),
+        "sni_certificate_name": _normalize_optional_text(result.get("sni_certificate_name") or result.get("sni_name")),
+        "intermediate_certificate_group_name": _normalize_optional_text(
+            result.get("intermediate_certificate_group_name")
+            or result.get("intermediate-group")
+            or result.get("intermediate_group")
+        ),
+        "ssl_custom_cipher": _normalize_optional_text(result.get("ssl_custom_cipher") or result.get("ssl-custom-cipher")),
+        "tls13_custom_cipher": _normalize_optional_text(result.get("tls13_custom_cipher") or result.get("tls13-custom-cipher")),
+        "tls_v10": _as_bool(result.get("tls_v10") or result.get("tls-v10")),
+        "tls_v11": _as_bool(result.get("tls_v11") or result.get("tls-v11")),
+        "tls_v12": _as_bool(result.get("tls_v12") or result.get("tls-v12")),
+        "tls_v13": _as_bool(result.get("tls_v13") or result.get("tls-v13")),
+        "http2": _as_bool(result.get("http2")),
+        "raw_json": result or {"server_pool_name": server_pool_name},
+    }
+
+
+def _upsert_server_pool_row(db: Session, device_id: int, row: dict):
+    if row["certificate_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO certificate_local (device_id, certificate_name)
+                VALUES (:device_id, :certificate_name)
+                ON CONFLICT (device_id, certificate_name) DO NOTHING
+                """
+            ),
+            {"device_id": device_id, "certificate_name": row["certificate_name"]},
+        )
+
+    if row["sni_certificate_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO certificate_sni (device_id, sni_name)
+                VALUES (:device_id, :sni_name)
+                ON CONFLICT (device_id, sni_name) DO NOTHING
+                """
+            ),
+            {"device_id": device_id, "sni_name": row["sni_certificate_name"]},
+        )
+
+    if row["intermediate_certificate_group_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO intermediate_certificate_groups (device_id, intermediate_certificate_group_name)
+                VALUES (:device_id, :intermediate_certificate_group_name)
+                ON CONFLICT (device_id, intermediate_certificate_group_name) DO NOTHING
+                """
+            ),
+            {
+                "device_id": device_id,
+                "intermediate_certificate_group_name": row["intermediate_certificate_group_name"],
+            },
+        )
+
+    db.execute(
+        text(
+            """
+            INSERT INTO server_pool (
+                device_id,
+                server_pool_name,
+                ip,
+                certificate_name,
+                sni_certificate_name,
+                intermediate_certificate_group_name,
+                ssl_custom_cipher,
+                tls13_custom_cipher,
+                tls_v10,
+                tls_v11,
+                tls_v12,
+                tls_v13,
+                http2,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :server_pool_name,
+                CAST(:ip AS inet),
+                :certificate_name,
+                :sni_certificate_name,
+                :intermediate_certificate_group_name,
+                :ssl_custom_cipher,
+                :tls13_custom_cipher,
+                :tls_v10,
+                :tls_v11,
+                :tls_v12,
+                :tls_v13,
+                :http2,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, server_pool_name) DO UPDATE SET
+                ip = EXCLUDED.ip,
+                certificate_name = EXCLUDED.certificate_name,
+                sni_certificate_name = EXCLUDED.sni_certificate_name,
+                intermediate_certificate_group_name = EXCLUDED.intermediate_certificate_group_name,
+                ssl_custom_cipher = EXCLUDED.ssl_custom_cipher,
+                tls13_custom_cipher = EXCLUDED.tls13_custom_cipher,
+                tls_v10 = EXCLUDED.tls_v10,
+                tls_v11 = EXCLUDED.tls_v11,
+                tls_v12 = EXCLUDED.tls_v12,
+                tls_v13 = EXCLUDED.tls_v13,
+                http2 = EXCLUDED.http2,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {
+            "device_id": device_id,
+            "server_pool_name": row["server_pool_name"],
+            "ip": row["ip"],
+            "certificate_name": row["certificate_name"],
+            "sni_certificate_name": row["sni_certificate_name"],
+            "intermediate_certificate_group_name": row["intermediate_certificate_group_name"],
+            "ssl_custom_cipher": row["ssl_custom_cipher"],
+            "tls13_custom_cipher": row["tls13_custom_cipher"],
+            "tls_v10": row["tls_v10"],
+            "tls_v11": row["tls_v11"],
+            "tls_v12": row["tls_v12"],
+            "tls_v13": row["tls_v13"],
+            "http2": row["http2"],
+            "raw_json": json.dumps(row["raw_json"]),
+        },
+    )
+
+
+def _fetch_and_upsert_server_pool(
+    db: Session,
+    device: ManagedDevice,
+    server_pool_name: str,
+    headers: dict,
+):
+    encoded_name = quote(server_pool_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/server-policy/server-pool/pserver-list?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    server_pool_row = _extract_server_pool_row(payload, server_pool_name)
+    _upsert_server_pool_row(db, device.id, server_pool_row)
+
+
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
     per_device = []
     endpoint = settings.fortiweb_server_policy_endpoint
@@ -161,6 +303,9 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             response.raise_for_status()
             payload = response.json()
             rows = _extract_policy_rows(payload)
+            unique_server_pools = {row["server_pool_name"] for row in rows if row["server_pool_name"]}
+            for server_pool_name in unique_server_pools:
+                _fetch_and_upsert_server_pool(db, device, server_pool_name, headers)
             _upsert_server_policy_rows(db, device.id, rows)
             db.commit()
             device_result["server_policies"] = [row["server_policy_name"] for row in rows]
