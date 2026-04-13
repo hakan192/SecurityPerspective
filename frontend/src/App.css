@@ -357,10 +357,11 @@ input,
   text-align: left;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.72));
   color: inherit;
-  min-height: 108px;
+  min-height: 120px;
   width: 100%;
   cursor: pointer;
-  transition: transform 0.18s ease, min-height 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 16px 36px rgba(2, 6, 23, 0.22);
+  transition: transform 0.18s ease, min-height 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
 }
 
 .dark .policy-card {
@@ -368,14 +369,14 @@ input,
 }
 
 .policy-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.2);
+  transform: translateY(-3px);
+  box-shadow: 0 20px 44px rgba(2, 6, 23, 0.28);
 }
 
 .policy-card.selected {
-  min-height: 168px;
+  min-height: 240px;
   border-color: rgba(16, 185, 129, 0.68);
-  box-shadow: 0 16px 30px rgba(16, 185, 129, 0.18);
+  box-shadow: 0 28px 52px rgba(16, 185, 129, 0.24);
 }
 
 .policy-label {

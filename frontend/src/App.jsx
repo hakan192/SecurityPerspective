@@ -119,6 +119,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
   const [selectedWafDevice, setSelectedWafDevice] = useState('')
+  const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
@@ -224,12 +225,17 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   useEffect(() => {
     if (!wafDevices.length) {
       setSelectedWafDevice('')
+      setExpandedPolicyCard('')
       return
     }
     if (!selectedWafDevice || !wafDevices.some((device) => device.device_name === selectedWafDevice)) {
       setSelectedWafDevice(wafDevices[0].device_name || '')
     }
   }, [wafDevices, selectedWafDevice])
+
+  useEffect(() => {
+    setExpandedPolicyCard('')
+  }, [selectedWafDevice])
 
   const loadDevices = async () => {
     setLoadingDevices(true)
@@ -479,9 +485,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     ) : (
                       <div className="waf-card-grid">
                         {selectedWafDevicePolicies.map((policyName, index) => (
-                          <article className="policy-card" key={`${selectedWafDevice}-${policyName}-${index}`}>
-                            <p className="policy-label">Device Name</p>
-                            <p className="policy-name">{selectedWafDevice}</p>
+                          <article
+                            className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
+                            key={`${selectedWafDevice}-${policyName}-${index}`}
+                            onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
+                          >
                             <p className="policy-label">Server Policy Name</p>
                             <p className="policy-name">{policyName}</p>
                           </article>
