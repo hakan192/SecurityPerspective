@@ -553,7 +553,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       </div>
                       <div><p className="device-label">Environment</p><strong>{device.environment}</strong></div>
                       <div><p className="device-label">Region</p><strong>{device.region}</strong></div>
-                      <div><p className="device-label">APIKEY</p><strong>{device.apikey}</strong></div>
                       <div><p className="device-label">Last Sync</p><strong>{device.last_sync}</strong></div>
                       <div className="device-actions"><button type="button" onClick={() => viewDevice(device.id)}>View</button><button type="button" className="danger" onClick={() => deleteDevice(device.id)}>Delete</button></div>
                     </article>
@@ -605,7 +604,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         <label>Region<input value={viewedDevice.region} readOnly /></label>
                         <label>Model<input value={viewedDevice.model} readOnly /></label>
                         <label>Firmware<input value={viewedDevice.firmware} readOnly /></label>
-                        <label>APIKEY<input value={viewedDevice.apikey} readOnly /></label>
                       </div>
                     </div>
                   </div>
