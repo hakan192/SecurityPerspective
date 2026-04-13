@@ -14,7 +14,7 @@ from app.database import Base, SessionLocal, engine, get_db
 from app.models import ManagedDevice
 from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
-from app.services import fetch_fortiweb_server_policies_by_device
+from app.services import fetch_and_store_server_policies_by_device, load_server_policies_from_db
 
 app = FastAPI(title=settings.app_name)
 scheduler = BackgroundScheduler()
@@ -36,7 +36,7 @@ def run_collection_job():
     db = SessionLocal()
     try:
         devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
-        fetch_fortiweb_server_policies_by_device(devices)
+        fetch_and_store_server_policies_by_device(db, devices)
     finally:
         db.close()
 
@@ -69,6 +69,67 @@ def startup_event():
         connection.execute(text("DROP SEQUENCE IF EXISTS fortiweb_snapshots_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS maturity_assessments_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS parsed_configs_id_seq CASCADE"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS web_protection_profiles (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    web_protection_profile_name text NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, web_protection_profile_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS server_pool (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    server_pool_name text NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, server_pool_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS server_policy (
+                    id bigserial PRIMARY KEY,
+                    device_id bigint NOT NULL,
+                    server_policy_name text NOT NULL,
+                    web_protection_profile_name text,
+                    server_pool_name text,
+                    traffic_mirror boolean,
+                    raw_json jsonb NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+
+                    CONSTRAINT fk_server_policy_device
+                        FOREIGN KEY (device_id)
+                        REFERENCES managed_devices(id)
+                        ON DELETE CASCADE,
+
+                    CONSTRAINT uq_server_policy_device_name
+                        UNIQUE (device_id, server_policy_name),
+
+                    CONSTRAINT fk_server_policy_web_protection_profile
+                        FOREIGN KEY (device_id, web_protection_profile_name)
+                        REFERENCES web_protection_profiles(device_id, web_protection_profile_name)
+                        ON DELETE SET NULL,
+
+                    CONSTRAINT fk_server_policy_server_pool
+                        FOREIGN KEY (device_id, server_pool_name)
+                        REFERENCES server_pool(device_id, server_pool_name)
+                        ON DELETE SET NULL
+                )
+                """
+            )
+        )
 
     db = SessionLocal()
     try:
@@ -133,7 +194,7 @@ def collect_fortiweb_server_policy(
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
     devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
-    payload = fetch_fortiweb_server_policies_by_device(devices)
+    payload = fetch_and_store_server_policies_by_device(db, devices)
     return {"payload": payload}
 
 
@@ -142,9 +203,7 @@ def latest_fortiweb_server_policy(
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_role)] = "viewer",
 ):
-    devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
-    payload = fetch_fortiweb_server_policies_by_device(devices)
-    return {"payload": payload}
+    return {"payload": load_server_policies_from_db(db)}
 
 
 @app.get("/devices", response_model=list[ManagedDeviceOut])
