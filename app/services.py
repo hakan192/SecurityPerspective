@@ -24,6 +24,15 @@ def _as_bool(value):
     return None
 
 
+def _normalize_optional_text(value):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return str(value)
+    normalized = value.strip()
+    return normalized or None
+
+
 def _extract_policy_rows(payload: dict) -> list[dict]:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     rows = []
@@ -34,12 +43,12 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
         if not isinstance(policy_name, str) or not policy_name.strip():
             continue
 
-        web_protection_profile_name = (
+        web_protection_profile_name = _normalize_optional_text(
             item.get("web_protection_profile_name")
             or item.get("web_protection_profile")
             or item.get("web-protection-profile")
         )
-        server_pool_name = item.get("server_pool_name") or item.get("server_pool") or item.get("server-pool")
+        server_pool_name = _normalize_optional_text(item.get("server_pool_name") or item.get("server_pool") or item.get("server-pool"))
         rows.append(
             {
                 "server_policy_name": policy_name,
