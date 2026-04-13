@@ -23,57 +23,6 @@ const navItems = [
   }
 ]
 
-function extractServerPolicyNames(payload) {
-  const seen = new Set()
-  const names = []
-
-  const addName = (value) => {
-    if (typeof value !== 'string') return
-    const trimmed = value.trim()
-    if (!trimmed || seen.has(trimmed)) return
-    seen.add(trimmed)
-    names.push(trimmed)
-  }
-
-  const parseMaybeJson = (value) => {
-    if (typeof value !== 'string') return null
-    try {
-      return JSON.parse(value)
-    } catch {
-      return null
-    }
-  }
-
-  const walk = (node, rawJsonContext = false) => {
-    if (!node) return
-
-    if (Array.isArray(node)) {
-      node.forEach((item) => walk(item, rawJsonContext))
-      return
-    }
-
-    if (typeof node !== 'object') return
-
-    if (typeof node.name === 'string' && (rawJsonContext || 'name' in node)) {
-      addName(node.name)
-    }
-
-    Object.entries(node).forEach(([key, value]) => {
-      if (key === 'raw_json') {
-        const parsed = parseMaybeJson(value)
-        if (parsed) walk(parsed, true)
-      } else if (key === 'results' && Array.isArray(value)) {
-        value.forEach((item) => walk(item, rawJsonContext))
-      } else {
-        walk(value, rawJsonContext)
-      }
-    })
-  }
-
-  walk(payload)
-  return names
-}
-
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
 
@@ -167,7 +116,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [prompt, setPrompt] = useState('')
   const [searchResult, setSearchResult] = useState('')
   const [wafResponse, setWafResponse] = useState(null)
-  const [selectedPolicyName, setSelectedPolicyName] = useState('')
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
   const [devices, setDevices] = useState([])
@@ -190,7 +138,21 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
-  const serverPolicyNames = useMemo(() => extractServerPolicyNames(wafResponse), [wafResponse])
+  const serverPolicyRows = useMemo(() => {
+    const devices = wafResponse?.devices
+    if (!Array.isArray(devices)) return []
+    return devices.flatMap((device) => {
+      const deviceName = device.device_name || 'Unknown Device'
+      if (device.error) {
+        return [{ deviceName, policyName: `Error: ${device.error}` }]
+      }
+      const policies = Array.isArray(device.server_policies) ? device.server_policies : []
+      if (policies.length === 0) {
+        return [{ deviceName, policyName: 'No policies found' }]
+      }
+      return policies.map((policyName) => ({ deviceName, policyName }))
+    })
+  }, [wafResponse])
   const filteredDevices = useMemo(() => {
     const search = deviceSearch.trim().toLowerCase()
     return devices.filter((device) => {
@@ -491,24 +453,26 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                 {wafError && <p className="error-box">{wafError}</p>}
                 {!loadingWaf && !wafError && (
                   <>
-                    <div className="waf-card-grid">
-                      {serverPolicyNames.length === 0 && <p className="nav-desc">No policy names found in raw_json.name fields.</p>}
-                      {serverPolicyNames.map((policyName) => {
-                        const selected = selectedPolicyName === policyName
-                        return (
-                          <button
-                            key={policyName}
-                            type="button"
-                            className={`policy-card ${selected ? 'selected' : ''}`}
-                            onClick={() => setSelectedPolicyName(selected ? '' : policyName)}
-                          >
-                            <p className="policy-label">Policy Name</p>
-                            <p className="policy-name">{policyName}</p>
-                            {selected && <p className="policy-meta">Expanded view enabled for this policy card.</p>}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    {serverPolicyRows.length === 0 ? (
+                      <p className="nav-desc">No devices or server policies found.</p>
+                    ) : (
+                      <table className="policy-table">
+                        <thead>
+                          <tr>
+                            <th>Device Name</th>
+                            <th>Server Policy Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {serverPolicyRows.map((row, index) => (
+                            <tr key={`${row.deviceName}-${row.policyName}-${index}`}>
+                              <td>{row.deviceName}</td>
+                              <td>{row.policyName}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                     {wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}
                   </>
                 )}

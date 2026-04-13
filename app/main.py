@@ -30,7 +30,7 @@ from app.services import (
     create_snapshot,
     fetch_fortiweb_config,
     parse_snapshot,
-    fetch_fortiweb_server_policy,
+    fetch_fortiweb_server_policies_by_device,
     seed_baseline_controls,
 )
 
@@ -156,7 +156,8 @@ def collect_fortiweb_server_policy(
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
-    payload = fetch_fortiweb_server_policy()
+    devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
+    payload = fetch_fortiweb_server_policies_by_device(devices)
     return create_snapshot(db, settings.fortiweb_server_policy_endpoint, payload)
 
 
