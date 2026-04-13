@@ -20,6 +20,8 @@ def _build_device_base_url(device_ip: str) -> str:
 def _as_bool(value):
     if isinstance(value, bool):
         return value
+    if isinstance(value, (int, float)):
+        return value != 0
     if isinstance(value, str):
         return value.lower() in {"true", "1", "yes", "on", "enable", "enabled"}
     return None
@@ -55,7 +57,12 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
                 "server_policy_name": policy_name,
                 "web_protection_profile_name": web_protection_profile_name,
                 "server_pool_name": server_pool_name,
-                "traffic_mirror": _as_bool(item.get("traffic_mirror")),
+                "traffic_mirror": _as_bool(
+                    item.get("traffic_mirror")
+                    or item.get("traffic-mirror")
+                    or item.get("traffic_mirror_val")
+                    or item.get("traffic-mirror_val")
+                ),
                 "raw_json": item,
             }
         )
