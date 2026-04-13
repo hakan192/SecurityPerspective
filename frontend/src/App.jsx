@@ -118,6 +118,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [wafResponse, setWafResponse] = useState(null)
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
+  const [selectedWafDevice, setSelectedWafDevice] = useState('')
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
@@ -138,21 +139,21 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
-  const serverPolicyRows = useMemo(() => {
+  const wafDevices = useMemo(() => {
     const devices = wafResponse?.devices
-    if (!Array.isArray(devices)) return []
-    return devices.flatMap((device) => {
-      const deviceName = device.device_name || 'Unknown Device'
-      if (device.error) {
-        return [{ deviceName, policyName: `Error: ${device.error}` }]
-      }
-      const policies = Array.isArray(device.server_policies) ? device.server_policies : []
-      if (policies.length === 0) {
-        return [{ deviceName, policyName: 'No policies found' }]
-      }
-      return policies.map((policyName) => ({ deviceName, policyName }))
-    })
+    return Array.isArray(devices) ? devices : []
   }, [wafResponse])
+  const selectedWafDeviceData = useMemo(() => {
+    if (!selectedWafDevice) return wafDevices[0] || null
+    return wafDevices.find((device) => device.device_name === selectedWafDevice) || null
+  }, [selectedWafDevice, wafDevices])
+  const selectedWafDevicePolicies = useMemo(() => {
+    if (!selectedWafDeviceData) return []
+    if (selectedWafDeviceData.error) {
+      return [`Error: ${selectedWafDeviceData.error}`]
+    }
+    return Array.isArray(selectedWafDeviceData.server_policies) ? selectedWafDeviceData.server_policies : []
+  }, [selectedWafDeviceData])
   const filteredDevices = useMemo(() => {
     const search = deviceSearch.trim().toLowerCase()
     return devices.filter((device) => {
@@ -219,6 +220,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   useEffect(() => {
     if (activeNav === 'waf' || activeNav === 'home') loadWafResponse()
   }, [activeNav])
+
+  useEffect(() => {
+    if (!wafDevices.length) {
+      setSelectedWafDevice('')
+      return
+    }
+    if (!selectedWafDevice || !wafDevices.some((device) => device.device_name === selectedWafDevice)) {
+      setSelectedWafDevice(wafDevices[0].device_name || '')
+    }
+  }, [wafDevices, selectedWafDevice])
 
   const loadDevices = async () => {
     setLoadingDevices(true)
@@ -443,6 +454,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                   <div>
                     <div className="nav-title">Server policy cards</div>
                     <div className="waf-endpoint">API endpoint: {SERVER_POLICY_ENDPOINT}</div>
+                    <div className="waf-device-picker">
+                      <label htmlFor="waf-device-select">Device</label>
+                      <select id="waf-device-select" value={selectedWafDevice} onChange={(e) => setSelectedWafDevice(e.target.value)}>
+                        {wafDevices.map((device) => (
+                          <option key={device.device_id} value={device.device_name}>
+                            {device.device_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="waf-buttons">
                     <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
@@ -453,25 +474,19 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                 {wafError && <p className="error-box">{wafError}</p>}
                 {!loadingWaf && !wafError && (
                   <>
-                    {serverPolicyRows.length === 0 ? (
+                    {selectedWafDevicePolicies.length === 0 ? (
                       <p className="nav-desc">No devices or server policies found.</p>
                     ) : (
-                      <table className="policy-table">
-                        <thead>
-                          <tr>
-                            <th>Device Name</th>
-                            <th>Server Policy Name</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {serverPolicyRows.map((row, index) => (
-                            <tr key={`${row.deviceName}-${row.policyName}-${index}`}>
-                              <td>{row.deviceName}</td>
-                              <td>{row.policyName}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div className="waf-card-grid">
+                        {selectedWafDevicePolicies.map((policyName, index) => (
+                          <article className="policy-card" key={`${selectedWafDevice}-${policyName}-${index}`}>
+                            <p className="policy-label">Device Name</p>
+                            <p className="policy-name">{selectedWafDevice}</p>
+                            <p className="policy-label">Server Policy Name</p>
+                            <p className="policy-name">{policyName}</p>
+                          </article>
+                        ))}
+                      </div>
                     )}
                     {wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}
                   </>
