@@ -76,6 +76,10 @@ def startup_event():
             time.sleep(2)
 
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE managed_devices ADD COLUMN IF NOT EXISTS apikey VARCHAR(255)"))
+        connection.execute(text("UPDATE managed_devices SET apikey = '' WHERE apikey IS NULL"))
+
     db = SessionLocal()
     try:
         seed_baseline_controls(db)
