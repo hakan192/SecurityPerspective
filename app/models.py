@@ -56,23 +56,6 @@ class MaturityAssessment(Base):
     details: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 
-class ServerPolicy(Base):
-    __tablename__ = "Server_Policy"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ip: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    hostnames: Mapped[str] = mapped_column(String(255), nullable=False)
-
-
-class ExchangeRateSnapshot(Base):
-    __tablename__ = "exchange_rate_snapshots"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    base_code: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
-    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
-
-
 class ManagedDevice(Base):
     __tablename__ = "managed_devices"
 

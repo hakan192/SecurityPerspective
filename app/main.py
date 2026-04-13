@@ -14,17 +14,14 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.models import ExchangeRateSnapshot, FortiWebSnapshot, ManagedDevice, MaturityAssessment, ParsedConfig, ServerPolicy
+from app.models import FortiWebSnapshot, ManagedDevice, MaturityAssessment, ParsedConfig
 from app.schemas import (
     AssessmentOut,
-    ExchangeRateOut,
-    ExchangeRateSnapshotOut,
     LoginRequest,
     LoginResponse,
     ManagedDeviceCreate,
     ManagedDeviceOut,
     ParsedConfigOut,
-    ServerPolicyOut,
     SnapshotOut,
 )
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
@@ -33,11 +30,8 @@ from app.services import (
     create_snapshot,
     fetch_fortiweb_config,
     parse_snapshot,
-    collect_exchange_rates,
     fetch_fortiweb_server_policy,
     seed_baseline_controls,
-    seed_server_policy_samples,
-    latest_exchange_rates,
 )
 
 app = FastAPI(title=settings.app_name)
@@ -85,7 +79,6 @@ def startup_event():
     db = SessionLocal()
     try:
         seed_baseline_controls(db)
-        seed_server_policy_samples(db)
         if db.query(ManagedDevice).count() == 0:
             db.add_all(
                 [
@@ -179,14 +172,6 @@ def latest_fortiweb_server_policy(
     return snapshot
 
 
-@app.get("/server-policies", response_model=list[ServerPolicyOut])
-def list_server_policies(
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    return db.query(ServerPolicy).order_by(ServerPolicy.id.asc()).all()
-
-
 @app.get("/devices", response_model=list[ManagedDeviceOut])
 def list_devices(
     db: Session = Depends(get_db),
@@ -232,30 +217,6 @@ def delete_device(
     db.delete(device)
     db.commit()
     return {"status": "deleted", "id": device_id}
-
-
-@app.post("/exchange-rates/collect", response_model=ExchangeRateSnapshotOut)
-def collect_exchange_rates_snapshot(
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
-):
-    return collect_exchange_rates(db)
-
-
-@app.get("/exchange-rates/snapshots", response_model=list[ExchangeRateSnapshotOut])
-def list_exchange_rate_snapshots(
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    return db.query(ExchangeRateSnapshot).order_by(ExchangeRateSnapshot.fetched_at.desc()).limit(20).all()
-
-
-@app.get("/exchange-rates/latest", response_model=list[ExchangeRateOut])
-def list_latest_exchange_rates(
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    return latest_exchange_rates(db)
 
 
 @app.post("/collect/async")

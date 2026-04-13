@@ -53,21 +53,6 @@ Copy values from `.env.example` and adjust for your environment.
   - `LOCAL_ADMIN_USERNAME` (default `admin`)
   - `LOCAL_ADMIN_PASSWORD` (default `admin123!`)
 - For local test safety, login accepts the default pair (`admin` / `admin123!`) even if env values are missing.
-- After login, frontend displays seeded test `Server_Policy` data (IP + hostnames).
-
-## Test server policy data
-
-- API endpoint: `GET /server-policies`
-- Table name in PostgreSQL: `\"Server_Policy\"`
-- Seeded sample rows are created on startup for development/testing.
-
-## Exchange rate test integration
-
-- Source API: `https://open.er-api.com/v6/latest/USD`
-- Collect endpoint: `POST /exchange-rates/collect`
-- View latest normalized rates: `GET /exchange-rates/latest`
-- View raw snapshots: `GET /exchange-rates/snapshots`
-- Frontend dashboard shows exchange rates after login and allows collecting latest data.
 
 ## FortiWeb server-policy integration
 
