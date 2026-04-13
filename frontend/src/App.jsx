@@ -183,7 +183,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     environment: 'Production',
     region: 'Istanbul',
     model: 'FortiWeb VM',
-    firmware: '7.4.2'
+    firmware: '7.4.2',
+    apikey: ''
   })
   const menuRef = useRef(null)
 
@@ -323,6 +324,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
           environment: newDevice.environment,
           region: newDevice.region,
           firmware: newDevice.firmware,
+          apikey: newDevice.apikey,
           status: 'Online',
           last_sync: 'Just now'
         })
@@ -551,6 +553,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       </div>
                       <div><p className="device-label">Environment</p><strong>{device.environment}</strong></div>
                       <div><p className="device-label">Region</p><strong>{device.region}</strong></div>
+                      <div><p className="device-label">APIKEY</p><strong>{device.apikey}</strong></div>
                       <div><p className="device-label">Last Sync</p><strong>{device.last_sync}</strong></div>
                       <div className="device-actions"><button type="button" onClick={() => viewDevice(device.id)}>View</button><button type="button" className="danger" onClick={() => deleteDevice(device.id)}>Delete</button></div>
                     </article>
@@ -575,6 +578,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         <label>Region<input value={newDevice.region} onChange={(e) => updateNewDeviceField('region', e.target.value)} /></label>
                         <label>Model<select value={newDevice.model} onChange={(e) => updateNewDeviceField('model', e.target.value)}><option>FortiWeb VM</option><option>FortiWeb 4000E</option></select></label>
                         <label>Firmware Version<input value={newDevice.firmware} onChange={(e) => updateNewDeviceField('firmware', e.target.value)} /></label>
+                        <label>APIKEY<input value={newDevice.apikey} onChange={(e) => updateNewDeviceField('apikey', e.target.value)} /></label>
                       </div>
                       <div className="device-modal-actions">
                         <button type="button" onClick={() => setAddDeviceModalOpen(false)}>Cancel</button>
@@ -601,6 +605,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         <label>Region<input value={viewedDevice.region} readOnly /></label>
                         <label>Model<input value={viewedDevice.model} readOnly /></label>
                         <label>Firmware<input value={viewedDevice.firmware} readOnly /></label>
+                        <label>APIKEY<input value={viewedDevice.apikey} readOnly /></label>
                       </div>
                     </div>
                   </div>

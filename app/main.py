@@ -82,9 +82,9 @@ def startup_event():
         if db.query(ManagedDevice).count() == 0:
             db.add_all(
                 [
-                    ManagedDevice(name="FortiWeb-Prod-TR-01", ip="10.10.1.15", model="FortiWeb VM", environment="Production", region="Istanbul", firmware="7.4.2", status="Online", last_sync="5 min ago"),
-                    ManagedDevice(name="FortiWeb-DR-01", ip="10.20.1.22", model="FortiWeb 4000E", environment="Disaster Recovery", region="Ankara", firmware="7.2.6", status="Warning", last_sync="42 min ago"),
-                    ManagedDevice(name="FortiWeb-Test-01", ip="10.30.8.9", model="FortiWeb VM", environment="Test", region="Izmir", firmware="7.4.1", status="Offline", last_sync="3 hours ago"),
+                    ManagedDevice(name="FortiWeb-Prod-TR-01", ip="10.10.1.15", model="FortiWeb VM", environment="Production", region="Istanbul", firmware="7.4.2", apikey="prod-tr-apikey", status="Online", last_sync="5 min ago"),
+                    ManagedDevice(name="FortiWeb-DR-01", ip="10.20.1.22", model="FortiWeb 4000E", environment="Disaster Recovery", region="Ankara", firmware="7.2.6", apikey="dr-apikey", status="Warning", last_sync="42 min ago"),
+                    ManagedDevice(name="FortiWeb-Test-01", ip="10.30.8.9", model="FortiWeb VM", environment="Test", region="Izmir", firmware="7.4.1", apikey="test-apikey", status="Offline", last_sync="3 hours ago"),
                 ]
             )
             db.commit()

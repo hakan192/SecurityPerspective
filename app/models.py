@@ -66,5 +66,6 @@ class ManagedDevice(Base):
     environment: Mapped[str] = mapped_column(String(120), nullable=False)
     region: Mapped[str] = mapped_column(String(120), nullable=False)
     firmware: Mapped[str] = mapped_column(String(64), nullable=False)
+    apikey: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(64), nullable=False, default="Online")
     last_sync: Mapped[str] = mapped_column(String(120), nullable=False, default="Just now")

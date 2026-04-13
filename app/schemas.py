@@ -59,6 +59,7 @@ class ManagedDeviceCreate(BaseModel):
     environment: str
     region: str
     firmware: str
+    apikey: str
     status: str = "Online"
     last_sync: str = "Just now"
 
@@ -71,6 +72,7 @@ class ManagedDeviceOut(BaseModel):
     environment: str
     region: str
     firmware: str
+    apikey: str
     status: str
     last_sync: str
 
