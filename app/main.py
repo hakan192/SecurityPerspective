@@ -31,7 +31,6 @@ from app.services import (
     fetch_fortiweb_config,
     parse_snapshot,
     fetch_fortiweb_server_policies_by_device,
-    seed_baseline_controls,
 )
 
 app = FastAPI(title=settings.app_name)
@@ -79,10 +78,19 @@ def startup_event():
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE managed_devices ADD COLUMN IF NOT EXISTS apikey VARCHAR(255)"))
         connection.execute(text("UPDATE managed_devices SET apikey = '' WHERE apikey IS NULL"))
+        connection.execute(text("DROP TABLE IF EXISTS baseline_controls CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS exchange_rate_snapshots CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS fortiweb_snapshots CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS maturity_assessments CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS parsed_configs CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS baseline_controls_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS exchange_rate_snapshots_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS fortiweb_snapshots_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS maturity_assessments_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS parsed_configs_id_seq CASCADE"))
 
     db = SessionLocal()
     try:
-        seed_baseline_controls(db)
         if db.query(ManagedDevice).count() == 0:
             db.add_all(
                 [
