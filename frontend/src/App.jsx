@@ -458,8 +458,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               <section className="waf-panel modern-waf">
                 <div className="waf-header-row">
                   <div>
-                    <div className="nav-title">Server policy cards</div>
-                    <div className="waf-endpoint">API endpoint: {SERVER_POLICY_ENDPOINT}</div>
                     <div className="waf-device-picker">
                       <label htmlFor="waf-device-select">Device</label>
                       <select id="waf-device-select" value={selectedWafDevice} onChange={(e) => setSelectedWafDevice(e.target.value)}>
