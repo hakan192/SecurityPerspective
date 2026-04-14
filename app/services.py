@@ -1,203 +1,381 @@
-from collections import defaultdict
-from datetime import datetime
+import json
+from urllib.parse import urlparse
+from urllib.parse import quote
 
 import requests
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import BaselineControl, FortiWebSnapshot, MaturityAssessment, ParsedConfig
+from app.models import ManagedDevice
 
 
-def fetch_fortiweb_config() -> dict:
-    url = f"{settings.fortiweb_base_url.rstrip('/')}{settings.fortiweb_config_endpoint}"
-    headers = {}
-    if settings.fortiweb_token:
-        headers["Authorization"] = settings.fortiweb_token
-    response = requests.get(
-        url,
-        headers=headers,
-        timeout=30,
-        verify=settings.fortiweb_verify_ssl,
-    )
-    response.raise_for_status()
-    return response.json()
+def _build_device_base_url(device_ip: str) -> str:
+    parsed = urlparse(settings.fortiweb_base_url)
+    scheme = parsed.scheme or "https"
+    port = f":{parsed.port}" if parsed.port else ""
+    return f"{scheme}://{device_ip}{port}"
 
 
-def fetch_fortiweb_server_policy() -> dict:
-    url = f"{settings.fortiweb_base_url.rstrip('/')}{settings.fortiweb_server_policy_endpoint}"
-    headers = {}
-    if settings.fortiweb_token:
-        headers["Authorization"] = settings.fortiweb_token
-    response = requests.get(
-        url,
-        headers=headers,
-        timeout=30,
-        verify=settings.fortiweb_verify_ssl,
-    )
-    response.raise_for_status()
-    return response.json()
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.lower() in {"true", "1", "yes", "on", "enable", "enabled"}
+    return None
 
 
-def create_snapshot(db: Session, endpoint: str, payload: dict) -> FortiWebSnapshot:
-    snapshot = FortiWebSnapshot(endpoint=endpoint, payload=payload, collected_at=datetime.utcnow())
-    db.add(snapshot)
-    db.commit()
-    db.refresh(snapshot)
-    return snapshot
+def _normalize_optional_text(value):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return str(value)
+    normalized = value.strip()
+    return normalized or None
 
 
-def _iter_relevant_objects(payload: dict):
-    if isinstance(payload, dict):
-        if "results" in payload and isinstance(payload["results"], list):
-            for item in payload["results"]:
-                if isinstance(item, dict):
-                    yield item
-        else:
-            yield payload
+def _extract_policy_rows(payload: dict) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    rows = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        policy_name = item.get("name")
+        if not isinstance(policy_name, str) or not policy_name.strip():
+            continue
 
-
-def parse_snapshot(db: Session, snapshot: FortiWebSnapshot) -> list[ParsedConfig]:
-    controls = db.query(BaselineControl).all()
-    entries = []
-    for obj in _iter_relevant_objects(snapshot.payload):
-        obj_type = obj.get("type", "unknown")
-        obj_name = obj.get("name", obj.get("id", "unnamed"))
-        for control in controls:
-            value = str(obj.get(control.expected_field, ""))
-            compliant = value.lower() == str(control.expected_value).lower()
-            entry = ParsedConfig(
-                snapshot_id=snapshot.id,
-                object_type=obj_type,
-                object_name=str(obj_name),
-                control_id=control.control_id,
-                category=control.category,
-                field_name=control.expected_field,
-                field_value=value,
-                is_compliant=compliant,
-            )
-            entries.append(entry)
-            db.add(entry)
-
-    db.commit()
-    for entry in entries:
-        db.refresh(entry)
-    return entries
-
-
-def maturity_level_from_score(score: float) -> str:
-    if score >= 90:
-        return "Optimized"
-    if score >= 75:
-        return "Managed"
-    if score >= 50:
-        return "Defined"
-    if score >= 25:
-        return "Initial"
-    return "Ad Hoc"
-
-
-def assess_snapshot(db: Session, snapshot_id: int) -> MaturityAssessment:
-    controls = {c.control_id: c for c in db.query(BaselineControl).all()}
-    parsed = db.query(ParsedConfig).filter(ParsedConfig.snapshot_id == snapshot_id).all()
-
-    if not parsed or not controls:
-        details = {"per_control": {}, "per_category": {}, "recommendations": ["No data or baseline controls available"]}
-        assessment = MaturityAssessment(
-            snapshot_id=snapshot_id,
-            overall_score=0,
-            maturity_level="Ad Hoc",
-            details=details,
+        web_protection_profile_name = _normalize_optional_text(
+            item.get("web_protection_profile_name")
+            or item.get("web_protection_profile")
+            or item.get("web-protection-profile")
         )
-        db.add(assessment)
-        db.commit()
-        db.refresh(assessment)
-        return assessment
+        server_pool_name = _normalize_optional_text(item.get("server_pool_name") or item.get("server_pool") or item.get("server-pool"))
+        rows.append(
+            {
+                "server_policy_name": policy_name,
+                "web_protection_profile_name": web_protection_profile_name,
+                "server_pool_name": server_pool_name,
+                "traffic_mirror": _as_bool(
+                    item.get("traffic_mirror")
+                    or item.get("traffic-mirror")
+                    or item.get("traffic_mirror_val")
+                    or item.get("traffic-mirror_val")
+                ),
+                "raw_json": item,
+            }
+        )
+    return rows
 
-    per_control = {}
-    category_scores = defaultdict(lambda: {"weighted": 0.0, "total": 0.0})
 
-    latest_by_control = {}
-    for row in parsed:
-        latest_by_control[row.control_id] = row
+def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
+    for row in rows:
+        if row["web_protection_profile_name"]:
+            db.execute(
+                text(
+                    """
+                    INSERT INTO web_protection_profiles (device_id, web_protection_profile_name)
+                    VALUES (:device_id, :web_protection_profile_name)
+                    ON CONFLICT (device_id, web_protection_profile_name) DO NOTHING
+                    """
+                ),
+                {
+                    "device_id": device_id,
+                    "web_protection_profile_name": row["web_protection_profile_name"],
+                },
+            )
 
-    for control_id, control in controls.items():
-        parsed_value = latest_by_control.get(control_id)
-        score = 100.0 if parsed_value and parsed_value.is_compliant else 0.0
-        weighted = score * control.weight
-        per_control[control_id] = {
-            "category": control.category,
-            "score": score,
-            "weight": control.weight,
-            "description": control.description,
-            "compliant": bool(parsed_value and parsed_value.is_compliant),
-        }
-        category_scores[control.category]["weighted"] += weighted
-        category_scores[control.category]["total"] += 100.0 * control.weight
+        db.execute(
+            text(
+                """
+                INSERT INTO server_policy (
+                    device_id,
+                    server_policy_name,
+                    web_protection_profile_name,
+                    server_pool_name,
+                    traffic_mirror,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :server_policy_name,
+                    :web_protection_profile_name,
+                    :server_pool_name,
+                    :traffic_mirror,
+                    CAST(:raw_json AS jsonb)
+                )
+                ON CONFLICT (device_id, server_policy_name) DO UPDATE SET
+                    web_protection_profile_name = EXCLUDED.web_protection_profile_name,
+                    server_pool_name = EXCLUDED.server_pool_name,
+                    traffic_mirror = EXCLUDED.traffic_mirror,
+                    raw_json = EXCLUDED.raw_json,
+                    updated_at = now()
+                """
+            ),
+            {
+                "device_id": device_id,
+                "server_policy_name": row["server_policy_name"],
+                "web_protection_profile_name": row["web_protection_profile_name"],
+                "server_pool_name": row["server_pool_name"],
+                "traffic_mirror": row["traffic_mirror"],
+                "raw_json": json.dumps(row["raw_json"]),
+            },
+        )
 
-    per_category = {}
-    total_weighted = 0.0
-    total_possible = 0.0
-    recommendations = []
-    for category, values in category_scores.items():
-        cat_score = (values["weighted"] / values["total"] * 100.0) if values["total"] else 0.0
-        per_category[category] = round(cat_score, 2)
-        total_weighted += values["weighted"]
-        total_possible += values["total"]
 
-    for cid, detail in per_control.items():
-        if not detail["compliant"]:
-            recommendations.append(f"Improve control {cid}: {detail['description']}")
+def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
 
-    overall_score = (total_weighted / total_possible * 100.0) if total_possible else 0.0
-    details = {
-        "per_control": per_control,
-        "per_category": per_category,
-        "recommendations": recommendations,
+    return {
+        "server_pool_name": server_pool_name,
+        "ip": _normalize_optional_text(result.get("ip") or result.get("address")),
+        "certificate_name": _normalize_optional_text(result.get("certificate_name") or result.get("certificate")),
+        "sni_certificate_name": _normalize_optional_text(result.get("sni_certificate_name") or result.get("sni_name")),
+        "intermediate_certificate_group_name": _normalize_optional_text(
+            result.get("intermediate_certificate_group_name")
+            or result.get("intermediate-group")
+            or result.get("intermediate_group")
+        ),
+        "ssl_custom_cipher": _normalize_optional_text(result.get("ssl_custom_cipher") or result.get("ssl-custom-cipher")),
+        "tls13_custom_cipher": _normalize_optional_text(result.get("tls13_custom_cipher") or result.get("tls13-custom-cipher")),
+        "tls_v10": _as_bool(result.get("tls_v10") or result.get("tls-v10")),
+        "tls_v11": _as_bool(result.get("tls_v11") or result.get("tls-v11")),
+        "tls_v12": _as_bool(result.get("tls_v12") or result.get("tls-v12")),
+        "tls_v13": _as_bool(result.get("tls_v13") or result.get("tls-v13")),
+        "http2": _as_bool(result.get("http2")),
+        "raw_json": result or {"server_pool_name": server_pool_name},
     }
 
-    assessment = MaturityAssessment(
-        snapshot_id=snapshot_id,
-        overall_score=round(overall_score, 2),
-        maturity_level=maturity_level_from_score(overall_score),
-        details=details,
+
+def _upsert_server_pool_row(db: Session, device_id: int, row: dict):
+    if row["certificate_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO certificate_local (device_id, certificate_name)
+                VALUES (:device_id, :certificate_name)
+                ON CONFLICT (device_id, certificate_name) DO NOTHING
+                """
+            ),
+            {"device_id": device_id, "certificate_name": row["certificate_name"]},
+        )
+
+    if row["sni_certificate_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO certificate_sni (device_id, sni_name)
+                VALUES (:device_id, :sni_name)
+                ON CONFLICT (device_id, sni_name) DO NOTHING
+                """
+            ),
+            {"device_id": device_id, "sni_name": row["sni_certificate_name"]},
+        )
+
+    if row["intermediate_certificate_group_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO intermediate_certificate_groups (device_id, intermediate_certificate_group_name)
+                VALUES (:device_id, :intermediate_certificate_group_name)
+                ON CONFLICT (device_id, intermediate_certificate_group_name) DO NOTHING
+                """
+            ),
+            {
+                "device_id": device_id,
+                "intermediate_certificate_group_name": row["intermediate_certificate_group_name"],
+            },
+        )
+
+    db.execute(
+        text(
+            """
+            INSERT INTO server_pool (
+                device_id,
+                server_pool_name,
+                ip,
+                certificate_name,
+                sni_certificate_name,
+                intermediate_certificate_group_name,
+                ssl_custom_cipher,
+                tls13_custom_cipher,
+                tls_v10,
+                tls_v11,
+                tls_v12,
+                tls_v13,
+                http2,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :server_pool_name,
+                CAST(:ip AS inet),
+                :certificate_name,
+                :sni_certificate_name,
+                :intermediate_certificate_group_name,
+                :ssl_custom_cipher,
+                :tls13_custom_cipher,
+                :tls_v10,
+                :tls_v11,
+                :tls_v12,
+                :tls_v13,
+                :http2,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, server_pool_name) DO UPDATE SET
+                ip = EXCLUDED.ip,
+                certificate_name = EXCLUDED.certificate_name,
+                sni_certificate_name = EXCLUDED.sni_certificate_name,
+                intermediate_certificate_group_name = EXCLUDED.intermediate_certificate_group_name,
+                ssl_custom_cipher = EXCLUDED.ssl_custom_cipher,
+                tls13_custom_cipher = EXCLUDED.tls13_custom_cipher,
+                tls_v10 = EXCLUDED.tls_v10,
+                tls_v11 = EXCLUDED.tls_v11,
+                tls_v12 = EXCLUDED.tls_v12,
+                tls_v13 = EXCLUDED.tls_v13,
+                http2 = EXCLUDED.http2,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {
+            "device_id": device_id,
+            "server_pool_name": row["server_pool_name"],
+            "ip": row["ip"],
+            "certificate_name": row["certificate_name"],
+            "sni_certificate_name": row["sni_certificate_name"],
+            "intermediate_certificate_group_name": row["intermediate_certificate_group_name"],
+            "ssl_custom_cipher": row["ssl_custom_cipher"],
+            "tls13_custom_cipher": row["tls13_custom_cipher"],
+            "tls_v10": row["tls_v10"],
+            "tls_v11": row["tls_v11"],
+            "tls_v12": row["tls_v12"],
+            "tls_v13": row["tls_v13"],
+            "http2": row["http2"],
+            "raw_json": json.dumps(row["raw_json"]),
+        },
     )
-    db.add(assessment)
-    db.commit()
-    db.refresh(assessment)
-    return assessment
 
 
-def seed_baseline_controls(db: Session):
-    existing = db.query(BaselineControl).count()
-    if existing:
-        return
+def _fetch_and_upsert_server_pool(
+    db: Session,
+    device: ManagedDevice,
+    server_pool_name: str,
+    headers: dict,
+):
+    encoded_name = quote(server_pool_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/server-policy/server-pool/pserver-list?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    server_pool_row = _extract_server_pool_row(payload, server_pool_name)
+    _upsert_server_pool_row(db, device.id, server_pool_row)
 
-    defaults = [
-        BaselineControl(
-            control_id="AUTH-001",
-            category="Authentication",
-            description="Administrative interfaces should enforce strong authentication",
-            expected_field="auth_mode",
-            expected_value="2fa",
-            weight=1.5,
-        ),
-        BaselineControl(
-            control_id="TLS-001",
-            category="Transport Security",
-            description="TLS should be enabled for protected virtual servers",
-            expected_field="tls_enabled",
-            expected_value="true",
-            weight=1.0,
-        ),
-        BaselineControl(
-            control_id="LOG-001",
-            category="Monitoring",
-            description="Security logging must be enabled",
-            expected_field="logging",
-            expected_value="enabled",
-            weight=1.0,
-        ),
-    ]
-    db.add_all(defaults)
-    db.commit()
 
+def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
+    per_device = []
+    endpoint = settings.fortiweb_server_policy_endpoint
+
+    for device in devices:
+        headers = {}
+        if device.apikey:
+            headers["Authorization"] = device.apikey
+        elif settings.fortiweb_token:
+            headers["Authorization"] = settings.fortiweb_token
+
+        device_result = {
+            "device_id": device.id,
+            "device_name": device.name,
+            "device_ip": device.ip,
+            "server_policies": [],
+            "error": "",
+        }
+
+        try:
+            url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+            response = requests.get(
+                url,
+                headers=headers,
+                timeout=30,
+                verify=settings.fortiweb_verify_ssl,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            rows = _extract_policy_rows(payload)
+            unique_server_pools = {row["server_pool_name"] for row in rows if row["server_pool_name"]}
+            for server_pool_name in unique_server_pools:
+                _fetch_and_upsert_server_pool(db, device, server_pool_name, headers)
+            _upsert_server_policy_rows(db, device.id, rows)
+            db.commit()
+            device_result["server_policies"] = [row["server_policy_name"] for row in rows]
+        except Exception as exc:
+            db.rollback()
+            device_result["error"] = str(exc)
+
+        per_device.append(device_result)
+
+    return {"devices": per_device}
+
+
+def load_server_policies_from_db(db: Session) -> dict:
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                d.id AS device_id,
+                d.name AS device_name,
+                d.ip AS device_ip,
+                sp.server_policy_name,
+                sp.server_pool_name,
+                pool.ip AS server_pool_ip,
+                pool.tls13_custom_cipher,
+                pool.tls_v10,
+                pool.tls_v11,
+                pool.tls_v12,
+                pool.tls_v13,
+                pool.http2
+            FROM managed_devices d
+            LEFT JOIN server_policy sp ON sp.device_id = d.id
+            LEFT JOIN server_pool pool
+                ON pool.device_id = sp.device_id
+                AND pool.server_pool_name = sp.server_pool_name
+            ORDER BY d.id DESC, sp.server_policy_name ASC
+            """
+        )
+    ).mappings().all()
+
+    by_device = {}
+    for row in rows:
+        device_id = row["device_id"]
+        if device_id not in by_device:
+            by_device[device_id] = {
+                "device_id": row["device_id"],
+                "device_name": row["device_name"],
+                "device_ip": row["device_ip"],
+                "server_policies": [],
+                "error": "",
+            }
+        if row["server_policy_name"]:
+            by_device[device_id]["server_policies"].append(
+                {
+                    "server_policy_name": row["server_policy_name"],
+                    "server_pool_name": row["server_pool_name"],
+                    "ip": row["server_pool_ip"],
+                    "tls13_custom_cipher": row["tls13_custom_cipher"],
+                    "tls_v10": row["tls_v10"],
+                    "tls_v11": row["tls_v11"],
+                    "tls_v12": row["tls_v12"],
+                    "tls_v13": row["tls_v13"],
+                    "http2": row["http2"],
+                }
+            )
+
+    return {"devices": list(by_device.values())}

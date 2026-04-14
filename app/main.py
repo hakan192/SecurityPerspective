@@ -1,4 +1,3 @@
-from io import BytesIO
 import logging
 import time
 from typing import Annotated
@@ -7,32 +6,15 @@ import redis
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.models import FortiWebSnapshot, ManagedDevice, MaturityAssessment, ParsedConfig
-from app.schemas import (
-    AssessmentOut,
-    LoginRequest,
-    LoginResponse,
-    ManagedDeviceCreate,
-    ManagedDeviceOut,
-    ParsedConfigOut,
-    SnapshotOut,
-)
+from app.models import ManagedDevice
+from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
-from app.services import (
-    assess_snapshot,
-    create_snapshot,
-    fetch_fortiweb_config,
-    parse_snapshot,
-    fetch_fortiweb_server_policy,
-    seed_baseline_controls,
-)
+from app.services import fetch_and_store_server_policies_by_device, load_server_policies_from_db
 
 app = FastAPI(title=settings.app_name)
 scheduler = BackgroundScheduler()
@@ -53,10 +35,8 @@ app.add_middleware(
 def run_collection_job():
     db = SessionLocal()
     try:
-        payload = fetch_fortiweb_config()
-        snapshot = create_snapshot(db, settings.fortiweb_config_endpoint, payload)
-        parse_snapshot(db, snapshot)
-        assess_snapshot(db, snapshot.id)
+        devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
+        fetch_and_store_server_policies_by_device(db, devices)
     finally:
         db.close()
 
@@ -76,15 +56,161 @@ def startup_event():
             time.sleep(2)
 
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE managed_devices ADD COLUMN IF NOT EXISTS apikey VARCHAR(255)"))
+        connection.execute(text("UPDATE managed_devices SET apikey = '' WHERE apikey IS NULL"))
+        connection.execute(text("DROP TABLE IF EXISTS baseline_controls CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS exchange_rate_snapshots CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS fortiweb_snapshots CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS maturity_assessments CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS parsed_configs CASCADE"))
+        connection.execute(text('DROP TABLE IF EXISTS "Server_Policy" CASCADE'))
+        connection.execute(text("DROP TABLE IF EXISTS server_policy CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS server_pool CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS baseline_controls_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS exchange_rate_snapshots_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS fortiweb_snapshots_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS maturity_assessments_id_seq CASCADE"))
+        connection.execute(text("DROP SEQUENCE IF EXISTS parsed_configs_id_seq CASCADE"))
+        connection.execute(text('DROP SEQUENCE IF EXISTS "Server_Policy_id_seq" CASCADE'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS web_protection_profiles (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    web_protection_profile_name text NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, web_protection_profile_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS certificate_local (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    certificate_name text NOT NULL,
+                    PRIMARY KEY (device_id, certificate_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS certificate_sni (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    sni_name text NOT NULL,
+                    PRIMARY KEY (device_id, sni_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS intermediate_certificate_groups (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    intermediate_certificate_group_name text NOT NULL,
+                    PRIMARY KEY (device_id, intermediate_certificate_group_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS server_pool (
+                    id bigserial PRIMARY KEY,
+                    device_id bigint NOT NULL,
+                    server_pool_name text NOT NULL,
+                    ip inet,
+                    certificate_name text,
+                    sni_certificate_name text,
+                    intermediate_certificate_group_name text,
+                    ssl_custom_cipher text,
+                    tls13_custom_cipher text,
+                    tls_v10 boolean,
+                    tls_v11 boolean,
+                    tls_v12 boolean,
+                    tls_v13 boolean,
+                    http2 boolean,
+                    raw_json jsonb NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+
+                    CONSTRAINT fk_server_pool_device
+                        FOREIGN KEY (device_id)
+                        REFERENCES managed_devices(id)
+                        ON DELETE CASCADE,
+
+                    CONSTRAINT uq_server_pool_device_name
+                        UNIQUE (device_id, server_pool_name),
+
+                    CONSTRAINT fk_server_pool_certificate
+                        FOREIGN KEY (device_id, certificate_name)
+                        REFERENCES certificate_local(device_id, certificate_name)
+                        ON DELETE SET NULL,
+
+                    CONSTRAINT fk_server_pool_sni_certificate
+                        FOREIGN KEY (device_id, sni_certificate_name)
+                        REFERENCES certificate_sni(device_id, sni_name)
+                        ON DELETE SET NULL,
+
+                    CONSTRAINT fk_server_pool_intermediate_group
+                        FOREIGN KEY (device_id, intermediate_certificate_group_name)
+                        REFERENCES intermediate_certificate_groups(device_id, intermediate_certificate_group_name)
+                        ON DELETE SET NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS server_policy (
+                    id bigserial PRIMARY KEY,
+                    device_id bigint NOT NULL,
+                    server_policy_name text NOT NULL,
+                    web_protection_profile_name text,
+                    server_pool_name text,
+                    traffic_mirror boolean,
+                    raw_json jsonb NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+
+                    CONSTRAINT fk_server_policy_device
+                        FOREIGN KEY (device_id)
+                        REFERENCES managed_devices(id)
+                        ON DELETE CASCADE,
+
+                    CONSTRAINT uq_server_policy_device_name
+                        UNIQUE (device_id, server_policy_name),
+
+                    CONSTRAINT fk_server_policy_web_protection_profile
+                        FOREIGN KEY (device_id, web_protection_profile_name)
+                        REFERENCES web_protection_profiles(device_id, web_protection_profile_name)
+                        ON DELETE SET NULL,
+
+                    CONSTRAINT fk_server_policy_server_pool
+                        FOREIGN KEY (device_id, server_pool_name)
+                        REFERENCES server_pool(device_id, server_pool_name)
+                        ON DELETE SET NULL
+                )
+                """
+            )
+        )
+
     db = SessionLocal()
     try:
-        seed_baseline_controls(db)
         if db.query(ManagedDevice).count() == 0:
             db.add_all(
                 [
-                    ManagedDevice(name="FortiWeb-Prod-TR-01", ip="10.10.1.15", model="FortiWeb VM", environment="Production", region="Istanbul", firmware="7.4.2", status="Online", last_sync="5 min ago"),
-                    ManagedDevice(name="FortiWeb-DR-01", ip="10.20.1.22", model="FortiWeb 4000E", environment="Disaster Recovery", region="Ankara", firmware="7.2.6", status="Warning", last_sync="42 min ago"),
-                    ManagedDevice(name="FortiWeb-Test-01", ip="10.30.8.9", model="FortiWeb VM", environment="Test", region="Izmir", firmware="7.4.1", status="Offline", last_sync="3 hours ago"),
+                    ManagedDevice(name="FortiWeb-Prod-TR-01", ip="10.10.1.15", model="FortiWeb VM", environment="Production", region="Istanbul", firmware="7.4.2", apikey="prod-tr-apikey", status="Online", last_sync="5 min ago"),
+                    ManagedDevice(name="FortiWeb-DR-01", ip="10.20.1.22", model="FortiWeb 4000E", environment="Disaster Recovery", region="Ankara", firmware="7.2.6", apikey="dr-apikey", status="Warning", last_sync="42 min ago"),
+                    ManagedDevice(name="FortiWeb-Test-01", ip="10.30.8.9", model="FortiWeb VM", environment="Test", region="Izmir", firmware="7.4.1", apikey="test-apikey", status="Offline", last_sync="3 hours ago"),
                 ]
             )
             db.commit()
@@ -131,45 +257,25 @@ def health_ready():
 def login(payload: LoginRequest):
     if not verify_local_admin(payload.username, payload.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    # Phase-1 local token placeholder (replace with JWT in next phase)
     return LoginResponse(access_token="local-admin-token", username=payload.username)
 
 
-@app.post("/collect", response_model=SnapshotOut)
-def collect_on_demand(
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
-):
-    payload = fetch_fortiweb_config()
-    snapshot = create_snapshot(db, settings.fortiweb_config_endpoint, payload)
-    parse_snapshot(db, snapshot)
-    assess_snapshot(db, snapshot.id)
-    return snapshot
-
-
-@app.post("/fortiweb/server-policy/collect", response_model=SnapshotOut)
+@app.post("/fortiweb/server-policy/collect")
 def collect_fortiweb_server_policy(
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
-    payload = fetch_fortiweb_server_policy()
-    return create_snapshot(db, settings.fortiweb_server_policy_endpoint, payload)
+    devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
+    fetch_and_store_server_policies_by_device(db, devices)
+    return {"payload": load_server_policies_from_db(db)}
 
 
-@app.get("/fortiweb/server-policy/latest", response_model=SnapshotOut)
+@app.get("/fortiweb/server-policy/latest")
 def latest_fortiweb_server_policy(
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_role)] = "viewer",
 ):
-    snapshot = (
-        db.query(FortiWebSnapshot)
-        .filter(FortiWebSnapshot.endpoint == settings.fortiweb_server_policy_endpoint)
-        .order_by(FortiWebSnapshot.collected_at.desc())
-        .first()
-    )
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Server policy snapshot not found")
-    return snapshot
+    return {"payload": load_server_policies_from_db(db)}
 
 
 @app.get("/devices", response_model=list[ManagedDeviceOut])
@@ -217,78 +323,3 @@ def delete_device(
     db.delete(device)
     db.commit()
     return {"status": "deleted", "id": device_id}
-
-
-@app.post("/collect/async")
-def collect_on_demand_async(_: Annotated[str, Depends(require_analyst_or_admin)] = "analyst"):
-    task = celery_app.send_task("fortiweb.collect_snapshot")
-    return {"task_id": task.id, "status": "queued"}
-
-
-@app.get("/snapshots", response_model=list[SnapshotOut])
-def list_snapshots(
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    return db.query(FortiWebSnapshot).order_by(FortiWebSnapshot.collected_at.desc()).all()
-
-
-@app.get("/snapshots/{snapshot_id}/raw", response_model=SnapshotOut)
-def get_raw_snapshot(
-    snapshot_id: int,
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    snapshot = db.query(FortiWebSnapshot).filter(FortiWebSnapshot.id == snapshot_id).first()
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
-    return snapshot
-
-
-@app.get("/snapshots/{snapshot_id}/parsed", response_model=list[ParsedConfigOut])
-def get_parsed_snapshot(
-    snapshot_id: int,
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    return db.query(ParsedConfig).filter(ParsedConfig.snapshot_id == snapshot_id).all()
-
-
-@app.get("/snapshots/{snapshot_id}/assessment", response_model=AssessmentOut)
-def get_assessment(
-    snapshot_id: int,
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    assessment = (
-        db.query(MaturityAssessment)
-        .filter(MaturityAssessment.snapshot_id == snapshot_id)
-        .order_by(MaturityAssessment.generated_at.desc())
-        .first()
-    )
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    return assessment
-
-
-@app.get("/snapshots/{snapshot_id}/assessment/report")
-def download_assessment_report(
-    snapshot_id: int,
-    db: Session = Depends(get_db),
-    _: Annotated[str, Depends(require_role)] = "viewer",
-):
-    assessment = (
-        db.query(MaturityAssessment)
-        .filter(MaturityAssessment.snapshot_id == snapshot_id)
-        .order_by(MaturityAssessment.generated_at.desc())
-        .first()
-    )
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    report_bytes = BytesIO(str(assessment.details).encode("utf-8"))
-    return StreamingResponse(
-        report_bytes,
-        media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename=assessment-{snapshot_id}.json"},
-    )

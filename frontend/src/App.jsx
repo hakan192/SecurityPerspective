@@ -23,57 +23,6 @@ const navItems = [
   }
 ]
 
-function extractServerPolicyNames(payload) {
-  const seen = new Set()
-  const names = []
-
-  const addName = (value) => {
-    if (typeof value !== 'string') return
-    const trimmed = value.trim()
-    if (!trimmed || seen.has(trimmed)) return
-    seen.add(trimmed)
-    names.push(trimmed)
-  }
-
-  const parseMaybeJson = (value) => {
-    if (typeof value !== 'string') return null
-    try {
-      return JSON.parse(value)
-    } catch {
-      return null
-    }
-  }
-
-  const walk = (node, rawJsonContext = false) => {
-    if (!node) return
-
-    if (Array.isArray(node)) {
-      node.forEach((item) => walk(item, rawJsonContext))
-      return
-    }
-
-    if (typeof node !== 'object') return
-
-    if (typeof node.name === 'string' && (rawJsonContext || 'name' in node)) {
-      addName(node.name)
-    }
-
-    Object.entries(node).forEach(([key, value]) => {
-      if (key === 'raw_json') {
-        const parsed = parseMaybeJson(value)
-        if (parsed) walk(parsed, true)
-      } else if (key === 'results' && Array.isArray(value)) {
-        value.forEach((item) => walk(item, rawJsonContext))
-      } else {
-        walk(value, rawJsonContext)
-      }
-    })
-  }
-
-  walk(payload)
-  return names
-}
-
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
 
@@ -167,9 +116,10 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [prompt, setPrompt] = useState('')
   const [searchResult, setSearchResult] = useState('')
   const [wafResponse, setWafResponse] = useState(null)
-  const [selectedPolicyName, setSelectedPolicyName] = useState('')
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
+  const [selectedWafDevice, setSelectedWafDevice] = useState('')
+  const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
@@ -183,13 +133,28 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     environment: 'Production',
     region: 'Istanbul',
     model: 'FortiWeb VM',
-    firmware: '7.4.2'
+    firmware: '7.4.2',
+    apikey: ''
   })
   const menuRef = useRef(null)
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
-  const serverPolicyNames = useMemo(() => extractServerPolicyNames(wafResponse), [wafResponse])
+  const wafDevices = useMemo(() => {
+    const devices = wafResponse?.devices
+    return Array.isArray(devices) ? devices : []
+  }, [wafResponse])
+  const selectedWafDeviceData = useMemo(() => {
+    if (!selectedWafDevice) return wafDevices[0] || null
+    return wafDevices.find((device) => device.device_name === selectedWafDevice) || null
+  }, [selectedWafDevice, wafDevices])
+  const selectedWafDevicePolicies = useMemo(() => {
+    if (!selectedWafDeviceData) return []
+    if (selectedWafDeviceData.error) {
+      return [{ server_policy_name: `Error: ${selectedWafDeviceData.error}` }]
+    }
+    return Array.isArray(selectedWafDeviceData.server_policies) ? selectedWafDeviceData.server_policies : []
+  }, [selectedWafDeviceData])
   const filteredDevices = useMemo(() => {
     const search = deviceSearch.trim().toLowerCase()
     return devices.filter((device) => {
@@ -257,6 +222,21 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     if (activeNav === 'waf' || activeNav === 'home') loadWafResponse()
   }, [activeNav])
 
+  useEffect(() => {
+    if (!wafDevices.length) {
+      setSelectedWafDevice('')
+      setExpandedPolicyCard('')
+      return
+    }
+    if (!selectedWafDevice || !wafDevices.some((device) => device.device_name === selectedWafDevice)) {
+      setSelectedWafDevice(wafDevices[0].device_name || '')
+    }
+  }, [wafDevices, selectedWafDevice])
+
+  useEffect(() => {
+    setExpandedPolicyCard('')
+  }, [selectedWafDevice])
+
   const loadDevices = async () => {
     setLoadingDevices(true)
     setDeviceError('')
@@ -313,6 +293,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const saveNewDevice = async () => {
     setDeviceError('')
     try {
+      if (!newDevice.apikey.trim()) {
+        throw new Error('APIKEY cannot be Empty')
+      }
       const res = await fetch(`${API_BASE}/devices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
@@ -323,6 +306,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
           environment: newDevice.environment,
           region: newDevice.region,
           firmware: newDevice.firmware,
+          apikey: newDevice.apikey,
           status: 'Online',
           last_sync: 'Just now'
         })
@@ -474,8 +458,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               <section className="waf-panel modern-waf">
                 <div className="waf-header-row">
                   <div>
-                    <div className="nav-title">Server policy cards</div>
-                    <div className="waf-endpoint">API endpoint: {SERVER_POLICY_ENDPOINT}</div>
+                    <div className="waf-device-picker">
+                      <label htmlFor="waf-device-select">Device</label>
+                      <select id="waf-device-select" value={selectedWafDevice} onChange={(e) => setSelectedWafDevice(e.target.value)}>
+                        {wafDevices.map((device) => (
+                          <option key={device.device_id} value={device.device_name}>
+                            {device.device_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="waf-buttons">
                     <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
@@ -486,24 +478,39 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                 {wafError && <p className="error-box">{wafError}</p>}
                 {!loadingWaf && !wafError && (
                   <>
-                    <div className="waf-card-grid">
-                      {serverPolicyNames.length === 0 && <p className="nav-desc">No policy names found in raw_json.name fields.</p>}
-                      {serverPolicyNames.map((policyName) => {
-                        const selected = selectedPolicyName === policyName
-                        return (
-                          <button
-                            key={policyName}
-                            type="button"
-                            className={`policy-card ${selected ? 'selected' : ''}`}
-                            onClick={() => setSelectedPolicyName(selected ? '' : policyName)}
+                    {selectedWafDevicePolicies.length === 0 ? (
+                      <p className="nav-desc">No devices or server policies found.</p>
+                    ) : (
+                      <div className="waf-card-grid">
+                        {selectedWafDevicePolicies.map((policy, index) => {
+                          const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
+                          const policyIp = typeof policy === 'string' ? '' : policy.ip
+                          const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
+                          const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
+                          const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
+                          const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
+                          const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
+                          const http2 = typeof policy === 'string' ? null : policy.http2
+                          return (
+                          <article
+                            className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
+                            key={`${selectedWafDevice}-${policyName}-${index}`}
+                            onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
                           >
-                            <p className="policy-label">Policy Name</p>
+                            <p className="policy-label">Server Policy Name</p>
                             <p className="policy-name">{policyName}</p>
-                            {selected && <p className="policy-meta">Expanded view enabled for this policy card.</p>}
-                          </button>
-                        )
-                      })}
-                    </div>
+                            <p className="policy-meta">IP: {policyIp || '-'}</p>
+                            <p className="policy-meta">TLS13 Custom Cipher: {tls13CustomCipher || '-'}</p>
+                            <p className="policy-meta">TLS v1.0: {tlsV10 === null ? '-' : String(tlsV10)}</p>
+                            <p className="policy-meta">TLS v1.1: {tlsV11 === null ? '-' : String(tlsV11)}</p>
+                            <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
+                            <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
+                            <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
+                          </article>
+                          )
+                        })}
+                      </div>
+                    )}
                     {wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}
                   </>
                 )}
@@ -575,6 +582,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         <label>Region<input value={newDevice.region} onChange={(e) => updateNewDeviceField('region', e.target.value)} /></label>
                         <label>Model<select value={newDevice.model} onChange={(e) => updateNewDeviceField('model', e.target.value)}><option>FortiWeb VM</option><option>FortiWeb 4000E</option></select></label>
                         <label>Firmware Version<input value={newDevice.firmware} onChange={(e) => updateNewDeviceField('firmware', e.target.value)} /></label>
+                        <label>APIKEY<input value={newDevice.apikey} onChange={(e) => updateNewDeviceField('apikey', e.target.value)} /></label>
                       </div>
                       <div className="device-modal-actions">
                         <button type="button" onClick={() => setAddDeviceModalOpen(false)}>Cancel</button>
