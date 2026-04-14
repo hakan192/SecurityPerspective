@@ -201,10 +201,45 @@ def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[
 
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
-    result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
-    row = {"signature_set_name": signature_set_name, "raw_json": result or {"signature_set_name": signature_set_name}}
+    if isinstance(results, dict):
+        result = results
+    elif isinstance(results, list) and results and isinstance(results[0], dict):
+        result = results[0]
+    else:
+        result = {}
+
+    row = {
+        "signature_set_name": signature_set_name,
+        "raw_json": payload if isinstance(payload, dict) else {"results": result or {"signature_set_name": signature_set_name}},
+    }
     for normalized_key, aliases in SIGNATURE_FIELD_MAP.items():
         row[normalized_key] = _normalize_optional_text(_extract_by_aliases(result, aliases))
+
+    main_class_lookup = {}
+    main_class_list = result.get("main_class_list", [])
+    if isinstance(main_class_list, list):
+        for item in main_class_list:
+            if isinstance(item, dict):
+                name = _normalize_optional_text(item.get("name"))
+                if name:
+                    main_class_lookup[name] = _normalize_optional_text(item.get("status")) or _normalize_optional_text(item.get("action"))
+
+    class_name_to_field = {
+        "Cross Site Scripting": "cross_site_scripting",
+        "Cross Site Scripting (Extended)": "cross_site_scripting_extended",
+        "SQL Injection": "sql_injection",
+        "SQL Injection (Extended)": "sql_injection_extended",
+        "Generic Attacks": "generic_attacks",
+        "Generic Attacks(Extended)": "generic_attacks_extended",
+        "Known Exploits": "known_exploits",
+        "Trojans": "trojans",
+        "Information Disclosure": "information_disclosure",
+        "Personally Identifiable Information": "personally_identifiable_information",
+    }
+    for class_name, field_name in class_name_to_field.items():
+        if not row.get(field_name) and class_name in main_class_lookup:
+            row[field_name] = main_class_lookup[class_name]
+
     return row
 
 
