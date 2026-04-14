@@ -209,20 +209,13 @@ def startup_event():
                 """
                 CREATE TABLE IF NOT EXISTS allow_hosts (
                     id bigserial PRIMARY KEY,
-                    device_id bigint NOT NULL,
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     allow_hosts text NOT NULL,
                     host text,
                     raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
-
-                    CONSTRAINT fk_allow_hosts_device
-                        FOREIGN KEY (device_id)
-                        REFERENCES managed_devices(id)
-                        ON DELETE CASCADE,
-
-                    CONSTRAINT uq_allow_hosts_row
-                        UNIQUE (device_id, allow_hosts, host)
+                    UNIQUE (device_id, allow_hosts, host)
                 )
                 """
             )
