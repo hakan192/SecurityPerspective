@@ -353,15 +353,16 @@ input,
 .policy-card {
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 1rem;
-  padding: 1rem 1.1rem;
+  padding: 0.85rem 1rem;
   text-align: left;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.72));
   color: inherit;
-  min-height: 120px;
+  min-height: 78px;
   width: 100%;
   cursor: pointer;
   box-shadow: 0 16px 36px rgba(2, 6, 23, 0.22);
-  transition: transform 0.18s ease, min-height 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+  overflow: hidden;
+  transition: transform 0.18s ease, min-height 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease, padding 0.24s ease;
 }
 
 .dark .policy-card {
@@ -375,6 +376,7 @@ input,
 
 .policy-card.selected {
   min-height: 240px;
+  padding: 1rem 1.1rem;
   border-color: rgba(16, 185, 129, 0.68);
   box-shadow: 0 28px 52px rgba(16, 185, 129, 0.24);
 }
@@ -401,10 +403,15 @@ input,
   margin: 0.9rem 0 0;
   font-size: 0.85rem;
   color: #475569;
+  display: none;
 }
 
 .dark .policy-meta {
   color: #cbd5e1;
+}
+
+.policy-card.selected .policy-meta {
+  display: block;
 }
 
 .policy-table {
