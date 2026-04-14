@@ -592,6 +592,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 d.name AS device_name,
                 d.ip AS device_ip,
                 sp.server_policy_name,
+                sp.web_protection_profile_name,
                 sp.server_pool_name,
                 sp.allow_hosts,
                 wpp.signature_rule,
@@ -678,6 +679,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],
+                    "web_protection_profile_name": row["web_protection_profile_name"],
                     "server_pool_name": row["server_pool_name"],
                     "allow_hosts": row["allow_hosts"],
                     "ip": row["server_pool_ip"],

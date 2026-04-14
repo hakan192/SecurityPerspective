@@ -492,6 +492,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
                           const http2 = typeof policy === 'string' ? null : policy.http2
                           const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
+                          const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
                           const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
                           const webProtectionDetailEntries = Object.entries(webProtectionDetails).filter(([, value]) => value)
@@ -510,6 +511,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
                             <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
+                            <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Allow Hosts: {allowHosts || '-'}</p>
                             {allowHostsEntries.length > 0 && (
                               <ul className="policy-host-list policy-meta">
