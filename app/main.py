@@ -152,15 +152,25 @@ def startup_event():
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     signature_set_name text NOT NULL,
                     cross_site_scripting text,
+                    cross_site_scripting_action text,
                     cross_site_scripting_extended text,
+                    cross_site_scripting_extended_action text,
                     sql_injection text,
+                    sql_injection_action text,
                     sql_injection_extended text,
+                    sql_injection_extended_action text,
                     generic_attacks text,
+                    generic_attacks_action text,
                     generic_attacks_extended text,
+                    generic_attacks_extended_action text,
                     known_exploits text,
+                    known_exploits_action text,
                     trojans text,
+                    trojans_action text,
                     information_disclosure text,
+                    information_disclosure_action text,
                     personally_identifiable_information text,
+                    personally_identifiable_information_action text,
                     raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -170,6 +180,16 @@ def startup_event():
             )
         )
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS raw_json jsonb"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_extended_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS generic_attacks_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS generic_attacks_extended_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS known_exploits_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS trojans_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS information_disclosure_action text"))
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS personally_identifiable_information_action text"))
         connection.execute(
             text(
                 """

@@ -222,7 +222,10 @@ def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
             if isinstance(item, dict):
                 name = _normalize_optional_text(item.get("name"))
                 if name:
-                    main_class_lookup[name] = _normalize_optional_text(item.get("status")) or _normalize_optional_text(item.get("action"))
+                    main_class_lookup[name] = {
+                        "status": _normalize_optional_text(item.get("status")),
+                        "action": _normalize_optional_text(item.get("action")),
+                    }
 
     class_name_to_field = {
         "Cross Site Scripting": "cross_site_scripting",
@@ -237,8 +240,13 @@ def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
         "Personally Identifiable Information": "personally_identifiable_information",
     }
     for class_name, field_name in class_name_to_field.items():
-        if not row.get(field_name) and class_name in main_class_lookup:
-            row[field_name] = main_class_lookup[class_name]
+        if class_name in main_class_lookup:
+            class_data = main_class_lookup[class_name]
+            if not row.get(field_name) and class_data.get("status"):
+                row[field_name] = class_data["status"]
+            row[f"{field_name}_action"] = class_data.get("action")
+        else:
+            row.setdefault(f"{field_name}_action", None)
 
     return row
 
@@ -251,43 +259,73 @@ def _upsert_signature_row(db: Session, device_id: int, row: dict):
                 device_id,
                 signature_set_name,
                 cross_site_scripting,
+                cross_site_scripting_action,
                 cross_site_scripting_extended,
+                cross_site_scripting_extended_action,
                 sql_injection,
+                sql_injection_action,
                 sql_injection_extended,
+                sql_injection_extended_action,
                 generic_attacks,
+                generic_attacks_action,
                 generic_attacks_extended,
+                generic_attacks_extended_action,
                 known_exploits,
+                known_exploits_action,
                 trojans,
+                trojans_action,
                 information_disclosure,
+                information_disclosure_action,
                 personally_identifiable_information,
+                personally_identifiable_information_action,
                 raw_json
             )
             VALUES (
                 :device_id,
                 :signature_set_name,
                 :cross_site_scripting,
+                :cross_site_scripting_action,
                 :cross_site_scripting_extended,
+                :cross_site_scripting_extended_action,
                 :sql_injection,
+                :sql_injection_action,
                 :sql_injection_extended,
+                :sql_injection_extended_action,
                 :generic_attacks,
+                :generic_attacks_action,
                 :generic_attacks_extended,
+                :generic_attacks_extended_action,
                 :known_exploits,
+                :known_exploits_action,
                 :trojans,
+                :trojans_action,
                 :information_disclosure,
+                :information_disclosure_action,
                 :personally_identifiable_information,
+                :personally_identifiable_information_action,
                 CAST(:raw_json AS jsonb)
             )
             ON CONFLICT (device_id, signature_set_name) DO UPDATE SET
                 cross_site_scripting = EXCLUDED.cross_site_scripting,
+                cross_site_scripting_action = EXCLUDED.cross_site_scripting_action,
                 cross_site_scripting_extended = EXCLUDED.cross_site_scripting_extended,
+                cross_site_scripting_extended_action = EXCLUDED.cross_site_scripting_extended_action,
                 sql_injection = EXCLUDED.sql_injection,
+                sql_injection_action = EXCLUDED.sql_injection_action,
                 sql_injection_extended = EXCLUDED.sql_injection_extended,
+                sql_injection_extended_action = EXCLUDED.sql_injection_extended_action,
                 generic_attacks = EXCLUDED.generic_attacks,
+                generic_attacks_action = EXCLUDED.generic_attacks_action,
                 generic_attacks_extended = EXCLUDED.generic_attacks_extended,
+                generic_attacks_extended_action = EXCLUDED.generic_attacks_extended_action,
                 known_exploits = EXCLUDED.known_exploits,
+                known_exploits_action = EXCLUDED.known_exploits_action,
                 trojans = EXCLUDED.trojans,
+                trojans_action = EXCLUDED.trojans_action,
                 information_disclosure = EXCLUDED.information_disclosure,
+                information_disclosure_action = EXCLUDED.information_disclosure_action,
                 personally_identifiable_information = EXCLUDED.personally_identifiable_information,
+                personally_identifiable_information_action = EXCLUDED.personally_identifiable_information_action,
                 raw_json = EXCLUDED.raw_json,
                 updated_at = now()
             """
