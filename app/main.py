@@ -79,7 +79,6 @@ def startup_event():
                 CREATE TABLE IF NOT EXISTS web_protection_profiles (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     web_protection_profile_name text NOT NULL,
-                    standard_protection text,
                     signature_rule text,
                     http_protocol_parameter_restriction text,
                     cookie_security_policy text,
@@ -111,7 +110,6 @@ def startup_event():
                 """
             )
         )
-        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS standard_protection text"))
         connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS signature_rule text"))
         connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS http_protocol_parameter_restriction text"))
         connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS cookie_security_policy text"))

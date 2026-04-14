@@ -10,7 +10,6 @@ from app.config import settings
 from app.models import ManagedDevice
 
 WEB_PROTECTION_PROFILE_FIELD_MAP = {
-    "standard_protection": ["standard_protection", "standart protection", "standard-protection", "standart-protection"],
     "signature_rule": ["signature_rule", "signature-rule"],
     "http_protocol_parameter_restriction": ["http_protocol_parameter_restriction", "http-protocol-parameter-restriction"],
     "cookie_security_policy": ["cookie_security_policy", "cookie-security-policy"],
@@ -98,7 +97,6 @@ def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[
                 INSERT INTO web_protection_profiles (
                     device_id,
                     web_protection_profile_name,
-                    standard_protection,
                     signature_rule,
                     http_protocol_parameter_restriction,
                     cookie_security_policy,
@@ -127,7 +125,6 @@ def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[
                 VALUES (
                     :device_id,
                     :web_protection_profile_name,
-                    :standard_protection,
                     :signature_rule,
                     :http_protocol_parameter_restriction,
                     :cookie_security_policy,
@@ -154,7 +151,6 @@ def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[
                     :cors_protection_policy
                 )
                 ON CONFLICT (device_id, web_protection_profile_name) DO UPDATE SET
-                    standard_protection = EXCLUDED.standard_protection,
                     signature_rule = EXCLUDED.signature_rule,
                     http_protocol_parameter_restriction = EXCLUDED.http_protocol_parameter_restriction,
                     cookie_security_policy = EXCLUDED.cookie_security_policy,
@@ -598,7 +594,6 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sp.server_policy_name,
                 sp.server_pool_name,
                 sp.allow_hosts,
-                wpp.standard_protection,
                 wpp.signature_rule,
                 wpp.http_protocol_parameter_restriction,
                 wpp.cookie_security_policy,
@@ -694,7 +689,6 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "http2": row["http2"],
                     "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["allow_hosts"]), []),
                     "web_protection_profile_details": {
-                        "standard_protection": row["standard_protection"],
                         "signature_rule": row["signature_rule"],
                         "http_protocol_parameter_restriction": row["http_protocol_parameter_restriction"],
                         "cookie_security_policy": row["cookie_security_policy"],
