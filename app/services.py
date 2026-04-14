@@ -150,45 +150,41 @@ def _extract_allow_hosts_rows(payload: dict, allow_hosts_name: str) -> list[dict
     return rows
 
 
-def _upsert_allow_hosts_rows(db: Session, device_id: int, server_policy_name: str, allow_hosts_name: str, rows: list[dict]):
+def _upsert_allow_hosts_rows(db: Session, device_id: int, allow_hosts_name: str, rows: list[dict]):
     db.execute(
         text(
             """
-            DELETE FROM server_policy_allow_hosts
+            DELETE FROM allow_hosts
             WHERE device_id = :device_id
-              AND server_policy_name = :server_policy_name
               AND allow_hosts = :allow_hosts
             """
         ),
-        {"device_id": device_id, "server_policy_name": server_policy_name, "allow_hosts": allow_hosts_name},
+        {"device_id": device_id, "allow_hosts": allow_hosts_name},
     )
 
     for row in rows:
         db.execute(
             text(
                 """
-                INSERT INTO server_policy_allow_hosts (
+                INSERT INTO allow_hosts (
                     device_id,
-                    server_policy_name,
                     allow_hosts,
                     host,
                     raw_json
                 )
                 VALUES (
                     :device_id,
-                    :server_policy_name,
                     :allow_hosts,
                     :host,
                     CAST(:raw_json AS jsonb)
                 )
-                ON CONFLICT (device_id, server_policy_name, allow_hosts, host) DO UPDATE SET
+                ON CONFLICT (device_id, allow_hosts, host) DO UPDATE SET
                     raw_json = EXCLUDED.raw_json,
                     updated_at = now()
                 """
             ),
             {
                 "device_id": device_id,
-                "server_policy_name": server_policy_name,
                 "allow_hosts": row["allow_hosts"],
                 "host": row["host"],
                 "raw_json": json.dumps(row["raw_json"]),
@@ -355,7 +351,6 @@ def _fetch_and_upsert_server_pool(
 def _fetch_and_upsert_allow_hosts(
     db: Session,
     device: ManagedDevice,
-    server_policy_name: str,
     allow_hosts_name: str,
     headers: dict,
 ):
@@ -371,7 +366,7 @@ def _fetch_and_upsert_allow_hosts(
     response.raise_for_status()
     payload = response.json()
     allow_host_rows = _extract_allow_hosts_rows(payload, allow_hosts_name)
-    _upsert_allow_hosts_rows(db, device.id, server_policy_name, allow_hosts_name, allow_host_rows)
+    _upsert_allow_hosts_rows(db, device.id, allow_hosts_name, allow_host_rows)
 
 
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
@@ -408,9 +403,9 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             for server_pool_name in unique_server_pools:
                 _fetch_and_upsert_server_pool(db, device, server_pool_name, headers)
             _upsert_server_policy_rows(db, device.id, rows)
-            for row in rows:
-                if row["allow_hosts"]:
-                    _fetch_and_upsert_allow_hosts(db, device, row["server_policy_name"], row["allow_hosts"], headers)
+            unique_allow_hosts = {row["allow_hosts"] for row in rows if row["allow_hosts"]}
+            for allow_hosts_name in unique_allow_hosts:
+                _fetch_and_upsert_allow_hosts(db, device, allow_hosts_name, headers)
             db.commit()
             device_result["server_policies"] = [row["server_policy_name"] for row in rows]
         except Exception as exc:
@@ -455,11 +450,10 @@ def load_server_policies_from_db(db: Session) -> dict:
             """
             SELECT
                 device_id,
-                server_policy_name,
                 allow_hosts,
                 host,
                 raw_json
-            FROM server_policy_allow_hosts
+            FROM allow_hosts
             ORDER BY id ASC
             """
         )
@@ -467,7 +461,7 @@ def load_server_policies_from_db(db: Session) -> dict:
 
     allow_hosts_by_policy = {}
     for row in allow_host_rows:
-        key = (row["device_id"], row["server_policy_name"])
+        key = (row["device_id"], row["allow_hosts"])
         allow_hosts_by_policy.setdefault(key, []).append(
             {
                 "allow_hosts": row["allow_hosts"],
@@ -500,7 +494,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "tls_v12": row["tls_v12"],
                     "tls_v13": row["tls_v13"],
                     "http2": row["http2"],
-                    "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["server_policy_name"]), []),
+                    "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["allow_hosts"]), []),
                 }
             )
 

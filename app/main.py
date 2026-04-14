@@ -207,10 +207,9 @@ def startup_event():
         connection.execute(
             text(
                 """
-                CREATE TABLE IF NOT EXISTS server_policy_allow_hosts (
+                CREATE TABLE IF NOT EXISTS allow_hosts (
                     id bigserial PRIMARY KEY,
                     device_id bigint NOT NULL,
-                    server_policy_name text NOT NULL,
                     allow_hosts text NOT NULL,
                     host text,
                     raw_json jsonb NOT NULL,
@@ -222,13 +221,8 @@ def startup_event():
                         REFERENCES managed_devices(id)
                         ON DELETE CASCADE,
 
-                    CONSTRAINT fk_allow_hosts_server_policy
-                        FOREIGN KEY (device_id, server_policy_name)
-                        REFERENCES server_policy(device_id, server_policy_name)
-                        ON DELETE CASCADE,
-
                     CONSTRAINT uq_allow_hosts_row
-                        UNIQUE (device_id, server_policy_name, allow_hosts, host)
+                        UNIQUE (device_id, allow_hosts, host)
                 )
                 """
             )

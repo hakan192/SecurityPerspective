@@ -510,24 +510,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
                             <p className="policy-meta">Allow Hosts: {allowHosts || '-'}</p>
                             {allowHostsEntries.length > 0 && (
-                              <table className="policy-table">
-                                <thead>
-                                  <tr>
-                                    <th>Allow Hosts</th>
-                                    <th>Host</th>
-                                    <th>Raw JSON</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {allowHostsEntries.map((entry, hostIndex) => (
-                                    <tr key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>
-                                      <td>{entry.allow_hosts || allowHosts || '-'}</td>
-                                      <td>{entry.host || '-'}</td>
-                                      <td><code>{JSON.stringify(entry.raw_json)}</code></td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                              <ul className="policy-host-list policy-meta">
+                                {allowHostsEntries.map((entry, hostIndex) => (
+                                  <li key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
+                                ))}
+                              </ul>
                             )}
                           </article>
                           )
