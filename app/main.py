@@ -176,6 +176,7 @@ def startup_event():
                     server_policy_name text NOT NULL,
                     web_protection_profile_name text,
                     server_pool_name text,
+                    allow_hosts text,
                     traffic_mirror boolean,
                     raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
@@ -198,6 +199,36 @@ def startup_event():
                         FOREIGN KEY (device_id, server_pool_name)
                         REFERENCES server_pool(device_id, server_pool_name)
                         ON DELETE SET NULL
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS allow_hosts text"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS server_policy_allow_hosts (
+                    id bigserial PRIMARY KEY,
+                    device_id bigint NOT NULL,
+                    server_policy_name text NOT NULL,
+                    allow_hosts text NOT NULL,
+                    host text,
+                    raw_json jsonb NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+
+                    CONSTRAINT fk_allow_hosts_device
+                        FOREIGN KEY (device_id)
+                        REFERENCES managed_devices(id)
+                        ON DELETE CASCADE,
+
+                    CONSTRAINT fk_allow_hosts_server_policy
+                        FOREIGN KEY (device_id, server_policy_name)
+                        REFERENCES server_policy(device_id, server_policy_name)
+                        ON DELETE CASCADE,
+
+                    CONSTRAINT uq_allow_hosts_row
+                        UNIQUE (device_id, server_policy_name, allow_hosts, host)
                 )
                 """
             )

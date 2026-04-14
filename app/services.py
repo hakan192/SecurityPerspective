@@ -52,11 +52,13 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
             or item.get("web-protection-profile")
         )
         server_pool_name = _normalize_optional_text(item.get("server_pool_name") or item.get("server_pool") or item.get("server-pool"))
+        allow_hosts = _normalize_optional_text(item.get("allow_hosts") or item.get("allow-hosts") or item.get("allowhosts"))
         rows.append(
             {
                 "server_policy_name": policy_name,
                 "web_protection_profile_name": web_protection_profile_name,
                 "server_pool_name": server_pool_name,
+                "allow_hosts": allow_hosts,
                 "traffic_mirror": _as_bool(
                     item.get("traffic_mirror")
                     or item.get("traffic-mirror")
@@ -94,6 +96,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     server_policy_name,
                     web_protection_profile_name,
                     server_pool_name,
+                    allow_hosts,
                     traffic_mirror,
                     raw_json
                 )
@@ -102,12 +105,14 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     :server_policy_name,
                     :web_protection_profile_name,
                     :server_pool_name,
+                    :allow_hosts,
                     :traffic_mirror,
                     CAST(:raw_json AS jsonb)
                 )
                 ON CONFLICT (device_id, server_policy_name) DO UPDATE SET
                     web_protection_profile_name = EXCLUDED.web_protection_profile_name,
                     server_pool_name = EXCLUDED.server_pool_name,
+                    allow_hosts = EXCLUDED.allow_hosts,
                     traffic_mirror = EXCLUDED.traffic_mirror,
                     raw_json = EXCLUDED.raw_json,
                     updated_at = now()
@@ -118,7 +123,74 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                 "server_policy_name": row["server_policy_name"],
                 "web_protection_profile_name": row["web_protection_profile_name"],
                 "server_pool_name": row["server_pool_name"],
+                "allow_hosts": row["allow_hosts"],
                 "traffic_mirror": row["traffic_mirror"],
+                "raw_json": json.dumps(row["raw_json"]),
+            },
+        )
+
+
+def _extract_allow_hosts_rows(payload: dict, allow_hosts_name: str) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    rows = []
+    if not isinstance(results, list):
+        return rows
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        host = _normalize_optional_text(item.get("host") or item.get("name") or item.get("ip") or item.get("address"))
+        rows.append(
+            {
+                "allow_hosts": allow_hosts_name,
+                "host": host,
+                "raw_json": item,
+            }
+        )
+    return rows
+
+
+def _upsert_allow_hosts_rows(db: Session, device_id: int, server_policy_name: str, allow_hosts_name: str, rows: list[dict]):
+    db.execute(
+        text(
+            """
+            DELETE FROM server_policy_allow_hosts
+            WHERE device_id = :device_id
+              AND server_policy_name = :server_policy_name
+              AND allow_hosts = :allow_hosts
+            """
+        ),
+        {"device_id": device_id, "server_policy_name": server_policy_name, "allow_hosts": allow_hosts_name},
+    )
+
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO server_policy_allow_hosts (
+                    device_id,
+                    server_policy_name,
+                    allow_hosts,
+                    host,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :server_policy_name,
+                    :allow_hosts,
+                    :host,
+                    CAST(:raw_json AS jsonb)
+                )
+                ON CONFLICT (device_id, server_policy_name, allow_hosts, host) DO UPDATE SET
+                    raw_json = EXCLUDED.raw_json,
+                    updated_at = now()
+                """
+            ),
+            {
+                "device_id": device_id,
+                "server_policy_name": server_policy_name,
+                "allow_hosts": row["allow_hosts"],
+                "host": row["host"],
                 "raw_json": json.dumps(row["raw_json"]),
             },
         )
@@ -280,6 +352,28 @@ def _fetch_and_upsert_server_pool(
     _upsert_server_pool_row(db, device.id, server_pool_row)
 
 
+def _fetch_and_upsert_allow_hosts(
+    db: Session,
+    device: ManagedDevice,
+    server_policy_name: str,
+    allow_hosts_name: str,
+    headers: dict,
+):
+    encoded_name = quote(allow_hosts_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/server-policy/allow-hosts/host-list?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    allow_host_rows = _extract_allow_hosts_rows(payload, allow_hosts_name)
+    _upsert_allow_hosts_rows(db, device.id, server_policy_name, allow_hosts_name, allow_host_rows)
+
+
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
     per_device = []
     endpoint = settings.fortiweb_server_policy_endpoint
@@ -314,6 +408,9 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             for server_pool_name in unique_server_pools:
                 _fetch_and_upsert_server_pool(db, device, server_pool_name, headers)
             _upsert_server_policy_rows(db, device.id, rows)
+            for row in rows:
+                if row["allow_hosts"]:
+                    _fetch_and_upsert_allow_hosts(db, device, row["server_policy_name"], row["allow_hosts"], headers)
             db.commit()
             device_result["server_policies"] = [row["server_policy_name"] for row in rows]
         except Exception as exc:
@@ -335,6 +432,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 d.ip AS device_ip,
                 sp.server_policy_name,
                 sp.server_pool_name,
+                sp.allow_hosts,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -352,6 +450,32 @@ def load_server_policies_from_db(db: Session) -> dict:
         )
     ).mappings().all()
 
+    allow_host_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                server_policy_name,
+                allow_hosts,
+                host,
+                raw_json
+            FROM server_policy_allow_hosts
+            ORDER BY id ASC
+            """
+        )
+    ).mappings().all()
+
+    allow_hosts_by_policy = {}
+    for row in allow_host_rows:
+        key = (row["device_id"], row["server_policy_name"])
+        allow_hosts_by_policy.setdefault(key, []).append(
+            {
+                "allow_hosts": row["allow_hosts"],
+                "host": row["host"],
+                "raw_json": row["raw_json"],
+            }
+        )
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -368,6 +492,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 {
                     "server_policy_name": row["server_policy_name"],
                     "server_pool_name": row["server_pool_name"],
+                    "allow_hosts": row["allow_hosts"],
                     "ip": row["server_pool_ip"],
                     "tls13_custom_cipher": row["tls13_custom_cipher"],
                     "tls_v10": row["tls_v10"],
@@ -375,6 +500,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "tls_v12": row["tls_v12"],
                     "tls_v13": row["tls_v13"],
                     "http2": row["http2"],
+                    "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["server_policy_name"]), []),
                 }
             )
 

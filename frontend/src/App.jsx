@@ -23,64 +23,6 @@ const navItems = [
   }
 ]
 
-const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-
-const findAllowHostsValue = (value) => {
-  if (value === null || value === undefined) return null
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const nestedMatch = findAllowHostsValue(item)
-      if (nestedMatch !== null && nestedMatch !== undefined) return nestedMatch
-    }
-    return null
-  }
-  if (typeof value !== 'object') return null
-
-  for (const [key, nestedValue] of Object.entries(value)) {
-    if (normalizeKey(key) === 'allowhosts') return nestedValue
-  }
-
-  for (const nestedValue of Object.values(value)) {
-    const nestedMatch = findAllowHostsValue(nestedValue)
-    if (nestedMatch !== null && nestedMatch !== undefined) return nestedMatch
-  }
-
-  return null
-}
-
-const parseAllowHostsFromRawJson = (rawJson) => {
-  if (!rawJson) return ''
-
-  let parsed = rawJson
-  if (typeof rawJson === 'string') {
-    try {
-      parsed = JSON.parse(rawJson)
-    } catch {
-      return ''
-    }
-  }
-
-  const allowHostsValue = findAllowHostsValue(parsed)
-  if (!allowHostsValue) return ''
-
-  if (Array.isArray(allowHostsValue)) {
-    const normalized = allowHostsValue
-      .map((entry) => {
-        if (typeof entry === 'string') return entry
-        if (entry && typeof entry === 'object') return entry.host || entry.name || JSON.stringify(entry)
-        return String(entry)
-      })
-      .filter(Boolean)
-    return normalized.join(', ')
-  }
-
-  if (typeof allowHostsValue === 'object') {
-    return JSON.stringify(allowHostsValue)
-  }
-
-  return String(allowHostsValue)
-}
-
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
 
@@ -549,7 +491,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
                           const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
                           const http2 = typeof policy === 'string' ? null : policy.http2
-                          const allowHosts = typeof policy === 'string' ? '' : parseAllowHostsFromRawJson(policy.raw_json)
+                          const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
+                          const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -566,6 +509,26 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
                             <p className="policy-meta">Allow Hosts: {allowHosts || '-'}</p>
+                            {allowHostsEntries.length > 0 && (
+                              <table className="policy-table">
+                                <thead>
+                                  <tr>
+                                    <th>Allow Hosts</th>
+                                    <th>Host</th>
+                                    <th>Raw JSON</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {allowHostsEntries.map((entry, hostIndex) => (
+                                    <tr key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>
+                                      <td>{entry.allow_hosts || allowHosts || '-'}</td>
+                                      <td>{entry.host || '-'}</td>
+                                      <td><code>{JSON.stringify(entry.raw_json)}</code></td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
                           </article>
                           )
                         })}
