@@ -493,6 +493,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const http2 = typeof policy === 'string' ? null : policy.http2
                           const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
+                          const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
+                          const webProtectionDetailEntries = Object.entries(webProtectionDetails).filter(([, value]) => value)
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -513,6 +515,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                               <ul className="policy-host-list policy-meta">
                                 {allowHostsEntries.map((entry, hostIndex) => (
                                   <li key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
+                                ))}
+                              </ul>
+                            )}
+                            {webProtectionDetailEntries.length > 0 && (
+                              <ul className="policy-host-list policy-meta">
+                                {webProtectionDetailEntries.map(([key, value]) => (
+                                  <li key={`${selectedWafDevice}-${policyName}-${index}-wpp-${key}`}>
+                                    {key.replaceAll('_', ' ')}: {String(value)}
+                                  </li>
                                 ))}
                               </ul>
                             )}

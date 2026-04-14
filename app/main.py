@@ -79,6 +79,31 @@ def startup_event():
                 CREATE TABLE IF NOT EXISTS web_protection_profiles (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     web_protection_profile_name text NOT NULL,
+                    standard_protection text,
+                    signature_rule text,
+                    http_protocol_parameter_restriction text,
+                    cookie_security_policy text,
+                    custom_access_policy text,
+                    csrf_protection text,
+                    syntax_based_attack_detection text,
+                    parameter_validation_rule text,
+                    hidden_fields_protection text,
+                    file_upload_policy text,
+                    webshell_detection_policy text,
+                    allow_method_policy text,
+                    bot_mitigate_policy text,
+                    xml_validation_policy text,
+                    json_validation_policy text,
+                    graphql_validation_policy text,
+                    openapi_validation_policy text,
+                    application_layer_dos_prevention text,
+                    ip_list_policy text,
+                    ip_intelligence text,
+                    geo_block_list_policy text,
+                    waiting_room_policy text,
+                    user_tracking_policy text,
+                    websocket_security_policy text,
+                    cors_protection_policy text,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
                     PRIMARY KEY (device_id, web_protection_profile_name)
@@ -86,6 +111,31 @@ def startup_event():
                 """
             )
         )
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS standard_protection text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS signature_rule text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS http_protocol_parameter_restriction text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS cookie_security_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS custom_access_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS csrf_protection text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS syntax_based_attack_detection text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS parameter_validation_rule text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS hidden_fields_protection text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS file_upload_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS webshell_detection_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS allow_method_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS bot_mitigate_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS xml_validation_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS json_validation_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS graphql_validation_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS openapi_validation_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS application_layer_dos_prevention text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS ip_list_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS ip_intelligence text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS geo_block_list_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS waiting_room_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS user_tracking_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS websocket_security_policy text"))
+        connection.execute(text("ALTER TABLE web_protection_profiles ADD COLUMN IF NOT EXISTS cors_protection_policy text"))
         connection.execute(
             text(
                 """

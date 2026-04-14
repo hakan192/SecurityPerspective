@@ -9,6 +9,34 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import ManagedDevice
 
+WEB_PROTECTION_PROFILE_FIELD_MAP = {
+    "standard_protection": ["standard_protection", "standart protection", "standard-protection", "standart-protection"],
+    "signature_rule": ["signature_rule", "signature-rule"],
+    "http_protocol_parameter_restriction": ["http_protocol_parameter_restriction", "http-protocol-parameter-restriction"],
+    "cookie_security_policy": ["cookie_security_policy", "cookie-security-policy"],
+    "custom_access_policy": ["custom_access_policy", "custom-access-policy"],
+    "csrf_protection": ["csrf_protection", "csrf-protection"],
+    "syntax_based_attack_detection": ["syntax_based_attack_detection", "syntax-based-attack-detection"],
+    "parameter_validation_rule": ["parameter_validation_rule", "parameter-validation-rule"],
+    "hidden_fields_protection": ["hidden_fields_protection", "hidden-fields-protection"],
+    "file_upload_policy": ["file_upload_policy", "file-upload-policy"],
+    "webshell_detection_policy": ["webshell_detection_policy", "webshell-detection-policy"],
+    "allow_method_policy": ["allow_method_policy", "allow-method-policy"],
+    "bot_mitigate_policy": ["bot_mitigate_policy", "bot-mitigate-policy"],
+    "xml_validation_policy": ["xml_validation_policy", "xml-validation-policy"],
+    "json_validation_policy": ["json_validation_policy", "json-validation-policy"],
+    "graphql_validation_policy": ["graphql_validation_policy", "graphql-validation-policy"],
+    "openapi_validation_policy": ["openapi_validation_policy", "openapi-validation-policy"],
+    "application_layer_dos_prevention": ["application_layer_dos_prevention", "application-layer-dos-prevention"],
+    "ip_list_policy": ["ip_list_policy", "ip-list-policy"],
+    "ip_intelligence": ["ip_intelligence", "ip-intelligence"],
+    "geo_block_list_policy": ["geo_block_list_policy", "geo-block-list-policy"],
+    "waiting_room_policy": ["waiting_room_policy", "waiting-room-policy"],
+    "user_tracking_policy": ["user_tracking_policy", "user-tracking-policy"],
+    "websocket_security_policy": ["websocket_security_policy", "websocket-security-policy"],
+    "cors_protection_policy": ["cors_protection_policy", "cors-protection-policy"],
+}
+
 
 def _build_device_base_url(device_ip: str) -> str:
     parsed = urlparse(settings.fortiweb_base_url)
@@ -34,6 +62,128 @@ def _normalize_optional_text(value):
         return str(value)
     normalized = value.strip()
     return normalized or None
+
+
+def _extract_by_aliases(item: dict, aliases: list[str]):
+    for alias in aliases:
+        if alias in item:
+            return item[alias]
+    return None
+
+
+def _extract_web_protection_profile_rows(payload: dict) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    rows = []
+    if not isinstance(results, list):
+        return rows
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        profile_name = _normalize_optional_text(item.get("name") or item.get("web-protection-profile") or item.get("web_protection_profile"))
+        if not profile_name:
+            continue
+        row = {"web_protection_profile_name": profile_name}
+        for normalized_key, aliases in WEB_PROTECTION_PROFILE_FIELD_MAP.items():
+            row[normalized_key] = _normalize_optional_text(_extract_by_aliases(item, aliases))
+        rows.append(row)
+    return rows
+
+
+def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[dict]):
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO web_protection_profiles (
+                    device_id,
+                    web_protection_profile_name,
+                    standard_protection,
+                    signature_rule,
+                    http_protocol_parameter_restriction,
+                    cookie_security_policy,
+                    custom_access_policy,
+                    csrf_protection,
+                    syntax_based_attack_detection,
+                    parameter_validation_rule,
+                    hidden_fields_protection,
+                    file_upload_policy,
+                    webshell_detection_policy,
+                    allow_method_policy,
+                    bot_mitigate_policy,
+                    xml_validation_policy,
+                    json_validation_policy,
+                    graphql_validation_policy,
+                    openapi_validation_policy,
+                    application_layer_dos_prevention,
+                    ip_list_policy,
+                    ip_intelligence,
+                    geo_block_list_policy,
+                    waiting_room_policy,
+                    user_tracking_policy,
+                    websocket_security_policy,
+                    cors_protection_policy
+                )
+                VALUES (
+                    :device_id,
+                    :web_protection_profile_name,
+                    :standard_protection,
+                    :signature_rule,
+                    :http_protocol_parameter_restriction,
+                    :cookie_security_policy,
+                    :custom_access_policy,
+                    :csrf_protection,
+                    :syntax_based_attack_detection,
+                    :parameter_validation_rule,
+                    :hidden_fields_protection,
+                    :file_upload_policy,
+                    :webshell_detection_policy,
+                    :allow_method_policy,
+                    :bot_mitigate_policy,
+                    :xml_validation_policy,
+                    :json_validation_policy,
+                    :graphql_validation_policy,
+                    :openapi_validation_policy,
+                    :application_layer_dos_prevention,
+                    :ip_list_policy,
+                    :ip_intelligence,
+                    :geo_block_list_policy,
+                    :waiting_room_policy,
+                    :user_tracking_policy,
+                    :websocket_security_policy,
+                    :cors_protection_policy
+                )
+                ON CONFLICT (device_id, web_protection_profile_name) DO UPDATE SET
+                    standard_protection = EXCLUDED.standard_protection,
+                    signature_rule = EXCLUDED.signature_rule,
+                    http_protocol_parameter_restriction = EXCLUDED.http_protocol_parameter_restriction,
+                    cookie_security_policy = EXCLUDED.cookie_security_policy,
+                    custom_access_policy = EXCLUDED.custom_access_policy,
+                    csrf_protection = EXCLUDED.csrf_protection,
+                    syntax_based_attack_detection = EXCLUDED.syntax_based_attack_detection,
+                    parameter_validation_rule = EXCLUDED.parameter_validation_rule,
+                    hidden_fields_protection = EXCLUDED.hidden_fields_protection,
+                    file_upload_policy = EXCLUDED.file_upload_policy,
+                    webshell_detection_policy = EXCLUDED.webshell_detection_policy,
+                    allow_method_policy = EXCLUDED.allow_method_policy,
+                    bot_mitigate_policy = EXCLUDED.bot_mitigate_policy,
+                    xml_validation_policy = EXCLUDED.xml_validation_policy,
+                    json_validation_policy = EXCLUDED.json_validation_policy,
+                    graphql_validation_policy = EXCLUDED.graphql_validation_policy,
+                    openapi_validation_policy = EXCLUDED.openapi_validation_policy,
+                    application_layer_dos_prevention = EXCLUDED.application_layer_dos_prevention,
+                    ip_list_policy = EXCLUDED.ip_list_policy,
+                    ip_intelligence = EXCLUDED.ip_intelligence,
+                    geo_block_list_policy = EXCLUDED.geo_block_list_policy,
+                    waiting_room_policy = EXCLUDED.waiting_room_policy,
+                    user_tracking_policy = EXCLUDED.user_tracking_policy,
+                    websocket_security_policy = EXCLUDED.websocket_security_policy,
+                    cors_protection_policy = EXCLUDED.cors_protection_policy,
+                    updated_at = now()
+                """
+            ),
+            {"device_id": device_id, **row},
+        )
 
 
 def _extract_policy_rows(payload: dict) -> list[dict]:
@@ -369,6 +519,25 @@ def _fetch_and_upsert_allow_hosts(
     _upsert_allow_hosts_rows(db, device.id, allow_hosts_name, allow_host_rows)
 
 
+def _fetch_and_upsert_web_protection_profiles(
+    db: Session,
+    device: ManagedDevice,
+    headers: dict,
+):
+    endpoint = "/api/v2.0/cmdb/waf/web-protection-profile.inline-protection"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    web_protection_profile_rows = _extract_web_protection_profile_rows(payload)
+    _upsert_web_protection_profile_rows(db, device.id, web_protection_profile_rows)
+
+
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
     per_device = []
     endpoint = settings.fortiweb_server_policy_endpoint
@@ -389,6 +558,7 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
         }
 
         try:
+            _fetch_and_upsert_web_protection_profiles(db, device, headers)
             url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
             response = requests.get(
                 url,
@@ -428,6 +598,31 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sp.server_policy_name,
                 sp.server_pool_name,
                 sp.allow_hosts,
+                wpp.standard_protection,
+                wpp.signature_rule,
+                wpp.http_protocol_parameter_restriction,
+                wpp.cookie_security_policy,
+                wpp.custom_access_policy,
+                wpp.csrf_protection,
+                wpp.syntax_based_attack_detection,
+                wpp.parameter_validation_rule,
+                wpp.hidden_fields_protection,
+                wpp.file_upload_policy,
+                wpp.webshell_detection_policy,
+                wpp.allow_method_policy,
+                wpp.bot_mitigate_policy,
+                wpp.xml_validation_policy,
+                wpp.json_validation_policy,
+                wpp.graphql_validation_policy,
+                wpp.openapi_validation_policy,
+                wpp.application_layer_dos_prevention,
+                wpp.ip_list_policy,
+                wpp.ip_intelligence,
+                wpp.geo_block_list_policy,
+                wpp.waiting_room_policy,
+                wpp.user_tracking_policy,
+                wpp.websocket_security_policy,
+                wpp.cors_protection_policy,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -440,6 +635,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN server_pool pool
                 ON pool.device_id = sp.device_id
                 AND pool.server_pool_name = sp.server_pool_name
+            LEFT JOIN web_protection_profiles wpp
+                ON wpp.device_id = sp.device_id
+                AND wpp.web_protection_profile_name = sp.web_protection_profile_name
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -495,6 +693,33 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "tls_v13": row["tls_v13"],
                     "http2": row["http2"],
                     "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["allow_hosts"]), []),
+                    "web_protection_profile_details": {
+                        "standard_protection": row["standard_protection"],
+                        "signature_rule": row["signature_rule"],
+                        "http_protocol_parameter_restriction": row["http_protocol_parameter_restriction"],
+                        "cookie_security_policy": row["cookie_security_policy"],
+                        "custom_access_policy": row["custom_access_policy"],
+                        "csrf_protection": row["csrf_protection"],
+                        "syntax_based_attack_detection": row["syntax_based_attack_detection"],
+                        "parameter_validation_rule": row["parameter_validation_rule"],
+                        "hidden_fields_protection": row["hidden_fields_protection"],
+                        "file_upload_policy": row["file_upload_policy"],
+                        "webshell_detection_policy": row["webshell_detection_policy"],
+                        "allow_method_policy": row["allow_method_policy"],
+                        "bot_mitigate_policy": row["bot_mitigate_policy"],
+                        "xml_validation_policy": row["xml_validation_policy"],
+                        "json_validation_policy": row["json_validation_policy"],
+                        "graphql_validation_policy": row["graphql_validation_policy"],
+                        "openapi_validation_policy": row["openapi_validation_policy"],
+                        "application_layer_dos_prevention": row["application_layer_dos_prevention"],
+                        "ip_list_policy": row["ip_list_policy"],
+                        "ip_intelligence": row["ip_intelligence"],
+                        "geo_block_list_policy": row["geo_block_list_policy"],
+                        "waiting_room_policy": row["waiting_room_policy"],
+                        "user_tracking_policy": row["user_tracking_policy"],
+                        "websocket_security_policy": row["websocket_security_policy"],
+                        "cors_protection_policy": row["cors_protection_policy"],
+                    },
                 }
             )
 
