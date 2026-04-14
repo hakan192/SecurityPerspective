@@ -202,7 +202,7 @@ def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
-    row = {"signature_set_name": signature_set_name}
+    row = {"signature_set_name": signature_set_name, "raw_json": result or {"signature_set_name": signature_set_name}}
     for normalized_key, aliases in SIGNATURE_FIELD_MAP.items():
         row[normalized_key] = _normalize_optional_text(_extract_by_aliases(result, aliases))
     return row
@@ -224,7 +224,8 @@ def _upsert_signature_row(db: Session, device_id: int, row: dict):
                 known_exploits,
                 trojans,
                 information_disclosure,
-                personally_identifiable_information
+                personally_identifiable_information,
+                raw_json
             )
             VALUES (
                 :device_id,
@@ -238,7 +239,8 @@ def _upsert_signature_row(db: Session, device_id: int, row: dict):
                 :known_exploits,
                 :trojans,
                 :information_disclosure,
-                :personally_identifiable_information
+                :personally_identifiable_information,
+                CAST(:raw_json AS jsonb)
             )
             ON CONFLICT (device_id, signature_set_name) DO UPDATE SET
                 cross_site_scripting = EXCLUDED.cross_site_scripting,
@@ -251,10 +253,11 @@ def _upsert_signature_row(db: Session, device_id: int, row: dict):
                 trojans = EXCLUDED.trojans,
                 information_disclosure = EXCLUDED.information_disclosure,
                 personally_identifiable_information = EXCLUDED.personally_identifiable_information,
+                raw_json = EXCLUDED.raw_json,
                 updated_at = now()
             """
         ),
-        {"device_id": device_id, **row},
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
     )
 
 

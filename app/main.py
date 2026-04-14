@@ -161,6 +161,7 @@ def startup_event():
                     trojans text,
                     information_disclosure text,
                     personally_identifiable_information text,
+                    raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
                     PRIMARY KEY (device_id, signature_set_name)
@@ -168,6 +169,7 @@ def startup_event():
                 """
             )
         )
+        connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(
             text(
                 """
