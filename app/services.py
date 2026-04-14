@@ -36,6 +36,23 @@ WEB_PROTECTION_PROFILE_FIELD_MAP = {
     "cors_protection_policy": ["cors_protection_policy", "cors-protection-policy"],
 }
 
+SIGNATURE_FIELD_MAP = {
+    "cross_site_scripting": ["Cross Site Scripting", "cross_site_scripting", "cross-site-scripting"],
+    "cross_site_scripting_extended": ["Cross Site Scripting (Extended)", "cross_site_scripting_extended", "cross-site-scripting-extended"],
+    "sql_injection": ["SQL Injection", "sql_injection", "sql-injection"],
+    "sql_injection_extended": ["SQL Injection (Extended)", "sql_injection_extended", "sql-injection-extended"],
+    "generic_attacks": ["Generic Attacks", "generic_attacks", "generic-attacks"],
+    "generic_attacks_extended": ["Generic Attacks(Extended)", "Generic Attacks (Extended)", "generic_attacks_extended", "generic-attacks-extended"],
+    "known_exploits": ["Known Exploits", "known_exploits", "known-exploits"],
+    "trojans": ["Trojans", "trojans"],
+    "information_disclosure": ["Information Disclosure", "information_disclosure", "information-disclosure"],
+    "personally_identifiable_information": [
+        "Personally Identifiable Information",
+        "personally_identifiable_information",
+        "personally-identifiable-information",
+    ],
+}
+
 
 def _build_device_base_url(device_ip: str) -> str:
     parsed = urlparse(settings.fortiweb_base_url)
@@ -180,6 +197,65 @@ def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[
             ),
             {"device_id": device_id, **row},
         )
+
+
+def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
+    row = {"signature_set_name": signature_set_name}
+    for normalized_key, aliases in SIGNATURE_FIELD_MAP.items():
+        row[normalized_key] = _normalize_optional_text(_extract_by_aliases(result, aliases))
+    return row
+
+
+def _upsert_signature_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO signature (
+                device_id,
+                signature_set_name,
+                cross_site_scripting,
+                cross_site_scripting_extended,
+                sql_injection,
+                sql_injection_extended,
+                generic_attacks,
+                generic_attacks_extended,
+                known_exploits,
+                trojans,
+                information_disclosure,
+                personally_identifiable_information
+            )
+            VALUES (
+                :device_id,
+                :signature_set_name,
+                :cross_site_scripting,
+                :cross_site_scripting_extended,
+                :sql_injection,
+                :sql_injection_extended,
+                :generic_attacks,
+                :generic_attacks_extended,
+                :known_exploits,
+                :trojans,
+                :information_disclosure,
+                :personally_identifiable_information
+            )
+            ON CONFLICT (device_id, signature_set_name) DO UPDATE SET
+                cross_site_scripting = EXCLUDED.cross_site_scripting,
+                cross_site_scripting_extended = EXCLUDED.cross_site_scripting_extended,
+                sql_injection = EXCLUDED.sql_injection,
+                sql_injection_extended = EXCLUDED.sql_injection_extended,
+                generic_attacks = EXCLUDED.generic_attacks,
+                generic_attacks_extended = EXCLUDED.generic_attacks_extended,
+                known_exploits = EXCLUDED.known_exploits,
+                trojans = EXCLUDED.trojans,
+                information_disclosure = EXCLUDED.information_disclosure,
+                personally_identifiable_information = EXCLUDED.personally_identifiable_information,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row},
+    )
 
 
 def _extract_policy_rows(payload: dict) -> list[dict]:
@@ -532,6 +608,28 @@ def _fetch_and_upsert_web_protection_profiles(
     payload = response.json()
     web_protection_profile_rows = _extract_web_protection_profile_rows(payload)
     _upsert_web_protection_profile_rows(db, device.id, web_protection_profile_rows)
+    return web_protection_profile_rows
+
+
+def _fetch_and_upsert_signature(
+    db: Session,
+    device: ManagedDevice,
+    signature_rule: str,
+    headers: dict,
+):
+    encoded_name = quote(signature_rule, safe="")
+    endpoint = f"/api/v2.0/waf/signatures?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    signature_row = _extract_signature_row(payload, signature_rule)
+    _upsert_signature_row(db, device.id, signature_row)
 
 
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
@@ -554,7 +652,10 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
         }
 
         try:
-            _fetch_and_upsert_web_protection_profiles(db, device, headers)
+            web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
+            unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
+            for signature_rule in unique_signature_rules:
+                _fetch_and_upsert_signature(db, device, signature_rule, headers)
             url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
             response = requests.get(
                 url,

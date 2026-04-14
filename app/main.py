@@ -148,6 +148,29 @@ def startup_event():
         connection.execute(
             text(
                 """
+                CREATE TABLE IF NOT EXISTS signature (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    signature_set_name text NOT NULL,
+                    cross_site_scripting text,
+                    cross_site_scripting_extended text,
+                    sql_injection text,
+                    sql_injection_extended text,
+                    generic_attacks text,
+                    generic_attacks_extended text,
+                    known_exploits text,
+                    trojans text,
+                    information_disclosure text,
+                    personally_identifiable_information text,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, signature_set_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
                 CREATE TABLE IF NOT EXISTS certificate_sni (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     sni_name text NOT NULL,

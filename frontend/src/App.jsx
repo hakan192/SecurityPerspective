@@ -495,7 +495,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
                           const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
-                          const webProtectionDetailEntries = Object.entries(webProtectionDetails).filter(([, value]) => value)
+                          const signatureRuleName = webProtectionDetails.signature_rule || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -512,20 +512,12 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
+                            <p className="policy-meta">Signature Rule: {signatureRuleName || '-'}</p>
                             <p className="policy-meta">Allow Hosts: {allowHosts || '-'}</p>
                             {allowHostsEntries.length > 0 && (
                               <ul className="policy-host-list policy-meta">
                                 {allowHostsEntries.map((entry, hostIndex) => (
                                   <li key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
-                                ))}
-                              </ul>
-                            )}
-                            {webProtectionDetailEntries.length > 0 && (
-                              <ul className="policy-host-list policy-meta">
-                                {webProtectionDetailEntries.map(([key, value]) => (
-                                  <li key={`${selectedWafDevice}-${policyName}-${index}-wpp-${key}`}>
-                                    {key.replaceAll('_', ' ')}: {String(value)}
-                                  </li>
                                 ))}
                               </ul>
                             )}
