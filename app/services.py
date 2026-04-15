@@ -190,7 +190,17 @@ def _extract_http_protocol_parameter_restriction_rows(payload: dict) -> list[dic
         row = {"name": name, "raw_json": item}
         for field in HTTP_PROTOCOL_PARAMETER_RESTRICTION_FIELDS:
             aliases = [field, field.replace("_", "-"), field.replace("_", " ")]
-            action_aliases = [f"{field}_action", f"{field}-action", f"{field} action", f"{field.replace('_', '-')}-action"]
+            alias_root = field[:-6] if field.endswith("_check") else field
+            action_aliases = [
+                f"{field}_action",
+                f"{field}-action",
+                f"{field} action",
+                f"{field.replace('_', '-')}-action",
+                f"{alias_root}_action",
+                f"{alias_root}-action",
+                f"{alias_root} action",
+                f"{alias_root.replace('_', '-')}-action",
+            ]
             row[field] = _normalize_optional_text(_extract_by_normalized_aliases(item, aliases))
             row[f"{field}_action"] = _normalize_optional_text(_extract_by_normalized_aliases(item, action_aliases))
         rows.append(row)
