@@ -374,6 +374,21 @@ def startup_event():
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "xml-validation-policy" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    xml_validation_name text NOT NULL,
+                    enable_signature_detection text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, xml_validation_name)
+                )
+                """
+            )
+        )
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(text('ALTER TABLE "cookie-security-policy" ADD COLUMN IF NOT EXISTS action text'))
         connection.execute(text('ALTER TABLE "cookie-security-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
@@ -383,6 +398,8 @@ def startup_event():
         connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text('ALTER TABLE "allow-method-policy" ADD COLUMN IF NOT EXISTS allow_method text'))
         connection.execute(text('ALTER TABLE "allow-method-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(text('ALTER TABLE "xml-validation-policy" ADD COLUMN IF NOT EXISTS enable_signature_detection text'))
+        connection.execute(text('ALTER TABLE "xml-validation-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
