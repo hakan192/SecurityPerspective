@@ -53,6 +53,59 @@ SIGNATURE_FIELD_MAP = {
     ],
 }
 
+HTTP_PROTOCOL_PARAMETER_RESTRICTION_FIELDS = [
+    "max_http_header_length_check",
+    "max_http_content_length_check",
+    "max_http_body_length_check",
+    "max_http_request_length_check",
+    "max_url_parameter_length_check",
+    "illegal_http_version_check",
+    "max_cookie_in_request_check",
+    "max_header_line_request_check",
+    "illegal_http_request_method_check",
+    "max_url_parameter_check",
+    "illegal_host_name_check",
+    "number_of_ranges_in_range_header_check",
+    "http2_max_requests_check",
+    "block_malformed_request_check",
+    "illegal_content_length_check",
+    "illegal_content_type_check",
+    "illegal_response_code_check",
+    "post_request_ctype_check",
+    "max_http_header_name_length_check",
+    "max_http_header_value_length_check",
+    "parameter_name_check",
+    "parameter_value_check",
+    "illegal_header_name_check",
+    "illegal_header_value_check",
+    "max_http_body_parameter_length_check",
+    "max_http_request_filename_length_check",
+    "web_socket_protocol_check",
+    "max_setting_header_table_size_check",
+    "max_setting_current_streams_num_check",
+    "max_setting_initial_window_size_check",
+    "max_setting_frame_size_check",
+    "max_setting_header_list_size_check",
+    "max_url_param_name_len_check",
+    "url_param_name_check",
+    "url_param_value_check",
+    "null_byte_in_url_check",
+    "illegal_byte_in_url_check",
+    "malformed_url_check",
+    "redundant_header_check",
+    "chunk_size_check",
+    "internal_resource_limits_check",
+    "rpc_protocol_check",
+    "duplicate_paramname_check",
+    "odd_and_even_space_attack_check",
+    "cl_te_coexist_check",
+    "inconsistent_cl_check",
+    "missing_host_check",
+    "range_overlapping_check",
+    "multipart_formdata_bad_request_check",
+    "h2_rst_stream_check",
+]
+
 
 def _build_device_base_url(device_ip: str) -> str:
     parsed = urlparse(settings.fortiweb_base_url)
@@ -87,6 +140,20 @@ def _extract_by_aliases(item: dict, aliases: list[str]):
     return None
 
 
+def _normalize_key(value: str) -> str:
+    return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
+
+
+def _extract_by_normalized_aliases(item: dict, aliases: list[str]):
+    if not isinstance(item, dict):
+        return None
+    normalized_aliases = {_normalize_key(alias) for alias in aliases}
+    for key, value in item.items():
+        if _normalize_key(key) in normalized_aliases:
+            return value
+    return None
+
+
 def _extract_web_protection_profile_rows(payload: dict) -> list[dict]:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     rows = []
@@ -102,6 +169,30 @@ def _extract_web_protection_profile_rows(payload: dict) -> list[dict]:
         row = {"web_protection_profile_name": profile_name}
         for normalized_key, aliases in WEB_PROTECTION_PROFILE_FIELD_MAP.items():
             row[normalized_key] = _normalize_optional_text(_extract_by_aliases(item, aliases))
+        rows.append(row)
+    return rows
+
+
+def _extract_http_protocol_parameter_restriction_rows(payload: dict) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if isinstance(results, dict):
+        results = [results]
+    if not isinstance(results, list):
+        return []
+
+    rows = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        name = _normalize_optional_text(item.get("name"))
+        if not name:
+            continue
+        row = {"name": name, "raw_json": item}
+        for field in HTTP_PROTOCOL_PARAMETER_RESTRICTION_FIELDS:
+            aliases = [field, field.replace("_", "-"), field.replace("_", " ")]
+            action_aliases = [f"{field}_action", f"{field}-action", f"{field} action", f"{field.replace('_', '-')}-action"]
+            row[field] = _normalize_optional_text(_extract_by_normalized_aliases(item, aliases))
+            row[f"{field}_action"] = _normalize_optional_text(_extract_by_normalized_aliases(item, action_aliases))
         rows.append(row)
     return rows
 
@@ -197,6 +288,32 @@ def _upsert_web_protection_profile_rows(db: Session, device_id: int, rows: list[
             ),
             {"device_id": device_id, **row},
         )
+
+
+def _upsert_http_protocol_parameter_restriction_rows(db: Session, device_id: int, rows: list[dict]):
+    table_name = "http_protocol_parameter_restriction"
+    dynamic_fields = []
+    for field in HTTP_PROTOCOL_PARAMETER_RESTRICTION_FIELDS:
+        dynamic_fields.extend([field, f"{field}_action"])
+
+    insert_columns = ["device_id", "name", *dynamic_fields, "raw_json"]
+    insert_columns_sql = ", ".join(insert_columns)
+    insert_values_sql = ", ".join("CAST(:raw_json AS jsonb)" if col == "raw_json" else f":{col}" for col in insert_columns)
+    update_columns_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in [*dynamic_fields, "raw_json"])
+
+    statement = text(
+        f"""
+        INSERT INTO {table_name} ({insert_columns_sql})
+        VALUES ({insert_values_sql})
+        ON CONFLICT (device_id, name) DO UPDATE SET
+            {update_columns_sql},
+            updated_at = now()
+        """
+    )
+
+    for row in rows:
+        params = {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])}
+        db.execute(statement, params)
 
 
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
@@ -687,6 +804,25 @@ def _fetch_and_upsert_web_protection_profiles(
     return web_protection_profile_rows
 
 
+def _fetch_and_upsert_http_protocol_parameter_restrictions(
+    db: Session,
+    device: ManagedDevice,
+    headers: dict,
+):
+    endpoint = "/api/v2.0/cmdb/waf/http-protocol-parameter-restriction"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_http_protocol_parameter_restriction_rows(payload)
+    _upsert_http_protocol_parameter_restriction_rows(db, device.id, rows)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -729,6 +865,7 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
 
         try:
             web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
+            _fetch_and_upsert_http_protocol_parameter_restrictions(db, device, headers)
             unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
             for signature_rule in unique_signature_rules:
                 _fetch_and_upsert_signature(db, device, signature_rule, headers)
