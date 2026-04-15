@@ -445,13 +445,32 @@ def _extract_results(payload: dict):
 
 
 def _extract_custom_access_rule_names(payload: dict) -> list[str]:
-    rows = _extract_results(payload)
-    rule_names = []
-    for row in rows:
-        rule_name = _normalize_optional_text(row.get("name") or row.get("rule_name") or row.get("rule-name"))
-        if rule_name:
-            rule_names.append(rule_name)
-    return rule_names
+    def collect_names(node, acc: list[str]):
+        if isinstance(node, dict):
+            direct_name = _normalize_optional_text(
+                node.get("name")
+                or node.get("rule_name")
+                or node.get("rule-name")
+                or node.get("custom_access_rules")
+                or node.get("custom-access-rules")
+            )
+            if direct_name:
+                acc.append(direct_name)
+            for value in node.values():
+                collect_names(value, acc)
+        elif isinstance(node, list):
+            for item in node:
+                collect_names(item, acc)
+
+    collected = []
+    collect_names(payload, collected)
+    deduped = []
+    seen = set()
+    for name in collected:
+        if name not in seen:
+            seen.add(name)
+            deduped.append(name)
+    return deduped
 
 
 def _extract_custom_access_rule_details(payload: dict, custom_access_policy_name: str, custom_access_rules: str) -> dict:
@@ -464,6 +483,26 @@ def _extract_custom_access_rule_details(payload: dict, custom_access_policy_name
         "visvalue": _normalize_optional_text(result.get("visvalue") or result.get("vis-value")),
         "raw_json": payload if isinstance(payload, dict) else {"results": result},
     }
+
+
+def _fetch_json_with_fallback_endpoints(device: ManagedDevice, headers: dict, endpoints: list[str]) -> dict:
+    last_error = None
+    for endpoint in endpoints:
+        try:
+            url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+            response = requests.get(
+                url,
+                headers=headers,
+                timeout=30,
+                verify=settings.fortiweb_verify_ssl,
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    return {}
 
 
 def _upsert_custom_access_policy_row(db: Session, device_id: int, row: dict):
@@ -1051,30 +1090,31 @@ def _fetch_and_upsert_custom_access_policy(
     headers: dict,
 ):
     encoded_policy_name = quote(custom_access_policy_name, safe="")
-    rules_endpoint = f"/api/v2.0/cmdb/waf/custom-access.policy/rule?mkey={encoded_policy_name}"
-    rules_url = f"{_build_device_base_url(device.ip).rstrip('/')}{rules_endpoint}"
-    rules_response = requests.get(
-        rules_url,
-        headers=headers,
-        timeout=30,
-        verify=settings.fortiweb_verify_ssl,
+    rules_payload = _fetch_json_with_fallback_endpoints(
+        device,
+        headers,
+        [f"/api/v2.0/cmdb/waf/custom-access.policy/rule?mkey={encoded_policy_name}"],
     )
-    rules_response.raise_for_status()
-    rules_payload = rules_response.json()
     rule_names = _extract_custom_access_rule_names(rules_payload)
+
+    if not rule_names:
+        rule_names = [custom_access_policy_name]
 
     for rule_name in rule_names:
         encoded_rule_name = quote(rule_name, safe="")
-        details_endpoint = f"/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}"
-        details_url = f"{_build_device_base_url(device.ip).rstrip('/')}{details_endpoint}"
-        details_response = requests.get(
-            details_url,
-            headers=headers,
-            timeout=30,
-            verify=settings.fortiweb_verify_ssl,
-        )
-        details_response.raise_for_status()
-        details_payload = details_response.json()
+        details_payload = {}
+        try:
+            details_payload = _fetch_json_with_fallback_endpoints(
+                device,
+                headers,
+                [
+                    f"/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}",
+                    f"/api/v2.0/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}",
+                ],
+            )
+        except Exception:
+            details_payload = {"results": {"name": rule_name}}
+
         row = _extract_custom_access_rule_details(details_payload, custom_access_policy_name, rule_name)
         _upsert_custom_access_policy_row(db, device.id, row)
 
