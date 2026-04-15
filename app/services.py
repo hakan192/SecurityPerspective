@@ -536,6 +536,51 @@ def _upsert_custom_access_policy_row(db: Session, device_id: int, row: dict):
     )
 
 
+def _extract_allow_method_policy_rows(payload: dict) -> list[dict]:
+    rows = _extract_results(payload)
+    parsed_rows = []
+    for row in rows:
+        policy_name = _normalize_optional_text(row.get("name") or row.get("allow-method-policy-name") or row.get("allow_method_policy_name"))
+        if not policy_name:
+            continue
+        allow_method = _normalize_optional_text(row.get("allow-method") or row.get("allow_method"))
+        parsed_rows.append(
+            {
+                "allow_method_policy_name": policy_name,
+                "allow_method": allow_method,
+                "raw_json": row,
+            }
+        )
+    return parsed_rows
+
+
+def _upsert_allow_method_policy_rows(db: Session, device_id: int, rows: list[dict]):
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO "allow-method-policy" (
+                    device_id,
+                    allow_method_policy_name,
+                    allow_method,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :allow_method_policy_name,
+                    :allow_method,
+                    CAST(:raw_json AS jsonb)
+                )
+                ON CONFLICT (device_id, allow_method_policy_name) DO UPDATE SET
+                    allow_method = EXCLUDED.allow_method,
+                    raw_json = EXCLUDED.raw_json,
+                    updated_at = now()
+                """
+            ),
+            {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+        )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1119,6 +1164,25 @@ def _fetch_and_upsert_custom_access_policy(
         _upsert_custom_access_policy_row(db, device.id, row)
 
 
+def _fetch_and_upsert_allow_method_policy(
+    db: Session,
+    device: ManagedDevice,
+    headers: dict,
+):
+    endpoint = "/api/v2.0/cmdb/waf/allow-method-policy"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_allow_method_policy_rows(payload)
+    _upsert_allow_method_policy_rows(db, device.id, rows)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1173,6 +1237,11 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
 
             try:
                 _fetch_and_upsert_syntax_based_attack_detection(db, device, headers)
+            except Exception:
+                pass
+
+            try:
+                _fetch_and_upsert_allow_method_policy(db, device, headers)
             except Exception:
                 pass
 
