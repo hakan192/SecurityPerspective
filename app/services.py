@@ -106,6 +106,29 @@ HTTP_PROTOCOL_PARAMETER_RESTRICTION_FIELDS = [
     "h2_rst_stream_check",
 ]
 
+SYNTAX_BASED_ATTACK_DETECTION_FIELDS = [
+    "xss_html_tag_based_status",
+    "xss_html_tag_based_action",
+    "xss_html_attribute_based_status",
+    "xss_html_attribute_based_action",
+    "xss_javascript_function_based_status",
+    "xss_javascript_function_based_action",
+    "xss_javascript_variable_based_status",
+    "xss_javascript_variable_based_action",
+    "sql_stacked_queries_status",
+    "sql_stacked_queries_action",
+    "sql_embeded_queries_status",
+    "sql_embeded_queries_action",
+    "sql_condition_based_status",
+    "sql_condition_based_action",
+    "sql_arithmetic_operation_status",
+    "sql_arithmetic_operation_action",
+    "sql_line_comments_status",
+    "sql_line_comments_action",
+    "sql_function_based_status",
+    "sql_function_based_action",
+]
+
 
 def _build_device_base_url(device_ip: str) -> str:
     parsed = urlparse(settings.fortiweb_base_url)
@@ -342,6 +365,28 @@ def _extract_cookie_security_row(payload: dict, cookie_security_name: str) -> di
     }
 
 
+def _extract_syntax_based_attack_detection_rows(payload: dict) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if isinstance(results, dict):
+        results = [results]
+    if not isinstance(results, list):
+        return []
+
+    rows = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        name = _normalize_optional_text(item.get("name"))
+        if not name:
+            continue
+        row = {"name": name, "raw_json": item}
+        for field in SYNTAX_BASED_ATTACK_DETECTION_FIELDS:
+            aliases = [field, field.replace("_", "-"), field.replace("_", " ")]
+            row[field] = _normalize_optional_text(_extract_by_normalized_aliases(item, aliases))
+        rows.append(row)
+    return rows
+
+
 def _upsert_cookie_security_row(db: Session, device_id: int, row: dict):
     db.execute(
         text(
@@ -366,6 +411,28 @@ def _upsert_cookie_security_row(db: Session, device_id: int, row: dict):
         ),
         {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
     )
+
+
+def _upsert_syntax_based_attack_detection_rows(db: Session, device_id: int, rows: list[dict]):
+    dynamic_fields = SYNTAX_BASED_ATTACK_DETECTION_FIELDS
+    insert_columns = ["device_id", "name", *dynamic_fields, "raw_json"]
+    insert_columns_sql = ", ".join(insert_columns)
+    insert_values_sql = ", ".join("CAST(:raw_json AS jsonb)" if col == "raw_json" else f":{col}" for col in insert_columns)
+    update_columns_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in [*dynamic_fields, "raw_json"])
+
+    statement = text(
+        f"""
+        INSERT INTO "syntax-based-attack-detection" ({insert_columns_sql})
+        VALUES ({insert_values_sql})
+        ON CONFLICT (device_id, name) DO UPDATE SET
+            {update_columns_sql},
+            updated_at = now()
+        """
+    )
+
+    for row in rows:
+        params = {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])}
+        db.execute(statement, params)
 
 
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
@@ -896,6 +963,25 @@ def _fetch_and_upsert_cookie_security_policy(
     _upsert_cookie_security_row(db, device.id, row)
 
 
+def _fetch_and_upsert_syntax_based_attack_detection(
+    db: Session,
+    device: ManagedDevice,
+    headers: dict,
+):
+    endpoint = "/api/v2.0/cmdb/waf/syntax-based-attack-detection"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_syntax_based_attack_detection_rows(payload)
+    _upsert_syntax_based_attack_detection_rows(db, device.id, rows)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -939,6 +1025,7 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
         try:
             web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
             _fetch_and_upsert_http_protocol_parameter_restrictions(db, device, headers)
+            _fetch_and_upsert_syntax_based_attack_detection(db, device, headers)
             unique_cookie_security_policies = {row["cookie_security_policy"] for row in web_protection_profile_rows if row.get("cookie_security_policy")}
             for cookie_security_name in unique_cookie_security_policies:
                 _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)

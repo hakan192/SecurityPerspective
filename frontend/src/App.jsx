@@ -498,6 +498,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const signatureRuleName = webProtectionDetails.signature_rule || ''
                           const httpProtocolParameterRestrictionName = webProtectionDetails.http_protocol_parameter_restriction || ''
                           const cookieSecurityPolicyName = webProtectionDetails.cookie_security_policy || ''
+                          const syntaxBasedAttackDetectionName = webProtectionDetails.syntax_based_attack_detection || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -514,6 +515,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
+                            <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
                             <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
                             <p className="policy-meta">HTTP Protocol Parameter Restriction: {httpProtocolParameterRestrictionName || '-'}</p>
                             <p className="policy-meta">Signature Rule: {signatureRuleName || '-'}</p>
