@@ -326,6 +326,48 @@ def _upsert_http_protocol_parameter_restriction_rows(db: Session, device_id: int
         db.execute(statement, params)
 
 
+def _extract_cookie_security_row(payload: dict, cookie_security_name: str) -> dict:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if isinstance(results, dict):
+        result = results
+    elif isinstance(results, list) and results and isinstance(results[0], dict):
+        result = results[0]
+    else:
+        result = {}
+
+    return {
+        "cookie_security_name": cookie_security_name,
+        "action": _normalize_optional_text(result.get("action")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_cookie_security_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "cookie-security-policy" (
+                device_id,
+                cookie_security_name,
+                action,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :cookie_security_name,
+                :action,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, cookie_security_name) DO UPDATE SET
+                action = EXCLUDED.action,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -833,6 +875,27 @@ def _fetch_and_upsert_http_protocol_parameter_restrictions(
     _upsert_http_protocol_parameter_restriction_rows(db, device.id, rows)
 
 
+def _fetch_and_upsert_cookie_security_policy(
+    db: Session,
+    device: ManagedDevice,
+    cookie_security_name: str,
+    headers: dict,
+):
+    encoded_name = quote(cookie_security_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/cookie-security?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_cookie_security_row(payload, cookie_security_name)
+    _upsert_cookie_security_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -876,6 +939,9 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
         try:
             web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
             _fetch_and_upsert_http_protocol_parameter_restrictions(db, device, headers)
+            unique_cookie_security_policies = {row["cookie_security_policy"] for row in web_protection_profile_rows if row.get("cookie_security_policy")}
+            for cookie_security_name in unique_cookie_security_policies:
+                _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)
             unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
             for signature_rule in unique_signature_rules:
                 _fetch_and_upsert_signature(db, device, signature_rule, headers)
