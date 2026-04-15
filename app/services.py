@@ -435,6 +435,68 @@ def _upsert_syntax_based_attack_detection_rows(db: Session, device_id: int, rows
         db.execute(statement, params)
 
 
+def _extract_results(payload: dict):
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if isinstance(results, dict):
+        return [results]
+    if isinstance(results, list):
+        return [item for item in results if isinstance(item, dict)]
+    return []
+
+
+def _extract_custom_access_rule_names(payload: dict) -> list[str]:
+    rows = _extract_results(payload)
+    rule_names = []
+    for row in rows:
+        rule_name = _normalize_optional_text(row.get("name") or row.get("rule_name") or row.get("rule-name"))
+        if rule_name:
+            rule_names.append(rule_name)
+    return rule_names
+
+
+def _extract_custom_access_rule_details(payload: dict, custom_access_policy_name: str, custom_access_rules: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "custom_access_policy_name": custom_access_policy_name,
+        "custom_access_rules": custom_access_rules,
+        "visfilterType": _normalize_optional_text(result.get("visfilterType") or result.get("visfilter-type")),
+        "visvalue": _normalize_optional_text(result.get("visvalue") or result.get("vis-value")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_custom_access_policy_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "custom-access-policy" (
+                device_id,
+                custom_access_policy_name,
+                custom_access_rules,
+                visfilterType,
+                visvalue,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :custom_access_policy_name,
+                :custom_access_rules,
+                :visfilterType,
+                :visvalue,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, custom_access_policy_name, custom_access_rules) DO UPDATE SET
+                visfilterType = EXCLUDED.visfilterType,
+                visvalue = EXCLUDED.visvalue,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -982,6 +1044,41 @@ def _fetch_and_upsert_syntax_based_attack_detection(
     _upsert_syntax_based_attack_detection_rows(db, device.id, rows)
 
 
+def _fetch_and_upsert_custom_access_policy(
+    db: Session,
+    device: ManagedDevice,
+    custom_access_policy_name: str,
+    headers: dict,
+):
+    encoded_policy_name = quote(custom_access_policy_name, safe="")
+    rules_endpoint = f"/api/v2.0/cmdb/waf/custom-access.policy/rule?mkey={encoded_policy_name}"
+    rules_url = f"{_build_device_base_url(device.ip).rstrip('/')}{rules_endpoint}"
+    rules_response = requests.get(
+        rules_url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    rules_response.raise_for_status()
+    rules_payload = rules_response.json()
+    rule_names = _extract_custom_access_rule_names(rules_payload)
+
+    for rule_name in rule_names:
+        encoded_rule_name = quote(rule_name, safe="")
+        details_endpoint = f"/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}"
+        details_url = f"{_build_device_base_url(device.ip).rstrip('/')}{details_endpoint}"
+        details_response = requests.get(
+            details_url,
+            headers=headers,
+            timeout=30,
+            verify=settings.fortiweb_verify_ssl,
+        )
+        details_response.raise_for_status()
+        details_payload = details_response.json()
+        row = _extract_custom_access_rule_details(details_payload, custom_access_policy_name, rule_name)
+        _upsert_custom_access_policy_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1026,6 +1123,9 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
             _fetch_and_upsert_http_protocol_parameter_restrictions(db, device, headers)
             _fetch_and_upsert_syntax_based_attack_detection(db, device, headers)
+            unique_custom_access_policies = {row["custom_access_policy"] for row in web_protection_profile_rows if row.get("custom_access_policy")}
+            for custom_access_policy_name in unique_custom_access_policies:
+                _fetch_and_upsert_custom_access_policy(db, device, custom_access_policy_name, headers)
             unique_cookie_security_policies = {row["cookie_security_policy"] for row in web_protection_profile_rows if row.get("cookie_security_policy")}
             for cookie_security_name in unique_cookie_security_policies:
                 _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)

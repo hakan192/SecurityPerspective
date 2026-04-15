@@ -342,10 +342,30 @@ def startup_event():
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "custom-access-policy" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    custom_access_policy_name text NOT NULL,
+                    custom_access_rules text NOT NULL,
+                    visfilterType text,
+                    visvalue text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, custom_access_policy_name, custom_access_rules)
+                )
+                """
+            )
+        )
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(text('ALTER TABLE "cookie-security-policy" ADD COLUMN IF NOT EXISTS action text'))
         connection.execute(text('ALTER TABLE "cookie-security-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text('ALTER TABLE "syntax-based-attack-detection" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS visfilterType text'))
+        connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS visvalue text'))
+        connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
