@@ -500,6 +500,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const cookieSecurityPolicyName = webProtectionDetails.cookie_security_policy || ''
                           const syntaxBasedAttackDetectionName = webProtectionDetails.syntax_based_attack_detection || ''
                           const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
+                          const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -517,6 +518,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
+                            <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
                             <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
                             <p className="policy-meta">HTTP Protocol Parameter Restriction: {httpProtocolParameterRestrictionName || '-'}</p>
