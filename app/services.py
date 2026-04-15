@@ -628,6 +628,53 @@ def _upsert_xml_validation_policy_rows(db: Session, device_id: int, rows: list[d
         )
 
 
+def _extract_json_validation_policy_rows(payload: dict) -> list[dict]:
+    rows = _extract_results(payload)
+    parsed_rows = []
+    for row in rows:
+        json_validation_name = _normalize_optional_text(row.get("name") or row.get("json-validation-name") or row.get("json_validation_name"))
+        if not json_validation_name:
+            continue
+        enable_signature_detection = _normalize_optional_text(
+            row.get("enable-signature-detection") or row.get("enable_signature_detection")
+        )
+        parsed_rows.append(
+            {
+                "json_validation_name": json_validation_name,
+                "enable_signature_detection": enable_signature_detection,
+                "raw_json": row,
+            }
+        )
+    return parsed_rows
+
+
+def _upsert_json_validation_policy_rows(db: Session, device_id: int, rows: list[dict]):
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO "json-validation-policy" (
+                    device_id,
+                    json_validation_name,
+                    enable_signature_detection,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :json_validation_name,
+                    :enable_signature_detection,
+                    CAST(:raw_json AS jsonb)
+                )
+                ON CONFLICT (device_id, json_validation_name) DO UPDATE SET
+                    enable_signature_detection = EXCLUDED.enable_signature_detection,
+                    raw_json = EXCLUDED.raw_json,
+                    updated_at = now()
+                """
+            ),
+            {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+        )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1249,6 +1296,25 @@ def _fetch_and_upsert_xml_validation_policy(
     _upsert_xml_validation_policy_rows(db, device.id, rows)
 
 
+def _fetch_and_upsert_json_validation_policy(
+    db: Session,
+    device: ManagedDevice,
+    headers: dict,
+):
+    endpoint = "/api/v2.0/cmdb/waf/json-validation.policy"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_json_validation_policy_rows(payload)
+    _upsert_json_validation_policy_rows(db, device.id, rows)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1313,6 +1379,11 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
 
             try:
                 _fetch_and_upsert_xml_validation_policy(db, device, headers)
+            except Exception:
+                pass
+
+            try:
+                _fetch_and_upsert_json_validation_policy(db, device, headers)
             except Exception:
                 pass
 
