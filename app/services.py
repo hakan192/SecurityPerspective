@@ -708,16 +708,6 @@ def _extract_application_layer_dos_rows(payload: dict) -> list[dict]:
 
 
 def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[dict]):
-    db.execute(
-        text(
-            """
-            DELETE FROM "application-layer-dos-prevention"
-            WHERE device_id = :device_id
-            """
-        ),
-        {"device_id": device_id},
-    )
-
     for row in rows:
         db.execute(
             text(
@@ -1411,6 +1401,33 @@ def _fetch_and_upsert_application_layer_dos_prevention(
     response.raise_for_status()
     payload = response.json()
     rows = _extract_application_layer_dos_rows(payload)
+    if not rows:
+        source = payload.get("results") if isinstance(payload, dict) else None
+        if isinstance(source, list):
+            source = source[0] if source and isinstance(source[0], dict) else {}
+        elif not isinstance(source, dict):
+            source = payload if isinstance(payload, dict) else {}
+
+        rows = [
+            {
+                "name": application_layer_dos_prevention_name,
+                "http_request_flood_prevention_rule": _normalize_optional_text(
+                    source.get("http-request-flood-prevention-rule")
+                    or source.get("http_request_flood_prevention_rule")
+                ),
+                "enable_layer4_dos_prevention": _normalize_optional_text(
+                    source.get("enable-layer4-dos-prevention") or source.get("enable_layer4_dos_prevention")
+                ),
+                "layer4_access_limit_rule": _normalize_optional_text(
+                    source.get("layer4-access-limit-rule") or source.get("layer4_access_limit_rule")
+                ),
+                "layer4_connection_flood_check_rule": _normalize_optional_text(
+                    source.get("layer4-connection-flood-check-rule") or source.get("layer4_connection_flood_check_rule")
+                ),
+                "raw_json": payload if isinstance(payload, dict) else {"results": source},
+            }
+        ]
+
     for row in rows:
         row["raw_json"] = payload
 
