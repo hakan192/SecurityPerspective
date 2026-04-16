@@ -701,7 +701,7 @@ def _extract_application_layer_dos_rows(payload: dict) -> list[dict]:
                 "layer4_connection_flood_check_rule": _normalize_optional_text(
                     row.get("layer4-connection-flood-check-rule") or row.get("layer4_connection_flood_check_rule")
                 ),
-                "raw_json": row,
+                "raw_json": payload if isinstance(payload, dict) else {"results": row},
             }
         )
     return parsed_rows
