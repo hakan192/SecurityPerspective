@@ -841,6 +841,44 @@ def _upsert_layer4_access_limit_rule_row(db: Session, device_id: int, row: dict)
     )
 
 
+def _extract_tcp_flood_prevention_row(payload: dict, rule_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": rule_name,
+        "layer4_connection_threshold": _normalize_optional_text(
+            result.get("layer4-connection-threshold") or result.get("layer4_connection_threshold")
+        ),
+        "action": _normalize_optional_text(result.get("action")),
+    }
+
+
+def _upsert_tcp_flood_prevention_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO tcp_flood_prevention (
+                device_id,
+                name,
+                layer4_connection_threshold,
+                action
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :layer4_connection_threshold,
+                :action
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                layer4_connection_threshold = EXCLUDED.layer4_connection_threshold,
+                action = EXCLUDED.action,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1545,6 +1583,27 @@ def _fetch_and_upsert_layer4_access_limit_rule(
     _upsert_layer4_access_limit_rule_row(db, device.id, row)
 
 
+def _fetch_and_upsert_tcp_flood_prevention(
+    db: Session,
+    device: ManagedDevice,
+    layer4_connection_flood_check_rule_name: str,
+    headers: dict,
+):
+    encoded_name = quote(layer4_connection_flood_check_rule_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/layer4-connection-flood-check-rule?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_tcp_flood_prevention_row(payload, layer4_connection_flood_check_rule_name)
+    _upsert_tcp_flood_prevention_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1681,6 +1740,21 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     )
                 except Exception:
                     db.rollback()
+            unique_layer4_connection_flood_check_rules = {
+                row["layer4_connection_flood_check_rule"]
+                for row in fetched_application_layer_dos_rows
+                if row.get("layer4_connection_flood_check_rule")
+            }
+            for layer4_connection_flood_check_rule_name in unique_layer4_connection_flood_check_rules:
+                try:
+                    _fetch_and_upsert_tcp_flood_prevention(
+                        db,
+                        device,
+                        layer4_connection_flood_check_rule_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
 
             url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
             response = requests.get(
@@ -1759,6 +1833,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                 l4alr.bot_confirmation AS layer4_access_limit_bot_confirmation,
                 l4alr.bot_recognition AS layer4_access_limit_bot_recognition,
                 l4alr.action AS layer4_access_limit_action,
+                tcp.layer4_connection_threshold,
+                tcp.action AS tcp_flood_prevention_action,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -1783,6 +1859,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN "/layer4-access-limit-rule" l4alr
                 ON l4alr.device_id = aldp.device_id
                 AND l4alr.name = aldp.layer4_access_limit_rule
+            LEFT JOIN tcp_flood_prevention tcp
+                ON tcp.device_id = aldp.device_id
+                AND tcp.name = aldp.layer4_connection_flood_check_rule
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -1881,6 +1960,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                                 "bot_confirmation": row["layer4_access_limit_bot_confirmation"],
                                 "bot_recognition": row["layer4_access_limit_bot_recognition"],
                                 "action": row["layer4_access_limit_action"],
+                            },
+                            "tcp_flood_prevention_policy": {
+                                "name": row["layer4_connection_flood_check_rule"],
+                                "layer4_connection_threshold": row["layer4_connection_threshold"],
+                                "action": row["tcp_flood_prevention_action"],
                             },
                         },
                     },

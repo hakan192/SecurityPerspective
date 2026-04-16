@@ -487,6 +487,23 @@ def startup_event():
         connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS bot_confirmation text'))
         connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS bot_recognition text'))
         connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS action text'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS tcp_flood_prevention (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    layer4_connection_threshold text,
+                    action text,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE tcp_flood_prevention ADD COLUMN IF NOT EXISTS layer4_connection_threshold text"))
+        connection.execute(text("ALTER TABLE tcp_flood_prevention ADD COLUMN IF NOT EXISTS action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
