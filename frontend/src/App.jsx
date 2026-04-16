@@ -491,6 +491,18 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
                           const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
                           const http2 = typeof policy === 'string' ? null : policy.http2
+                          const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
+                          const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
+                          const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
+                          const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
+                          const signatureRuleName = webProtectionDetails.signature_rule || ''
+                          const httpProtocolParameterRestrictionName = webProtectionDetails.http_protocol_parameter_restriction || ''
+                          const cookieSecurityPolicyName = webProtectionDetails.cookie_security_policy || ''
+                          const syntaxBasedAttackDetectionName = webProtectionDetails.syntax_based_attack_detection || ''
+                          const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
+                          const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
+                          const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
+                          const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -506,6 +518,23 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
                             <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
+                            <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
+                            <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
+                            <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
+                            <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
+                            <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
+                            <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
+                            <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
+                            <p className="policy-meta">HTTP Protocol Parameter Restriction: {httpProtocolParameterRestrictionName || '-'}</p>
+                            <p className="policy-meta">Signature Rule: {signatureRuleName || '-'}</p>
+                            <p className="policy-meta">Allow Hosts: {allowHosts || '-'}</p>
+                            {allowHostsEntries.length > 0 && (
+                              <ul className="policy-host-list policy-meta">
+                                {allowHostsEntries.map((entry, hostIndex) => (
+                                  <li key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
+                                ))}
+                              </ul>
+                            )}
                           </article>
                           )
                         })}
