@@ -507,7 +507,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const applicationLayerDosPreventionName = applicationLayerDosPreventionPolicy.name || webProtectionDetails.application_layer_dos_prevention || ''
                           const layer4AccessLimitRulePolicy = applicationLayerDosPreventionPolicy.layer4_access_limit_rule_policy || {}
                           const tcpFloodPreventionPolicy = applicationLayerDosPreventionPolicy.tcp_flood_prevention_policy || {}
-                          const botMitigatePolicyDetail = webProtectionDetails.bot_mitigate_policy_detail || {}
+                          const botMitigatePolicyDetail = applicationLayerDosPreventionPolicy.bot_mitigate_policy_detail || {}
                           const botMitigatePolicyName = botMitigatePolicyDetail.name || webProtectionDetails.bot_mitigate_policy || ''
                           const biometricBasedDetectionPolicyName = botMitigatePolicyDetail.biometrics_based_detection || ''
                           return (
