@@ -446,7 +446,7 @@ def startup_event():
                 CREATE TABLE IF NOT EXISTS "http-request-flood-prevention-rule" (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     name text NOT NULL,
-                    http_connection_name text,
+                    access_limit_in_http_session text,
                     action text,
                     bot_confirmation text,
                     bot_recognition text,
@@ -458,7 +458,8 @@ def startup_event():
                 """
             )
         )
-        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS http_connection_name text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" DROP COLUMN IF EXISTS http_connection_name'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS access_limit_in_http_session text'))
         connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS action text'))
         connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS bot_confirmation text'))
         connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS bot_recognition text'))

@@ -736,8 +736,8 @@ def _extract_http_request_flood_prevention_rule_row(payload: dict, rule_name: st
     result = rows[0] if rows else {}
     return {
         "name": rule_name,
-        "http_connection_name": _normalize_optional_text(
-            result.get("http-connection-name") or result.get("http_connection_name")
+        "access_limit_in_http_session": _normalize_optional_text(
+            result.get("access-limit-in-http-session") or result.get("access_limit_in_http_session")
         ),
         "action": _normalize_optional_text(result.get("action")),
         "bot_confirmation": _normalize_optional_text(
@@ -757,7 +757,7 @@ def _upsert_http_request_flood_prevention_rule_row(db: Session, device_id: int, 
             INSERT INTO "http-request-flood-prevention-rule" (
                 device_id,
                 name,
-                http_connection_name,
+                access_limit_in_http_session,
                 action,
                 bot_confirmation,
                 bot_recognition,
@@ -766,14 +766,14 @@ def _upsert_http_request_flood_prevention_rule_row(db: Session, device_id: int, 
             VALUES (
                 :device_id,
                 :name,
-                :http_connection_name,
+                :access_limit_in_http_session,
                 :action,
                 :bot_confirmation,
                 :bot_recognition,
                 CAST(:raw_json_http_connection AS jsonb)
             )
             ON CONFLICT (device_id, name) DO UPDATE SET
-                http_connection_name = EXCLUDED.http_connection_name,
+                access_limit_in_http_session = EXCLUDED.access_limit_in_http_session,
                 action = EXCLUDED.action,
                 bot_confirmation = EXCLUDED.bot_confirmation,
                 bot_recognition = EXCLUDED.bot_recognition,
@@ -1660,7 +1660,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 aldp.enable_layer4_dos_prevention,
                 aldp.layer4_access_limit_rule,
                 aldp.layer4_connection_flood_check_rule,
-                hrfpr.http_connection_name,
+                hrfpr.access_limit_in_http_session,
                 hrfpr.action AS http_request_flood_prevention_action,
                 hrfpr.bot_confirmation,
                 hrfpr.bot_recognition,
@@ -1772,7 +1772,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                             "enable_layer4_dos_prevention": row["enable_layer4_dos_prevention"],
                             "layer4_access_limit_rule": row["layer4_access_limit_rule"],
                             "layer4_connection_flood_check_rule": row["layer4_connection_flood_check_rule"],
-                            "http_connection_name": row["http_connection_name"],
+                            "access_limit_in_http_session": row["access_limit_in_http_session"],
                             "action": row["http_request_flood_prevention_action"],
                             "bot_confirmation": row["bot_confirmation"],
                             "bot_recognition": row["bot_recognition"],
