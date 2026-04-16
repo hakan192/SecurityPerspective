@@ -507,6 +507,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const applicationLayerDosPreventionName = applicationLayerDosPreventionPolicy.name || webProtectionDetails.application_layer_dos_prevention || ''
                           const layer4AccessLimitRulePolicy = applicationLayerDosPreventionPolicy.layer4_access_limit_rule_policy || {}
                           const tcpFloodPreventionPolicy = applicationLayerDosPreventionPolicy.tcp_flood_prevention_policy || {}
+                          const botMitigatePolicyDetail = webProtectionDetails.bot_mitigate_policy_detail || {}
+                          const botMitigatePolicyName = botMitigatePolicyDetail.name || webProtectionDetails.bot_mitigate_policy || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -527,6 +529,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
+                            <p className="policy-meta">Bot Mitigate Policy: {botMitigatePolicyName || '-'}</p>
                             <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
                             <p className="policy-meta">HTTP Request Flood Prevention Rule: {applicationLayerDosPreventionPolicy.http_request_flood_prevention_rule || '-'}</p>
                             <p className="policy-meta">Access Limit in HTTP Session: {applicationLayerDosPreventionPolicy.access_limit_in_http_session || '-'}</p>

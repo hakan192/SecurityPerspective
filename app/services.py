@@ -879,6 +879,54 @@ def _upsert_tcp_flood_prevention_row(db: Session, device_id: int, row: dict):
     )
 
 
+def _extract_bot_mitigate_policy_row(payload: dict, policy_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "biometrics_based_detection": _normalize_optional_text(
+            result.get("biometrics-based-detection") or result.get("biometrics_based_detection")
+        ),
+        "threshold_based_detection": _normalize_optional_text(
+            result.get("threshold-based-detection") or result.get("threshold_based_detection")
+        ),
+        "known_bots": _normalize_optional_text(result.get("known-bots") or result.get("known_bots")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_bot_mitigate_policy_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "bot-mitigate-policy" (
+                device_id,
+                name,
+                biometrics_based_detection,
+                threshold_based_detection,
+                known_bots,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :biometrics_based_detection,
+                :threshold_based_detection,
+                :known_bots,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                biometrics_based_detection = EXCLUDED.biometrics_based_detection,
+                threshold_based_detection = EXCLUDED.threshold_based_detection,
+                known_bots = EXCLUDED.known_bots,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1604,6 +1652,27 @@ def _fetch_and_upsert_tcp_flood_prevention(
     _upsert_tcp_flood_prevention_row(db, device.id, row)
 
 
+def _fetch_and_upsert_bot_mitigate_policy(
+    db: Session,
+    device: ManagedDevice,
+    bot_mitigate_policy_name: str,
+    headers: dict,
+):
+    encoded_name = quote(bot_mitigate_policy_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/bot-mitigate-policy?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_bot_mitigate_policy_row(payload, bot_mitigate_policy_name)
+    _upsert_bot_mitigate_policy_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1688,6 +1757,12 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             for cookie_security_name in unique_cookie_security_policies:
                 try:
                     _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)
+                except Exception:
+                    db.rollback()
+            unique_bot_mitigate_policies = {row["bot_mitigate_policy"] for row in web_protection_profile_rows if row.get("bot_mitigate_policy")}
+            for bot_mitigate_policy_name in unique_bot_mitigate_policies:
+                try:
+                    _fetch_and_upsert_bot_mitigate_policy(db, device, bot_mitigate_policy_name, headers)
                 except Exception:
                     db.rollback()
 
@@ -1835,6 +1910,10 @@ def load_server_policies_from_db(db: Session) -> dict:
                 l4alr.action AS layer4_access_limit_action,
                 tcp.layer4_connection_threshold,
                 tcp.action AS tcp_flood_prevention_action,
+                bmp.name AS bot_mitigate_policy_name,
+                bmp.biometrics_based_detection,
+                bmp.threshold_based_detection,
+                bmp.known_bots,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -1862,6 +1941,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN tcp_flood_prevention tcp
                 ON tcp.device_id = aldp.device_id
                 AND tcp.name = aldp.layer4_connection_flood_check_rule
+            LEFT JOIN "bot-mitigate-policy" bmp
+                ON bmp.device_id = wpp.device_id
+                AND bmp.name = wpp.bot_mitigate_policy
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -1965,6 +2047,12 @@ def load_server_policies_from_db(db: Session) -> dict:
                                 "name": row["layer4_connection_flood_check_rule"],
                                 "layer4_connection_threshold": row["layer4_connection_threshold"],
                                 "action": row["tcp_flood_prevention_action"],
+                            },
+                            "bot_mitigate_policy_detail": {
+                                "name": row["bot_mitigate_policy_name"],
+                                "biometrics_based_detection": row["biometrics_based_detection"],
+                                "threshold_based_detection": row["threshold_based_detection"],
+                                "known_bots": row["known_bots"],
                             },
                         },
                     },

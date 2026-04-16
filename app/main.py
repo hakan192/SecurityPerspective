@@ -504,6 +504,27 @@ def startup_event():
         )
         connection.execute(text("ALTER TABLE tcp_flood_prevention ADD COLUMN IF NOT EXISTS layer4_connection_threshold text"))
         connection.execute(text("ALTER TABLE tcp_flood_prevention ADD COLUMN IF NOT EXISTS action text"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "bot-mitigate-policy" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    biometrics_based_detection text,
+                    threshold_based_detection text,
+                    known_bots text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS biometrics_based_detection text'))
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS threshold_based_detection text'))
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS known_bots text'))
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
