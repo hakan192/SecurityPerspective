@@ -675,77 +675,6 @@ def _upsert_json_validation_policy_rows(db: Session, device_id: int, rows: list[
         )
 
 
-def _extract_application_layer_dos_rows(payload: dict) -> list[dict]:
-    rows = _extract_results(payload)
-    parsed_rows = []
-    for row in rows:
-        policy_name = _normalize_optional_text(
-            row.get("name")
-            or row.get("application-dos-protection-name")
-            or row.get("application_dos_protection_name")
-        )
-        if not policy_name:
-            continue
-        parsed_rows.append(
-            {
-                "name": policy_name,
-                "http_request_flood_prevention_rule": _normalize_optional_text(
-                    row.get("http-request-flood-prevention-rule") or row.get("http_request_flood_prevention_rule")
-                ),
-                "enable_layer4_dos_prevention": _normalize_optional_text(
-                    row.get("enable-layer4-dos-prevention") or row.get("enable_layer4_dos_prevention")
-                ),
-                "layer4_access_limit_rule": _normalize_optional_text(
-                    row.get("layer4-access-limit-rule") or row.get("layer4_access_limit_rule")
-                ),
-                "layer4_connection_flood_check_rule": _normalize_optional_text(
-                    row.get("layer4-connection-flood-check-rule")
-                    or row.get("layer4_connection_flood_check_rule")
-                    or row.get("http-connection-flood-check-rule")
-                    or row.get("http_connection_flood_check_rule")
-                ),
-                "raw_json": payload if isinstance(payload, dict) else {"results": row},
-            }
-        )
-    return parsed_rows
-
-
-def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[dict]):
-    for row in rows:
-        db.execute(
-            text(
-                """
-                INSERT INTO "application-layer-dos-prevention" (
-                    device_id,
-                    name,
-                    http_request_flood_prevention_rule,
-                    enable_layer4_dos_prevention,
-                    layer4_access_limit_rule,
-                    layer4_connection_flood_check_rule,
-                    raw_json
-                )
-                VALUES (
-                    :device_id,
-                    :name,
-                    :http_request_flood_prevention_rule,
-                    :enable_layer4_dos_prevention,
-                    :layer4_access_limit_rule,
-                    :layer4_connection_flood_check_rule,
-                    CAST(:raw_json AS jsonb)
-                )
-                ON CONFLICT (device_id, name) DO UPDATE SET
-                    http_request_flood_prevention_rule = EXCLUDED.http_request_flood_prevention_rule,
-                    enable_layer4_dos_prevention = EXCLUDED.enable_layer4_dos_prevention,
-                    layer4_access_limit_rule = EXCLUDED.layer4_access_limit_rule,
-                    layer4_connection_flood_check_rule = EXCLUDED.layer4_connection_flood_check_rule,
-                    raw_json = EXCLUDED.raw_json,
-                    updated_at = now()
-                """
-            ),
-            {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
-        )
-
-
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1386,60 +1315,6 @@ def _fetch_and_upsert_json_validation_policy(
     _upsert_json_validation_policy_rows(db, device.id, rows)
 
 
-def _fetch_and_upsert_application_layer_dos_prevention(
-    db: Session,
-    device: ManagedDevice,
-    application_layer_dos_prevention_name: str,
-    headers: dict,
-):
-    encoded_name = quote(application_layer_dos_prevention_name, safe="")
-    endpoint = f"/api/v2.0/cmdb/waf/application-layer-dos-prevention?mkey={encoded_name}"
-    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
-    response = requests.get(
-        url,
-        headers=headers,
-        timeout=30,
-        verify=settings.fortiweb_verify_ssl,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    rows = _extract_application_layer_dos_rows(payload)
-    if not rows:
-        source = payload.get("results") if isinstance(payload, dict) else None
-        if isinstance(source, list):
-            source = source[0] if source and isinstance(source[0], dict) else {}
-        elif not isinstance(source, dict):
-            source = payload if isinstance(payload, dict) else {}
-
-        rows = [
-            {
-                "name": application_layer_dos_prevention_name,
-                "http_request_flood_prevention_rule": _normalize_optional_text(
-                    source.get("http-request-flood-prevention-rule")
-                    or source.get("http_request_flood_prevention_rule")
-                ),
-                "enable_layer4_dos_prevention": _normalize_optional_text(
-                    source.get("enable-layer4-dos-prevention") or source.get("enable_layer4_dos_prevention")
-                ),
-                "layer4_access_limit_rule": _normalize_optional_text(
-                    source.get("layer4-access-limit-rule") or source.get("layer4_access_limit_rule")
-                ),
-                "layer4_connection_flood_check_rule": _normalize_optional_text(
-                    source.get("layer4-connection-flood-check-rule")
-                    or source.get("layer4_connection_flood_check_rule")
-                    or source.get("http-connection-flood-check-rule")
-                    or source.get("http_connection_flood_check_rule")
-                ),
-                "raw_json": payload if isinstance(payload, dict) else {"results": source},
-            }
-        ]
-
-    for row in rows:
-        row["raw_json"] = payload
-
-    _upsert_application_layer_dos_rows(db, device.id, rows)
-
-
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1512,22 +1387,6 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                 _fetch_and_upsert_json_validation_policy(db, device, headers)
             except Exception:
                 db.rollback()
-
-            unique_application_layer_dos_policies = {
-                row["application_layer_dos_prevention"]
-                for row in web_protection_profile_rows
-                if row.get("application_layer_dos_prevention")
-            }
-            for application_layer_dos_prevention_name in unique_application_layer_dos_policies:
-                try:
-                    _fetch_and_upsert_application_layer_dos_prevention(
-                        db,
-                        device,
-                        application_layer_dos_prevention_name,
-                        headers,
-                    )
-                except Exception:
-                    db.rollback()
 
             unique_custom_access_policies = {row["custom_access_policy"] for row in web_protection_profile_rows if row.get("custom_access_policy")}
             for custom_access_policy_name in unique_custom_access_policies:
