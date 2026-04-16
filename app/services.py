@@ -927,28 +927,23 @@ def _upsert_bot_mitigate_policy_row(db: Session, device_id: int, row: dict):
     )
 
 
-def _extract_biometric_based_detection_rows(payload: dict) -> list[dict]:
+def _extract_biometric_based_detection_row(payload: dict, policy_name: str) -> dict:
     rows = _extract_results(payload)
-    parsed_rows = []
-    for row in rows:
-        name = _normalize_optional_text(row.get("name"))
-        if not name:
-            continue
-        parsed_rows.append(
-            {
-                "name": name,
-                "mouse_movement": _normalize_optional_text(row.get("mouse-movement") or row.get("mouse_movement")),
-                "page_focus": _normalize_optional_text(row.get("page-focus") or row.get("page_focus")),
-                "keyboard": _normalize_optional_text(row.get("keyboard")),
-                "screen_touch": _normalize_optional_text(row.get("screen-touch") or row.get("screen_touch")),
-                "scroll": _normalize_optional_text(row.get("scroll")),
-                "bot_traits": _normalize_optional_text(row.get("bot-traits") or row.get("bot_traits")),
-                "bot_traits_num": _normalize_optional_text(row.get("bot-traits-num") or row.get("bot_traits_num")),
-                "action": _normalize_optional_text(row.get("action")),
-                "host": None,
-            }
-        )
-    return parsed_rows
+    row = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "mouse_movement": _normalize_optional_text(row.get("mouse-movement") or row.get("mouse_movement")),
+        "page_focus": _normalize_optional_text(row.get("page-focus") or row.get("page_focus")),
+        "keyboard": _normalize_optional_text(row.get("keyboard")),
+        "screen_touch": _normalize_optional_text(row.get("screen-touch") or row.get("screen_touch")),
+        "scroll": _normalize_optional_text(row.get("scroll")),
+        "bot_traits": _normalize_optional_text(row.get("bot-traits") or row.get("bot_traits")),
+        "bot_traits_num": _normalize_optional_text(row.get("bot-traits-num") or row.get("bot_traits_num")),
+        "action": _normalize_optional_text(row.get("action")),
+        "host": None,
+        "raw_json": payload if isinstance(payload, dict) else {"results": row},
+        "raw_json_url_list": None,
+    }
 
 
 def _extract_biometric_hosts(payload: dict) -> str | None:
@@ -978,7 +973,9 @@ def _upsert_biometric_based_detection_row(db: Session, device_id: int, row: dict
                 bot_traits,
                 bot_traits_num,
                 action,
-                host
+                host,
+                raw_json,
+                raw_json_url_list
             )
             VALUES (
                 :device_id,
@@ -991,7 +988,9 @@ def _upsert_biometric_based_detection_row(db: Session, device_id: int, row: dict
                 :bot_traits,
                 :bot_traits_num,
                 :action,
-                :host
+                :host,
+                CAST(:raw_json AS jsonb),
+                CAST(:raw_json_url_list AS jsonb)
             )
             ON CONFLICT (device_id, name) DO UPDATE SET
                 mouse_movement = EXCLUDED.mouse_movement,
@@ -1003,10 +1002,17 @@ def _upsert_biometric_based_detection_row(db: Session, device_id: int, row: dict
                 bot_traits_num = EXCLUDED.bot_traits_num,
                 action = EXCLUDED.action,
                 host = EXCLUDED.host,
+                raw_json = EXCLUDED.raw_json,
+                raw_json_url_list = EXCLUDED.raw_json_url_list,
                 updated_at = now()
             """
         ),
-        {"device_id": device_id, **row},
+        {
+            "device_id": device_id,
+            **row,
+            "raw_json": json.dumps(row["raw_json"]),
+            "raw_json_url_list": json.dumps(row["raw_json_url_list"]) if row.get("raw_json_url_list") is not None else "null",
+        },
     )
 
 
@@ -1765,25 +1771,18 @@ def _fetch_and_upsert_biometric_based_detection(
 ):
     if not biometric_policy_names:
         return
-
-    endpoint = "/api/v2.0/cmdb/waf/biometrics-based-detection"
-    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
-    response = requests.get(
-        url,
-        headers=headers,
-        timeout=30,
-        verify=settings.fortiweb_verify_ssl,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    rows = _extract_biometric_based_detection_rows(payload)
-
-    rows_by_name = {row["name"]: row for row in rows}
     for policy_name in biometric_policy_names:
-        if policy_name not in rows_by_name:
-            continue
-        row = rows_by_name[policy_name]
         encoded_name = quote(policy_name, safe="")
+        endpoint = f"/api/v2.0/cmdb/waf/biometrics-based-detection?mkey={encoded_name}"
+        url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=30,
+            verify=settings.fortiweb_verify_ssl,
+        )
+        response.raise_for_status()
+        row = _extract_biometric_based_detection_row(response.json(), policy_name)
         url_list_endpoint = f"/api/v2.0/cmdb/waf/biometrics-based-detection/url-list?mkey={encoded_name}"
         url_list_url = f"{_build_device_base_url(device.ip).rstrip('/')}{url_list_endpoint}"
         url_list_response = requests.get(
@@ -1793,7 +1792,9 @@ def _fetch_and_upsert_biometric_based_detection(
             verify=settings.fortiweb_verify_ssl,
         )
         url_list_response.raise_for_status()
-        row["host"] = _extract_biometric_hosts(url_list_response.json())
+        url_list_payload = url_list_response.json()
+        row["host"] = _extract_biometric_hosts(url_list_payload)
+        row["raw_json_url_list"] = url_list_payload
         _upsert_biometric_based_detection_row(db, device.id, row)
 
 

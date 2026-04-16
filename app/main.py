@@ -540,6 +540,8 @@ def startup_event():
                     bot_traits_num text,
                     action text,
                     host text,
+                    raw_json jsonb,
+                    raw_json_url_list jsonb,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
                     PRIMARY KEY (device_id, name)
@@ -556,6 +558,8 @@ def startup_event():
         connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS bot_traits_num text"))
         connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS action text"))
         connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS host text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS raw_json jsonb"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS raw_json_url_list jsonb"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
