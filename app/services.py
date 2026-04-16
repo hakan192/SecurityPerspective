@@ -1450,32 +1450,33 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             try:
                 web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
             except Exception:
+                db.rollback()
                 web_protection_profile_rows = []
 
             try:
                 _fetch_and_upsert_http_protocol_parameter_restrictions(db, device, headers)
             except Exception:
-                pass
+                db.rollback()
 
             try:
                 _fetch_and_upsert_syntax_based_attack_detection(db, device, headers)
             except Exception:
-                pass
+                db.rollback()
 
             try:
                 _fetch_and_upsert_allow_method_policy(db, device, headers)
             except Exception:
-                pass
+                db.rollback()
 
             try:
                 _fetch_and_upsert_xml_validation_policy(db, device, headers)
             except Exception:
-                pass
+                db.rollback()
 
             try:
                 _fetch_and_upsert_json_validation_policy(db, device, headers)
             except Exception:
-                pass
+                db.rollback()
 
             unique_application_layer_dos_policies = {
                 row["application_layer_dos_prevention"]
@@ -1491,28 +1492,28 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                         headers,
                     )
                 except Exception:
-                    pass
+                    db.rollback()
 
             unique_custom_access_policies = {row["custom_access_policy"] for row in web_protection_profile_rows if row.get("custom_access_policy")}
             for custom_access_policy_name in unique_custom_access_policies:
                 try:
                     _fetch_and_upsert_custom_access_policy(db, device, custom_access_policy_name, headers)
                 except Exception:
-                    pass
+                    db.rollback()
 
             unique_cookie_security_policies = {row["cookie_security_policy"] for row in web_protection_profile_rows if row.get("cookie_security_policy")}
             for cookie_security_name in unique_cookie_security_policies:
                 try:
                     _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)
                 except Exception:
-                    pass
+                    db.rollback()
 
             unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
             for signature_rule in unique_signature_rules:
                 try:
                     _fetch_and_upsert_signature(db, device, signature_rule, headers)
                 except Exception:
-                    pass
+                    db.rollback()
 
             url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
             response = requests.get(
