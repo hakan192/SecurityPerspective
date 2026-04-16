@@ -525,6 +525,37 @@ def startup_event():
         connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS threshold_based_detection text'))
         connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS known_bots text'))
         connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS biometric_based_detection (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    mouse_movement text,
+                    page_focus text,
+                    keyboard text,
+                    screen_touch text,
+                    scroll text,
+                    bot_traits text,
+                    bot_traits_num text,
+                    action text,
+                    host text,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS mouse_movement text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS page_focus text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS keyboard text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS screen_touch text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS scroll text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS bot_traits text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS bot_traits_num text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS action text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS host text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))

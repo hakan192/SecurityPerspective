@@ -927,6 +927,89 @@ def _upsert_bot_mitigate_policy_row(db: Session, device_id: int, row: dict):
     )
 
 
+def _extract_biometric_based_detection_rows(payload: dict) -> list[dict]:
+    rows = _extract_results(payload)
+    parsed_rows = []
+    for row in rows:
+        name = _normalize_optional_text(row.get("name"))
+        if not name:
+            continue
+        parsed_rows.append(
+            {
+                "name": name,
+                "mouse_movement": _normalize_optional_text(row.get("mouse-movement") or row.get("mouse_movement")),
+                "page_focus": _normalize_optional_text(row.get("page-focus") or row.get("page_focus")),
+                "keyboard": _normalize_optional_text(row.get("keyboard")),
+                "screen_touch": _normalize_optional_text(row.get("screen-touch") or row.get("screen_touch")),
+                "scroll": _normalize_optional_text(row.get("scroll")),
+                "bot_traits": _normalize_optional_text(row.get("bot-traits") or row.get("bot_traits")),
+                "bot_traits_num": _normalize_optional_text(row.get("bot-traits-num") or row.get("bot_traits_num")),
+                "action": _normalize_optional_text(row.get("action")),
+                "host": None,
+            }
+        )
+    return parsed_rows
+
+
+def _extract_biometric_hosts(payload: dict) -> str | None:
+    rows = _extract_results(payload)
+    hosts = []
+    for row in rows:
+        host = _normalize_optional_text(row.get("host") or row.get("url") or row.get("name"))
+        if host and host not in hosts:
+            hosts.append(host)
+    if not hosts:
+        return None
+    return ", ".join(hosts)
+
+
+def _upsert_biometric_based_detection_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO biometric_based_detection (
+                device_id,
+                name,
+                mouse_movement,
+                page_focus,
+                keyboard,
+                screen_touch,
+                scroll,
+                bot_traits,
+                bot_traits_num,
+                action,
+                host
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :mouse_movement,
+                :page_focus,
+                :keyboard,
+                :screen_touch,
+                :scroll,
+                :bot_traits,
+                :bot_traits_num,
+                :action,
+                :host
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                mouse_movement = EXCLUDED.mouse_movement,
+                page_focus = EXCLUDED.page_focus,
+                keyboard = EXCLUDED.keyboard,
+                screen_touch = EXCLUDED.screen_touch,
+                scroll = EXCLUDED.scroll,
+                bot_traits = EXCLUDED.bot_traits,
+                bot_traits_num = EXCLUDED.bot_traits_num,
+                action = EXCLUDED.action,
+                host = EXCLUDED.host,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1671,6 +1754,47 @@ def _fetch_and_upsert_bot_mitigate_policy(
     payload = response.json()
     row = _extract_bot_mitigate_policy_row(payload, bot_mitigate_policy_name)
     _upsert_bot_mitigate_policy_row(db, device.id, row)
+    return row
+
+
+def _fetch_and_upsert_biometric_based_detection(
+    db: Session,
+    device: ManagedDevice,
+    biometric_policy_names: set[str],
+    headers: dict,
+):
+    if not biometric_policy_names:
+        return
+
+    endpoint = "/api/v2.0/cmdb/waf/biometrics-based-detection"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_biometric_based_detection_rows(payload)
+
+    rows_by_name = {row["name"]: row for row in rows}
+    for policy_name in biometric_policy_names:
+        if policy_name not in rows_by_name:
+            continue
+        row = rows_by_name[policy_name]
+        encoded_name = quote(policy_name, safe="")
+        url_list_endpoint = f"/api/v2.0/cmdb/waf/biometrics-based-detection/url-list?mkey={encoded_name}"
+        url_list_url = f"{_build_device_base_url(device.ip).rstrip('/')}{url_list_endpoint}"
+        url_list_response = requests.get(
+            url_list_url,
+            headers=headers,
+            timeout=30,
+            verify=settings.fortiweb_verify_ssl,
+        )
+        url_list_response.raise_for_status()
+        row["host"] = _extract_biometric_hosts(url_list_response.json())
+        _upsert_biometric_based_detection_row(db, device.id, row)
 
 
 def _fetch_and_upsert_signature(
@@ -1760,11 +1884,22 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                 except Exception:
                     db.rollback()
             unique_bot_mitigate_policies = {row["bot_mitigate_policy"] for row in web_protection_profile_rows if row.get("bot_mitigate_policy")}
+            fetched_bot_mitigate_rows = []
             for bot_mitigate_policy_name in unique_bot_mitigate_policies:
                 try:
-                    _fetch_and_upsert_bot_mitigate_policy(db, device, bot_mitigate_policy_name, headers)
+                    fetched_row = _fetch_and_upsert_bot_mitigate_policy(db, device, bot_mitigate_policy_name, headers)
+                    fetched_bot_mitigate_rows.append(fetched_row)
                 except Exception:
                     db.rollback()
+            biometric_policy_names = {
+                row["biometrics_based_detection"]
+                for row in fetched_bot_mitigate_rows
+                if row.get("biometrics_based_detection")
+            }
+            try:
+                _fetch_and_upsert_biometric_based_detection(db, device, biometric_policy_names, headers)
+            except Exception:
+                db.rollback()
 
             unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
             for signature_rule in unique_signature_rules:
@@ -1914,6 +2049,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 bmp.biometrics_based_detection,
                 bmp.threshold_based_detection,
                 bmp.known_bots,
+                bbd.name AS biometric_based_detection_name,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -1944,6 +2080,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN "bot-mitigate-policy" bmp
                 ON bmp.device_id = wpp.device_id
                 AND bmp.name = wpp.bot_mitigate_policy
+            LEFT JOIN biometric_based_detection bbd
+                ON bbd.device_id = bmp.device_id
+                AND bbd.name = bmp.biometrics_based_detection
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -2050,7 +2189,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                             },
                             "bot_mitigate_policy_detail": {
                                 "name": row["bot_mitigate_policy_name"],
-                                "biometrics_based_detection": row["biometrics_based_detection"],
+                                "biometrics_based_detection": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
                                 "threshold_based_detection": row["threshold_based_detection"],
                                 "known_bots": row["known_bots"],
                             },
