@@ -708,6 +708,8 @@ def _extract_application_layer_dos_rows(payload: dict) -> list[dict]:
                 "layer4_connection_flood_check_rule": None,
                 "layer3_fragment_protection": None,
                 "raw_json": row,
+                "raw_json_application_dos": row,
+                "raw_json_layer4": None,
             }
         )
     return parsed_rows
@@ -750,7 +752,9 @@ def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[d
                     access_limit_share_ip,
                     layer4_connection_flood_check_rule,
                     layer3_fragment_protection,
-                    raw_json
+                    raw_json,
+                    raw_json_application_dos,
+                    raw_json_layer4
                 )
                 VALUES (
                     :device_id,
@@ -765,7 +769,9 @@ def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[d
                     :access_limit_share_ip,
                     :layer4_connection_flood_check_rule,
                     :layer3_fragment_protection,
-                    CAST(:raw_json AS jsonb)
+                    CAST(:raw_json AS jsonb),
+                    CAST(:raw_json_application_dos AS jsonb),
+                    CAST(:raw_json_layer4 AS jsonb)
                 )
                 ON CONFLICT (device_id, application_dos_protection_name) DO UPDATE SET
                     enable_http_session_based_prevention = EXCLUDED.enable_http_session_based_prevention,
@@ -779,10 +785,18 @@ def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[d
                     layer4_connection_flood_check_rule = EXCLUDED.layer4_connection_flood_check_rule,
                     layer3_fragment_protection = EXCLUDED.layer3_fragment_protection,
                     raw_json = EXCLUDED.raw_json,
+                    raw_json_application_dos = EXCLUDED.raw_json_application_dos,
+                    raw_json_layer4 = EXCLUDED.raw_json_layer4,
                     updated_at = now()
                 """
             ),
-            {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+            {
+                "device_id": device_id,
+                **row,
+                "raw_json": json.dumps(row["raw_json"]),
+                "raw_json_application_dos": json.dumps(row.get("raw_json_application_dos")),
+                "raw_json_layer4": json.dumps(row.get("raw_json_layer4")),
+            },
         )
 
 
@@ -1459,6 +1473,8 @@ def _fetch_and_upsert_application_layer_dos_prevention(
         layer4_response.raise_for_status()
         layer4_payload = layer4_response.json()
         row.update(_extract_layer4_access_limit_rule_details(layer4_payload))
+        row["raw_json_application_dos"] = row["raw_json"]
+        row["raw_json_layer4"] = layer4_payload
         row["raw_json"] = {
             "application_layer_dos_prevention": row["raw_json"],
             "layer4_access_limit_rule": layer4_payload,

@@ -421,6 +421,8 @@ def startup_event():
                     layer4_connection_flood_check_rule text,
                     layer3_fragment_protection text,
                     raw_json jsonb,
+                    raw_json_application_dos jsonb,
+                    raw_json_layer4 jsonb,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
                     PRIMARY KEY (device_id, application_dos_protection_name)
@@ -448,6 +450,8 @@ def startup_event():
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_connection_flood_check_rule text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer3_fragment_protection text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json_application_dos jsonb'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json_layer4 jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
