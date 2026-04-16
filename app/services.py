@@ -708,6 +708,16 @@ def _extract_application_layer_dos_rows(payload: dict) -> list[dict]:
 
 
 def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[dict]):
+    db.execute(
+        text(
+            """
+            DELETE FROM "application-layer-dos-prevention"
+            WHERE device_id = :device_id
+            """
+        ),
+        {"device_id": device_id},
+    )
+
     for row in rows:
         db.execute(
             text(
@@ -1401,6 +1411,8 @@ def _fetch_and_upsert_application_layer_dos_prevention(
     response.raise_for_status()
     payload = response.json()
     rows = _extract_application_layer_dos_rows(payload)
+    for row in rows:
+        row["raw_json"] = payload
 
     _upsert_application_layer_dos_rows(db, device.id, rows)
 
