@@ -503,6 +503,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
                           const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
                           const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
+                          const applicationLayerDosPreventionPolicy = webProtectionDetails.application_layer_dos_prevention_policy || {}
+                          const applicationLayerDosPreventionName = applicationLayerDosPreventionPolicy.name || webProtectionDetails.application_layer_dos_prevention || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -523,6 +525,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
+                            <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
+                            <p className="policy-meta">HTTP Request Flood Prevention Rule: {applicationLayerDosPreventionPolicy.http_request_flood_prevention_rule || '-'}</p>
+                            <p className="policy-meta">Enable Layer4 DoS Prevention: {applicationLayerDosPreventionPolicy.enable_layer4_dos_prevention || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Rule: {applicationLayerDosPreventionPolicy.layer4_access_limit_rule || '-'}</p>
+                            <p className="policy-meta">Layer4 Connection Flood Check Rule: {applicationLayerDosPreventionPolicy.layer4_connection_flood_check_rule || '-'}</p>
                             <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
                             <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
                             <p className="policy-meta">HTTP Protocol Parameter Restriction: {httpProtocolParameterRestrictionName || '-'}</p>

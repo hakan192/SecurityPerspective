@@ -675,6 +675,62 @@ def _upsert_json_validation_policy_rows(db: Session, device_id: int, rows: list[
         )
 
 
+def _extract_application_layer_dos_prevention_row(payload: dict, policy_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "http_request_flood_prevention_rule": _normalize_optional_text(
+            result.get("http-request-flood-prevention-rule") or result.get("http_request_flood_prevention_rule")
+        ),
+        "enable_layer4_dos_prevention": _normalize_optional_text(
+            result.get("enable-layer4-dos-prevention") or result.get("enable_layer4_dos_prevention")
+        ),
+        "layer4_access_limit_rule": _normalize_optional_text(
+            result.get("layer4-access-limit-rule") or result.get("layer4_access_limit_rule")
+        ),
+        "layer4_connection_flood_check_rule": _normalize_optional_text(
+            result.get("layer4-connection-flood-check-rule") or result.get("layer4_connection_flood_check_rule")
+        ),
+        "raw_json": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_application_layer_dos_prevention_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "application-layer-dos-prevention" (
+                device_id,
+                name,
+                http_request_flood_prevention_rule,
+                enable_layer4_dos_prevention,
+                layer4_access_limit_rule,
+                layer4_connection_flood_check_rule,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :http_request_flood_prevention_rule,
+                :enable_layer4_dos_prevention,
+                :layer4_access_limit_rule,
+                :layer4_connection_flood_check_rule,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                http_request_flood_prevention_rule = EXCLUDED.http_request_flood_prevention_rule,
+                enable_layer4_dos_prevention = EXCLUDED.enable_layer4_dos_prevention,
+                layer4_access_limit_rule = EXCLUDED.layer4_access_limit_rule,
+                layer4_connection_flood_check_rule = EXCLUDED.layer4_connection_flood_check_rule,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1315,6 +1371,27 @@ def _fetch_and_upsert_json_validation_policy(
     _upsert_json_validation_policy_rows(db, device.id, rows)
 
 
+def _fetch_and_upsert_application_layer_dos_prevention(
+    db: Session,
+    device: ManagedDevice,
+    application_layer_dos_prevention_name: str,
+    headers: dict,
+):
+    encoded_name = quote(application_layer_dos_prevention_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/application-layer-dos-prevention?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_application_layer_dos_prevention_row(payload, application_layer_dos_prevention_name)
+    _upsert_application_layer_dos_prevention_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1408,6 +1485,19 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     _fetch_and_upsert_signature(db, device, signature_rule, headers)
                 except Exception:
                     db.rollback()
+            unique_application_layer_dos_prevention_policies = {
+                row["application_layer_dos_prevention"] for row in web_protection_profile_rows if row.get("application_layer_dos_prevention")
+            }
+            for application_layer_dos_prevention_name in unique_application_layer_dos_prevention_policies:
+                try:
+                    _fetch_and_upsert_application_layer_dos_prevention(
+                        db,
+                        device,
+                        application_layer_dos_prevention_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
 
             url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
             response = requests.get(
@@ -1473,6 +1563,10 @@ def load_server_policies_from_db(db: Session) -> dict:
                 wpp.user_tracking_policy,
                 wpp.websocket_security_policy,
                 wpp.cors_protection_policy,
+                aldp.http_request_flood_prevention_rule,
+                aldp.enable_layer4_dos_prevention,
+                aldp.layer4_access_limit_rule,
+                aldp.layer4_connection_flood_check_rule,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -1488,6 +1582,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
+            LEFT JOIN "application-layer-dos-prevention" aldp
+                ON aldp.device_id = wpp.device_id
+                AND aldp.name = wpp.application_layer_dos_prevention
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -1569,6 +1666,13 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "user_tracking_policy": row["user_tracking_policy"],
                         "websocket_security_policy": row["websocket_security_policy"],
                         "cors_protection_policy": row["cors_protection_policy"],
+                        "application_layer_dos_prevention_policy": {
+                            "name": row["application_layer_dos_prevention"],
+                            "http_request_flood_prevention_rule": row["http_request_flood_prevention_rule"],
+                            "enable_layer4_dos_prevention": row["enable_layer4_dos_prevention"],
+                            "layer4_access_limit_rule": row["layer4_access_limit_rule"],
+                            "layer4_connection_flood_check_rule": row["layer4_connection_flood_check_rule"],
+                        },
                     },
                 }
             )
