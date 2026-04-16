@@ -527,6 +527,10 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
                             <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
                             <p className="policy-meta">HTTP Request Flood Prevention Rule: {applicationLayerDosPreventionPolicy.http_request_flood_prevention_rule || '-'}</p>
+                            <p className="policy-meta">HTTP Connection Name: {applicationLayerDosPreventionPolicy.http_connection_name || '-'}</p>
+                            <p className="policy-meta">HTTP Request Flood Action: {applicationLayerDosPreventionPolicy.action || '-'}</p>
+                            <p className="policy-meta">Bot Confirmation: {applicationLayerDosPreventionPolicy.bot_confirmation || '-'}</p>
+                            <p className="policy-meta">Bot Recognition: {applicationLayerDosPreventionPolicy.bot_recognition || '-'}</p>
                             <p className="policy-meta">Enable Layer4 DoS Prevention: {applicationLayerDosPreventionPolicy.enable_layer4_dos_prevention || '-'}</p>
                             <p className="policy-meta">Layer4 Access Limit Rule: {applicationLayerDosPreventionPolicy.layer4_access_limit_rule || '-'}</p>
                             <p className="policy-meta">Layer4 Connection Flood Check Rule: {applicationLayerDosPreventionPolicy.layer4_connection_flood_check_rule || '-'}</p>

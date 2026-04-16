@@ -440,6 +440,29 @@ def startup_event():
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_access_limit_rule text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_connection_flood_check_rule text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "http-request-flood-prevention-rule" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    http_connection_name text,
+                    action text,
+                    bot_confirmation text,
+                    bot_recognition text,
+                    raw_json_http_connection jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS http_connection_name text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS action text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS bot_confirmation text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS bot_recognition text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS raw_json_http_connection jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))

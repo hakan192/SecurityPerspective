@@ -731,6 +731,60 @@ def _upsert_application_layer_dos_prevention_row(db: Session, device_id: int, ro
     )
 
 
+def _extract_http_request_flood_prevention_rule_row(payload: dict, rule_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": rule_name,
+        "http_connection_name": _normalize_optional_text(
+            result.get("http-connection-name") or result.get("http_connection_name")
+        ),
+        "action": _normalize_optional_text(result.get("action")),
+        "bot_confirmation": _normalize_optional_text(
+            result.get("bot-confirmation") or result.get("bot_confirmation")
+        ),
+        "bot_recognition": _normalize_optional_text(
+            result.get("bot-recognition") or result.get("bot_recognition")
+        ),
+        "raw_json_http_connection": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_http_request_flood_prevention_rule_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "http-request-flood-prevention-rule" (
+                device_id,
+                name,
+                http_connection_name,
+                action,
+                bot_confirmation,
+                bot_recognition,
+                raw_json_http_connection
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :http_connection_name,
+                :action,
+                :bot_confirmation,
+                :bot_recognition,
+                CAST(:raw_json_http_connection AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                http_connection_name = EXCLUDED.http_connection_name,
+                action = EXCLUDED.action,
+                bot_confirmation = EXCLUDED.bot_confirmation,
+                bot_recognition = EXCLUDED.bot_recognition,
+                raw_json_http_connection = EXCLUDED.raw_json_http_connection,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json_http_connection": json.dumps(row["raw_json_http_connection"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1390,6 +1444,28 @@ def _fetch_and_upsert_application_layer_dos_prevention(
     payload = response.json()
     row = _extract_application_layer_dos_prevention_row(payload, application_layer_dos_prevention_name)
     _upsert_application_layer_dos_prevention_row(db, device.id, row)
+    return row
+
+
+def _fetch_and_upsert_http_request_flood_prevention_rule(
+    db: Session,
+    device: ManagedDevice,
+    http_request_flood_prevention_rule_name: str,
+    headers: dict,
+):
+    encoded_name = quote(http_request_flood_prevention_rule_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/http-request-flood-prevention-rule?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_http_request_flood_prevention_rule_row(payload, http_request_flood_prevention_rule_name)
+    _upsert_http_request_flood_prevention_rule_row(db, device.id, row)
 
 
 def _fetch_and_upsert_signature(
@@ -1488,12 +1564,29 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             unique_application_layer_dos_prevention_policies = {
                 row["application_layer_dos_prevention"] for row in web_protection_profile_rows if row.get("application_layer_dos_prevention")
             }
+            fetched_application_layer_dos_rows = []
             for application_layer_dos_prevention_name in unique_application_layer_dos_prevention_policies:
                 try:
-                    _fetch_and_upsert_application_layer_dos_prevention(
+                    fetched_row = _fetch_and_upsert_application_layer_dos_prevention(
                         db,
                         device,
                         application_layer_dos_prevention_name,
+                        headers,
+                    )
+                    fetched_application_layer_dos_rows.append(fetched_row)
+                except Exception:
+                    db.rollback()
+            unique_http_request_flood_prevention_rules = {
+                row["http_request_flood_prevention_rule"]
+                for row in fetched_application_layer_dos_rows
+                if row.get("http_request_flood_prevention_rule")
+            }
+            for http_request_flood_prevention_rule_name in unique_http_request_flood_prevention_rules:
+                try:
+                    _fetch_and_upsert_http_request_flood_prevention_rule(
+                        db,
+                        device,
+                        http_request_flood_prevention_rule_name,
                         headers,
                     )
                 except Exception:
@@ -1567,6 +1660,10 @@ def load_server_policies_from_db(db: Session) -> dict:
                 aldp.enable_layer4_dos_prevention,
                 aldp.layer4_access_limit_rule,
                 aldp.layer4_connection_flood_check_rule,
+                hrfpr.http_connection_name,
+                hrfpr.action AS http_request_flood_prevention_action,
+                hrfpr.bot_confirmation,
+                hrfpr.bot_recognition,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -1585,6 +1682,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN "application-layer-dos-prevention" aldp
                 ON aldp.device_id = wpp.device_id
                 AND aldp.name = wpp.application_layer_dos_prevention
+            LEFT JOIN "http-request-flood-prevention-rule" hrfpr
+                ON hrfpr.device_id = aldp.device_id
+                AND hrfpr.name = aldp.http_request_flood_prevention_rule
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -1672,6 +1772,10 @@ def load_server_policies_from_db(db: Session) -> dict:
                             "enable_layer4_dos_prevention": row["enable_layer4_dos_prevention"],
                             "layer4_access_limit_rule": row["layer4_access_limit_rule"],
                             "layer4_connection_flood_check_rule": row["layer4_connection_flood_check_rule"],
+                            "http_connection_name": row["http_connection_name"],
+                            "action": row["http_request_flood_prevention_action"],
+                            "bot_confirmation": row["bot_confirmation"],
+                            "bot_recognition": row["bot_recognition"],
                         },
                     },
                 }
