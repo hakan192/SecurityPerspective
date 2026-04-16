@@ -699,7 +699,10 @@ def _extract_application_layer_dos_rows(payload: dict) -> list[dict]:
                     row.get("layer4-access-limit-rule") or row.get("layer4_access_limit_rule")
                 ),
                 "layer4_connection_flood_check_rule": _normalize_optional_text(
-                    row.get("layer4-connection-flood-check-rule") or row.get("layer4_connection_flood_check_rule")
+                    row.get("layer4-connection-flood-check-rule")
+                    or row.get("layer4_connection_flood_check_rule")
+                    or row.get("http-connection-flood-check-rule")
+                    or row.get("http_connection_flood_check_rule")
                 ),
                 "raw_json": payload if isinstance(payload, dict) else {"results": row},
             }
@@ -1422,7 +1425,10 @@ def _fetch_and_upsert_application_layer_dos_prevention(
                     source.get("layer4-access-limit-rule") or source.get("layer4_access_limit_rule")
                 ),
                 "layer4_connection_flood_check_rule": _normalize_optional_text(
-                    source.get("layer4-connection-flood-check-rule") or source.get("layer4_connection_flood_check_rule")
+                    source.get("layer4-connection-flood-check-rule")
+                    or source.get("layer4_connection_flood_check_rule")
+                    or source.get("http-connection-flood-check-rule")
+                    or source.get("http_connection_flood_check_rule")
                 ),
                 "raw_json": payload if isinstance(payload, dict) else {"results": source},
             }
