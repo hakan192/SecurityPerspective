@@ -409,23 +409,15 @@ def startup_event():
                 """
                 CREATE TABLE IF NOT EXISTS "application-layer-dos-prevention" (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
-                    application_dos_protection_name text NOT NULL,
-                    enable_http_session_based_prevention text,
+                    name text NOT NULL,
                     http_request_flood_prevention_rule text,
-                    http_connection_flood_check_rule text,
+                    enable_layer4_dos_prevention text,
                     layer4_access_limit_rule text,
-                    bot_confirmation text,
-                    action text,
-                    access_limit_standalone_ip text,
-                    access_limit_share_ip text,
                     layer4_connection_flood_check_rule text,
-                    layer3_fragment_protection text,
                     raw_json jsonb,
-                    raw_json_application_dos jsonb,
-                    raw_json_layer4 jsonb,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
-                    PRIMARY KEY (device_id, application_dos_protection_name)
+                    PRIMARY KEY (device_id, name)
                 )
                 """
             )
@@ -443,15 +435,12 @@ def startup_event():
         connection.execute(text('ALTER TABLE "xml-validation-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text('ALTER TABLE "json-validation-policy" ADD COLUMN IF NOT EXISTS enable_signature_detection text'))
         connection.execute(text('ALTER TABLE "json-validation-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
-        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS bot_confirmation text'))
-        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS action text'))
-        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS access_limit_standalone_ip text'))
-        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS access_limit_share_ip text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS name text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS http_request_flood_prevention_rule text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS enable_layer4_dos_prevention text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_access_limit_rule text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_connection_flood_check_rule text'))
-        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer3_fragment_protection text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
-        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json_application_dos jsonb'))
-        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json_layer4 jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))

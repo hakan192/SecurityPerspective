@@ -679,59 +679,32 @@ def _extract_application_layer_dos_rows(payload: dict) -> list[dict]:
     rows = _extract_results(payload)
     parsed_rows = []
     for row in rows:
-        application_dos_protection_name = _normalize_optional_text(
+        policy_name = _normalize_optional_text(
             row.get("name")
             or row.get("application-dos-protection-name")
             or row.get("application_dos_protection_name")
         )
-        if not application_dos_protection_name:
+        if not policy_name:
             continue
         parsed_rows.append(
             {
-                "application_dos_protection_name": application_dos_protection_name,
-                "enable_http_session_based_prevention": _normalize_optional_text(
-                    row.get("enable-http-session-based-prevention") or row.get("enable_http_session_based_prevention")
-                ),
+                "name": policy_name,
                 "http_request_flood_prevention_rule": _normalize_optional_text(
                     row.get("http-request-flood-prevention-rule") or row.get("http_request_flood_prevention_rule")
                 ),
-                "http_connection_flood_check_rule": _normalize_optional_text(
-                    row.get("http-connection-flood-check-rule") or row.get("http_connection_flood_check_rule")
+                "enable_layer4_dos_prevention": _normalize_optional_text(
+                    row.get("enable-layer4-dos-prevention") or row.get("enable_layer4_dos_prevention")
                 ),
                 "layer4_access_limit_rule": _normalize_optional_text(
                     row.get("layer4-access-limit-rule") or row.get("layer4_access_limit_rule")
                 ),
-                "bot_confirmation": None,
-                "action": None,
-                "access_limit_standalone_ip": None,
-                "access_limit_share_ip": None,
-                "layer4_connection_flood_check_rule": None,
-                "layer3_fragment_protection": None,
+                "layer4_connection_flood_check_rule": _normalize_optional_text(
+                    row.get("layer4-connection-flood-check-rule") or row.get("layer4_connection_flood_check_rule")
+                ),
                 "raw_json": row,
-                "raw_json_application_dos": row,
-                "raw_json_layer4": None,
             }
         )
     return parsed_rows
-
-
-def _extract_layer4_access_limit_rule_details(payload: dict) -> dict:
-    rows = _extract_results(payload)
-    result = rows[0] if rows else {}
-    return {
-        "bot_confirmation": _normalize_optional_text(result.get("bot-confirmation") or result.get("bot_confirmation")),
-        "action": _normalize_optional_text(result.get("action")),
-        "access_limit_standalone_ip": _normalize_optional_text(
-            result.get("access-limit-standalone-ip") or result.get("access_limit_standalone_ip")
-        ),
-        "access_limit_share_ip": _normalize_optional_text(result.get("access-limit-share-ip") or result.get("access_limit_share_ip")),
-        "layer4_connection_flood_check_rule": _normalize_optional_text(
-            result.get("layer4-connection-flood-check-rule") or result.get("layer4_connection_flood_check_rule")
-        ),
-        "layer3_fragment_protection": _normalize_optional_text(
-            result.get("layer3-fragment-protection") or result.get("layer3_fragment_protection")
-        ),
-    }
 
 
 def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[dict]):
@@ -741,62 +714,32 @@ def _upsert_application_layer_dos_rows(db: Session, device_id: int, rows: list[d
                 """
                 INSERT INTO "application-layer-dos-prevention" (
                     device_id,
-                    application_dos_protection_name,
-                    enable_http_session_based_prevention,
+                    name,
                     http_request_flood_prevention_rule,
-                    http_connection_flood_check_rule,
+                    enable_layer4_dos_prevention,
                     layer4_access_limit_rule,
-                    bot_confirmation,
-                    action,
-                    access_limit_standalone_ip,
-                    access_limit_share_ip,
                     layer4_connection_flood_check_rule,
-                    layer3_fragment_protection,
-                    raw_json,
-                    raw_json_application_dos,
-                    raw_json_layer4
+                    raw_json
                 )
                 VALUES (
                     :device_id,
-                    :application_dos_protection_name,
-                    :enable_http_session_based_prevention,
+                    :name,
                     :http_request_flood_prevention_rule,
-                    :http_connection_flood_check_rule,
+                    :enable_layer4_dos_prevention,
                     :layer4_access_limit_rule,
-                    :bot_confirmation,
-                    :action,
-                    :access_limit_standalone_ip,
-                    :access_limit_share_ip,
                     :layer4_connection_flood_check_rule,
-                    :layer3_fragment_protection,
-                    CAST(:raw_json AS jsonb),
-                    CAST(:raw_json_application_dos AS jsonb),
-                    CAST(:raw_json_layer4 AS jsonb)
+                    CAST(:raw_json AS jsonb)
                 )
-                ON CONFLICT (device_id, application_dos_protection_name) DO UPDATE SET
-                    enable_http_session_based_prevention = EXCLUDED.enable_http_session_based_prevention,
+                ON CONFLICT (device_id, name) DO UPDATE SET
                     http_request_flood_prevention_rule = EXCLUDED.http_request_flood_prevention_rule,
-                    http_connection_flood_check_rule = EXCLUDED.http_connection_flood_check_rule,
+                    enable_layer4_dos_prevention = EXCLUDED.enable_layer4_dos_prevention,
                     layer4_access_limit_rule = EXCLUDED.layer4_access_limit_rule,
-                    bot_confirmation = EXCLUDED.bot_confirmation,
-                    action = EXCLUDED.action,
-                    access_limit_standalone_ip = EXCLUDED.access_limit_standalone_ip,
-                    access_limit_share_ip = EXCLUDED.access_limit_share_ip,
                     layer4_connection_flood_check_rule = EXCLUDED.layer4_connection_flood_check_rule,
-                    layer3_fragment_protection = EXCLUDED.layer3_fragment_protection,
                     raw_json = EXCLUDED.raw_json,
-                    raw_json_application_dos = EXCLUDED.raw_json_application_dos,
-                    raw_json_layer4 = EXCLUDED.raw_json_layer4,
                     updated_at = now()
                 """
             ),
-            {
-                "device_id": device_id,
-                **row,
-                "raw_json": json.dumps(row["raw_json"]),
-                "raw_json_application_dos": json.dumps(row.get("raw_json_application_dos")),
-                "raw_json_layer4": json.dumps(row.get("raw_json_layer4")),
-            },
+            {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
         )
 
 
@@ -1443,9 +1386,11 @@ def _fetch_and_upsert_json_validation_policy(
 def _fetch_and_upsert_application_layer_dos_prevention(
     db: Session,
     device: ManagedDevice,
+    application_layer_dos_prevention_name: str,
     headers: dict,
 ):
-    endpoint = "/api/v2.0/cmdb/waf/application-layer-dos-prevention"
+    encoded_name = quote(application_layer_dos_prevention_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/application-layer-dos-prevention?mkey={encoded_name}"
     url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
     response = requests.get(
         url,
@@ -1456,29 +1401,6 @@ def _fetch_and_upsert_application_layer_dos_prevention(
     response.raise_for_status()
     payload = response.json()
     rows = _extract_application_layer_dos_rows(payload)
-
-    for row in rows:
-        layer4_access_limit_rule = row.get("layer4_access_limit_rule")
-        if not layer4_access_limit_rule:
-            continue
-        encoded_rule_name = quote(layer4_access_limit_rule, safe="")
-        layer4_endpoint = f"/api/v2.0/cmdb/waf/layer4-access-limit-rule?mkey={encoded_rule_name}"
-        layer4_url = f"{_build_device_base_url(device.ip).rstrip('/')}{layer4_endpoint}"
-        layer4_response = requests.get(
-            layer4_url,
-            headers=headers,
-            timeout=30,
-            verify=settings.fortiweb_verify_ssl,
-        )
-        layer4_response.raise_for_status()
-        layer4_payload = layer4_response.json()
-        row.update(_extract_layer4_access_limit_rule_details(layer4_payload))
-        row["raw_json_application_dos"] = row["raw_json"]
-        row["raw_json_layer4"] = layer4_payload
-        row["raw_json"] = {
-            "application_layer_dos_prevention": row["raw_json"],
-            "layer4_access_limit_rule": layer4_payload,
-        }
 
     _upsert_application_layer_dos_rows(db, device.id, rows)
 
@@ -1555,10 +1477,21 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             except Exception:
                 pass
 
-            try:
-                _fetch_and_upsert_application_layer_dos_prevention(db, device, headers)
-            except Exception:
-                pass
+            unique_application_layer_dos_policies = {
+                row["application_layer_dos_prevention"]
+                for row in web_protection_profile_rows
+                if row.get("application_layer_dos_prevention")
+            }
+            for application_layer_dos_prevention_name in unique_application_layer_dos_policies:
+                try:
+                    _fetch_and_upsert_application_layer_dos_prevention(
+                        db,
+                        device,
+                        application_layer_dos_prevention_name,
+                        headers,
+                    )
+                except Exception:
+                    pass
 
             unique_custom_access_policies = {row["custom_access_policy"] for row in web_protection_profile_rows if row.get("custom_access_policy")}
             for custom_access_policy_name in unique_custom_access_policies:
