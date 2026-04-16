@@ -785,6 +785,62 @@ def _upsert_http_request_flood_prevention_rule_row(db: Session, device_id: int, 
     )
 
 
+def _extract_layer4_access_limit_rule_row(payload: dict, rule_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": rule_name,
+        "access_limit_standalone_ip": _normalize_optional_text(
+            result.get("access-limit-standalone-ip") or result.get("access_limit_standalone_ip")
+        ),
+        "access_limit_share_ip": _normalize_optional_text(
+            result.get("access-limit-share-ip") or result.get("access_limit_share_ip")
+        ),
+        "bot_confirmation": _normalize_optional_text(
+            result.get("bot-confirmation") or result.get("bot_confirmation")
+        ),
+        "bot_recognition": _normalize_optional_text(
+            result.get("bot-recognition") or result.get("bot_recognition")
+        ),
+        "action": _normalize_optional_text(result.get("action")),
+    }
+
+
+def _upsert_layer4_access_limit_rule_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "/layer4-access-limit-rule" (
+                device_id,
+                name,
+                access_limit_standalone_ip,
+                access_limit_share_ip,
+                bot_confirmation,
+                bot_recognition,
+                action
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :access_limit_standalone_ip,
+                :access_limit_share_ip,
+                :bot_confirmation,
+                :bot_recognition,
+                :action
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                access_limit_standalone_ip = EXCLUDED.access_limit_standalone_ip,
+                access_limit_share_ip = EXCLUDED.access_limit_share_ip,
+                bot_confirmation = EXCLUDED.bot_confirmation,
+                bot_recognition = EXCLUDED.bot_recognition,
+                action = EXCLUDED.action,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1468,6 +1524,27 @@ def _fetch_and_upsert_http_request_flood_prevention_rule(
     _upsert_http_request_flood_prevention_rule_row(db, device.id, row)
 
 
+def _fetch_and_upsert_layer4_access_limit_rule(
+    db: Session,
+    device: ManagedDevice,
+    layer4_access_limit_rule_name: str,
+    headers: dict,
+):
+    encoded_name = quote(layer4_access_limit_rule_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/layer4-access-limit-rule?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_layer4_access_limit_rule_row(payload, layer4_access_limit_rule_name)
+    _upsert_layer4_access_limit_rule_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1591,6 +1668,19 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     )
                 except Exception:
                     db.rollback()
+            unique_layer4_access_limit_rules = {
+                row["layer4_access_limit_rule"] for row in fetched_application_layer_dos_rows if row.get("layer4_access_limit_rule")
+            }
+            for layer4_access_limit_rule_name in unique_layer4_access_limit_rules:
+                try:
+                    _fetch_and_upsert_layer4_access_limit_rule(
+                        db,
+                        device,
+                        layer4_access_limit_rule_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
 
             url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
             response = requests.get(
@@ -1664,6 +1754,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                 hrfpr.action AS http_request_flood_prevention_action,
                 hrfpr.bot_confirmation,
                 hrfpr.bot_recognition,
+                l4alr.access_limit_standalone_ip,
+                l4alr.access_limit_share_ip,
+                l4alr.bot_confirmation AS layer4_access_limit_bot_confirmation,
+                l4alr.bot_recognition AS layer4_access_limit_bot_recognition,
+                l4alr.action AS layer4_access_limit_action,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -1685,6 +1780,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN "http-request-flood-prevention-rule" hrfpr
                 ON hrfpr.device_id = aldp.device_id
                 AND hrfpr.name = aldp.http_request_flood_prevention_rule
+            LEFT JOIN "/layer4-access-limit-rule" l4alr
+                ON l4alr.device_id = aldp.device_id
+                AND l4alr.name = aldp.layer4_access_limit_rule
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -1776,6 +1874,14 @@ def load_server_policies_from_db(db: Session) -> dict:
                             "action": row["http_request_flood_prevention_action"],
                             "bot_confirmation": row["bot_confirmation"],
                             "bot_recognition": row["bot_recognition"],
+                            "layer4_access_limit_rule_policy": {
+                                "name": row["layer4_access_limit_rule"],
+                                "access_limit_standalone_ip": row["access_limit_standalone_ip"],
+                                "access_limit_share_ip": row["access_limit_share_ip"],
+                                "bot_confirmation": row["layer4_access_limit_bot_confirmation"],
+                                "bot_recognition": row["layer4_access_limit_bot_recognition"],
+                                "action": row["layer4_access_limit_action"],
+                            },
                         },
                     },
                 }

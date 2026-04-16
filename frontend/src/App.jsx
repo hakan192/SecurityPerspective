@@ -505,6 +505,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
                           const applicationLayerDosPreventionPolicy = webProtectionDetails.application_layer_dos_prevention_policy || {}
                           const applicationLayerDosPreventionName = applicationLayerDosPreventionPolicy.name || webProtectionDetails.application_layer_dos_prevention || ''
+                          const layer4AccessLimitRulePolicy = applicationLayerDosPreventionPolicy.layer4_access_limit_rule_policy || {}
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -533,6 +534,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Bot Recognition: {applicationLayerDosPreventionPolicy.bot_recognition || '-'}</p>
                             <p className="policy-meta">Enable Layer4 DoS Prevention: {applicationLayerDosPreventionPolicy.enable_layer4_dos_prevention || '-'}</p>
                             <p className="policy-meta">Layer4 Access Limit Rule: {applicationLayerDosPreventionPolicy.layer4_access_limit_rule || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Standalone IP: {layer4AccessLimitRulePolicy.access_limit_standalone_ip || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Share IP: {layer4AccessLimitRulePolicy.access_limit_share_ip || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Bot Confirmation: {layer4AccessLimitRulePolicy.bot_confirmation || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Bot Recognition: {layer4AccessLimitRulePolicy.bot_recognition || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Action: {layer4AccessLimitRulePolicy.action || '-'}</p>
                             <p className="policy-meta">Layer4 Connection Flood Check Rule: {applicationLayerDosPreventionPolicy.layer4_connection_flood_check_rule || '-'}</p>
                             <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
                             <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
