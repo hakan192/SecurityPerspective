@@ -67,6 +67,7 @@ def startup_event():
         connection.execute(text('DROP TABLE IF EXISTS "Server_Policy" CASCADE'))
         connection.execute(text("DROP TABLE IF EXISTS server_policy CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS server_pool CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS geo_ip CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS baseline_controls_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS exchange_rate_snapshots_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS fortiweb_snapshots_id_seq CASCADE"))
@@ -443,19 +444,19 @@ def startup_event():
                     name text NOT NULL,
                     action text,
                     block_period text,
-                    country_name text NOT NULL DEFAULT '',
+                    country_name jsonb NOT NULL DEFAULT '[]'::jsonb,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
-                    PRIMARY KEY (device_id, name, country_name)
+                    PRIMARY KEY (device_id, name)
                 )
                 """
             )
         )
         connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS action text"))
         connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS block_period text"))
-        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS country_name text"))
-        connection.execute(text("UPDATE geo_ip SET country_name = '' WHERE country_name IS NULL"))
-        connection.execute(text("ALTER TABLE geo_ip ALTER COLUMN country_name SET DEFAULT ''"))
+        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS country_name jsonb"))
+        connection.execute(text("UPDATE geo_ip SET country_name = '[]'::jsonb WHERE country_name IS NULL"))
+        connection.execute(text("ALTER TABLE geo_ip ALTER COLUMN country_name SET DEFAULT '[]'::jsonb"))
         connection.execute(text("ALTER TABLE geo_ip ALTER COLUMN country_name SET NOT NULL"))
         connection.execute(
             text(

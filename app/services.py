@@ -702,46 +702,33 @@ def _extract_geo_ip_country_names(payload: dict) -> list[str]:
     return deduped_country_names
 
 
-def _upsert_geo_ip_rows(db: Session, device_id: int, rows: list[dict]):
-    if not rows:
-        return
-    policy_name = rows[0]["name"]
+def _upsert_geo_ip_row(db: Session, device_id: int, row: dict):
     db.execute(
         text(
             """
-            DELETE FROM geo_ip
-            WHERE device_id = :device_id
-              AND name = :name
+            INSERT INTO geo_ip (
+                device_id,
+                name,
+                action,
+                block_period,
+                country_name
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :action,
+                :block_period,
+                CAST(:country_name AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                action = EXCLUDED.action,
+                block_period = EXCLUDED.block_period,
+                country_name = EXCLUDED.country_name,
+                updated_at = now()
             """
         ),
-        {"device_id": device_id, "name": policy_name},
+        {"device_id": device_id, **row, "country_name": json.dumps(row["country_name"])},
     )
-    for row in rows:
-        db.execute(
-            text(
-                """
-                INSERT INTO geo_ip (
-                    device_id,
-                    name,
-                    action,
-                    block_period,
-                    country_name
-                )
-                VALUES (
-                    :device_id,
-                    :name,
-                    :action,
-                    :block_period,
-                    :country_name
-                )
-                ON CONFLICT (device_id, name, country_name) DO UPDATE SET
-                    action = EXCLUDED.action,
-                    block_period = EXCLUDED.block_period,
-                    updated_at = now()
-                """
-            ),
-            {"device_id": device_id, **row},
-        )
 
 
 def _extract_ip_list_policy_rows(payload: dict, ip_list_policy_name: str) -> list[dict]:
@@ -1997,16 +1984,11 @@ def _fetch_and_upsert_geo_ip(
     countries_response.raise_for_status()
     country_names = _extract_geo_ip_country_names(countries_response.json())
 
-    rows = [
-        {
-            **geo_ip_row,
-            "country_name": country_name,
-        }
-        for country_name in country_names
-    ]
-    if not rows:
-        rows = [{**geo_ip_row, "country_name": ""}]
-    _upsert_geo_ip_rows(db, device.id, rows)
+    row = {
+        **geo_ip_row,
+        "country_name": country_names,
+    }
+    _upsert_geo_ip_row(db, device.id, row)
 
 
 def _fetch_and_upsert_ip_list_policy(
