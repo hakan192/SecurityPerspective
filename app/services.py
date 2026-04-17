@@ -777,16 +777,23 @@ def _extract_ip_list_policy_rows(payload: dict, ip_list_policy_name: str) -> lis
     return parsed_rows
 
 
-def _extract_ip_intelligence_row(payload: dict, ip_intelligence_name: str) -> dict:
+def _extract_ip_intelligence_rows(payload: dict) -> list[dict]:
     rows = _extract_results(payload)
-    result = rows[0] if rows else {}
-    return {
-        "ip_intelligence_name": ip_intelligence_name,
-        "category": _normalize_optional_text(result.get("category")),
-        "status": _normalize_optional_text(result.get("status")),
-        "action": _normalize_optional_text(result.get("action")),
-        "raw_json": payload if isinstance(payload, dict) else {"results": result},
-    }
+    if not rows:
+        rows = [{}]
+    parsed_rows = []
+    for row in rows:
+        name = _normalize_optional_text(row.get("name") or row.get("mkey") or row.get("id")) or "global"
+        parsed_rows.append(
+            {
+                "ip_intelligence_name": name,
+                "category": _normalize_optional_text(row.get("category")),
+                "status": _normalize_optional_text(row.get("status")),
+                "action": _normalize_optional_text(row.get("action")),
+                "raw_json": row if isinstance(row, dict) else payload,
+            }
+        )
+    return parsed_rows
 
 
 def _upsert_ip_list_policy_rows(db: Session, device_id: int, rows: list[dict]):
@@ -2079,11 +2086,9 @@ def _fetch_and_upsert_ip_list_policy(
 def _fetch_and_upsert_ip_intelligence(
     db: Session,
     device: ManagedDevice,
-    ip_intelligence_name: str,
     headers: dict,
 ):
-    encoded_name = quote(ip_intelligence_name, safe="")
-    endpoint = f"/api/v2.0/cmdb/waf/ip-intelligence?mkey={encoded_name}"
+    endpoint = "/api/v2.0/cmdb/waf/ip-intelligence"
     url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
     response = requests.get(
         url,
@@ -2093,8 +2098,9 @@ def _fetch_and_upsert_ip_intelligence(
     )
     response.raise_for_status()
     payload = response.json()
-    row = _extract_ip_intelligence_row(payload, ip_intelligence_name)
-    _upsert_ip_intelligence_row(db, device.id, row)
+    rows = _extract_ip_intelligence_rows(payload)
+    for row in rows:
+        _upsert_ip_intelligence_row(db, device.id, row)
 
 
 def _fetch_and_upsert_http_request_flood_prevention_rule(
@@ -2415,12 +2421,10 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     _fetch_and_upsert_ip_list_policy(db, device, ip_list_policy_name, headers)
                 except Exception:
                     db.rollback()
-            unique_ip_intelligence_policies = {row["ip_intelligence"] for row in web_protection_profile_rows if row.get("ip_intelligence")}
-            for ip_intelligence_name in unique_ip_intelligence_policies:
-                try:
-                    _fetch_and_upsert_ip_intelligence(db, device, ip_intelligence_name, headers)
-                except Exception:
-                    db.rollback()
+            try:
+                _fetch_and_upsert_ip_intelligence(db, device, headers)
+            except Exception:
+                db.rollback()
             for application_layer_dos_prevention_name in unique_application_layer_dos_prevention_policies:
                 try:
                     fetched_row = _fetch_and_upsert_application_layer_dos_prevention(
@@ -2535,10 +2539,6 @@ def load_server_policies_from_db(db: Session) -> dict:
                 wpp.application_layer_dos_prevention,
                 wpp.ip_list_policy,
                 wpp.ip_intelligence,
-                ipi.category AS ip_intelligence_category,
-                ipi.status AS ip_intelligence_status,
-                ipi.action AS ip_intelligence_action,
-                ipi.raw_json AS ip_intelligence_raw_json,
                 wpp.geo_block_list_policy,
                 wpp.waiting_room_policy,
                 wpp.user_tracking_policy,
@@ -2581,9 +2581,6 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
-            LEFT JOIN "ip-intelligence" ipi
-                ON ipi.device_id = wpp.device_id
-                AND ipi.ip_intelligence_name = wpp.ip_intelligence
             LEFT JOIN "application-layer-dos-prevention" aldp
                 ON aldp.device_id = wpp.device_id
                 AND aldp.name = wpp.application_layer_dos_prevention
@@ -2673,6 +2670,34 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
+    ip_intelligence_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                ip_intelligence_name,
+                category,
+                status,
+                action,
+                raw_json
+            FROM "ip-intelligence"
+            ORDER BY ip_intelligence_name ASC
+            """
+        )
+    ).mappings().all()
+
+    ip_intelligence_by_device = {}
+    for row in ip_intelligence_rows:
+        ip_intelligence_by_device.setdefault(row["device_id"], []).append(
+            {
+                "name": row["ip_intelligence_name"],
+                "category": row["category"],
+                "status": row["status"],
+                "action": row["action"],
+                "raw_json": row["raw_json"],
+            }
+        )
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -2685,6 +2710,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "error": "",
             }
         if row["server_policy_name"]:
+            ip_intelligence_entries = ip_intelligence_by_device.get(device_id, [])
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],
@@ -2721,12 +2747,13 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "ip_list_policy_entries": ip_list_policy_by_name.get((device_id, row["ip_list_policy"]), []),
                         "ip_intelligence": row["ip_intelligence"],
                         "ip_intelligence_detail": {
-                            "name": row["ip_intelligence"],
-                            "category": row["ip_intelligence_category"],
-                            "status": row["ip_intelligence_status"],
-                            "action": row["ip_intelligence_action"],
-                            "raw_json": row["ip_intelligence_raw_json"],
+                            "name": ip_intelligence_entries[0]["name"] if ip_intelligence_entries else row["ip_intelligence"],
+                            "category": ip_intelligence_entries[0]["category"] if ip_intelligence_entries else None,
+                            "status": ip_intelligence_entries[0]["status"] if ip_intelligence_entries else None,
+                            "action": ip_intelligence_entries[0]["action"] if ip_intelligence_entries else None,
+                            "raw_json": ip_intelligence_entries[0]["raw_json"] if ip_intelligence_entries else None,
                         },
+                        "ip_intelligence_entries": ip_intelligence_entries,
                         "geo_block_list_policy": row["geo_block_list_policy"],
                         "waiting_room_policy": row["waiting_room_policy"],
                         "user_tracking_policy": row["user_tracking_policy"],
