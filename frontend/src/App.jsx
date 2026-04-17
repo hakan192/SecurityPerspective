@@ -502,6 +502,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
                           const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
                           const ipListPolicyName = webProtectionDetails.ip_list_policy || ''
+                          const geoIpPolicyName = webProtectionDetails.geo_block_list_policy || ''
                           const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
                           const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
                           const applicationLayerDosPreventionPolicy = webProtectionDetails.application_layer_dos_prevention_policy || {}
@@ -532,6 +533,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">IP List Policy: {ipListPolicyName || '-'}</p>
+                            <p className="policy-meta">Geo-IP Policy: {geoIpPolicyName || '-'}</p>
                             <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
                             <p className="policy-meta">Bot Mitigate Policy: {botMitigatePolicyName || '-'}</p>

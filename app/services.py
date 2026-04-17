@@ -675,6 +675,75 @@ def _upsert_json_validation_policy_rows(db: Session, device_id: int, rows: list[
         )
 
 
+def _extract_geo_ip_row(payload: dict, geo_ip_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": geo_ip_name,
+        "action": _normalize_optional_text(result.get("action")),
+        "block_period": _normalize_optional_text(result.get("block-period") or result.get("block_period")),
+    }
+
+
+def _extract_geo_ip_country_names(payload: dict) -> list[str]:
+    rows = _extract_results(payload)
+    country_names = []
+    for row in rows:
+        country_name = _normalize_optional_text(row.get("country-name") or row.get("country_name") or row.get("name"))
+        if country_name:
+            country_names.append(country_name)
+    deduped_country_names = []
+    seen = set()
+    for country_name in country_names:
+        if country_name in seen:
+            continue
+        seen.add(country_name)
+        deduped_country_names.append(country_name)
+    return deduped_country_names
+
+
+def _upsert_geo_ip_rows(db: Session, device_id: int, rows: list[dict]):
+    if not rows:
+        return
+    policy_name = rows[0]["name"]
+    db.execute(
+        text(
+            """
+            DELETE FROM geo_ip
+            WHERE device_id = :device_id
+              AND name = :name
+            """
+        ),
+        {"device_id": device_id, "name": policy_name},
+    )
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO geo_ip (
+                    device_id,
+                    name,
+                    action,
+                    block_period,
+                    country_name
+                )
+                VALUES (
+                    :device_id,
+                    :name,
+                    :action,
+                    :block_period,
+                    :country_name
+                )
+                ON CONFLICT (device_id, name, country_name) DO UPDATE SET
+                    action = EXCLUDED.action,
+                    block_period = EXCLUDED.block_period,
+                    updated_at = now()
+                """
+            ),
+            {"device_id": device_id, **row},
+        )
+
+
 def _extract_ip_list_policy_rows(payload: dict, ip_list_policy_name: str) -> list[dict]:
     rows = _extract_results(payload)
     parsed_rows = []
@@ -1899,6 +1968,47 @@ def _fetch_and_upsert_application_layer_dos_prevention(
     return row
 
 
+def _fetch_and_upsert_geo_ip(
+    db: Session,
+    device: ManagedDevice,
+    geo_ip_name: str,
+    headers: dict,
+):
+    encoded_name = quote(geo_ip_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/geo-block-list?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    geo_ip_row = _extract_geo_ip_row(response.json(), geo_ip_name)
+
+    countries_endpoint = f"/api/v2.0/cmdb/waf/geo-block-list/country-list?mkey={encoded_name}"
+    countries_url = f"{_build_device_base_url(device.ip).rstrip('/')}{countries_endpoint}"
+    countries_response = requests.get(
+        countries_url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    countries_response.raise_for_status()
+    country_names = _extract_geo_ip_country_names(countries_response.json())
+
+    rows = [
+        {
+            **geo_ip_row,
+            "country_name": country_name,
+        }
+        for country_name in country_names
+    ]
+    if not rows:
+        rows = [{**geo_ip_row, "country_name": ""}]
+    _upsert_geo_ip_rows(db, device.id, rows)
+
+
 def _fetch_and_upsert_ip_list_policy(
     db: Session,
     device: ManagedDevice,
@@ -2166,6 +2276,12 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             for cookie_security_name in unique_cookie_security_policies:
                 try:
                     _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)
+                except Exception:
+                    db.rollback()
+            unique_geo_ip_policies = {row["geo_block_list_policy"] for row in web_protection_profile_rows if row.get("geo_block_list_policy")}
+            for geo_ip_name in unique_geo_ip_policies:
+                try:
+                    _fetch_and_upsert_geo_ip(db, device, geo_ip_name, headers)
                 except Exception:
                     db.rollback()
             unique_bot_mitigate_policies = {row["bot_mitigate_policy"] for row in web_protection_profile_rows if row.get("bot_mitigate_policy")}

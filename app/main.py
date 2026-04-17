@@ -438,6 +438,28 @@ def startup_event():
         connection.execute(
             text(
                 """
+                CREATE TABLE IF NOT EXISTS geo_ip (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    action text,
+                    block_period text,
+                    country_name text NOT NULL DEFAULT '',
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name, country_name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS action text"))
+        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS block_period text"))
+        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS country_name text"))
+        connection.execute(text("UPDATE geo_ip SET country_name = '' WHERE country_name IS NULL"))
+        connection.execute(text("ALTER TABLE geo_ip ALTER COLUMN country_name SET DEFAULT ''"))
+        connection.execute(text("ALTER TABLE geo_ip ALTER COLUMN country_name SET NOT NULL"))
+        connection.execute(
+            text(
+                """
                 CREATE TABLE IF NOT EXISTS ip_list_policy (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     name text NOT NULL,
