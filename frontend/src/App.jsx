@@ -510,6 +510,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const botMitigatePolicyDetail = applicationLayerDosPreventionPolicy.bot_mitigate_policy_detail || {}
                           const botMitigatePolicyName = botMitigatePolicyDetail.name || webProtectionDetails.bot_mitigate_policy || ''
                           const biometricBasedDetectionPolicyName = botMitigatePolicyDetail.biometrics_based_detection || ''
+                          const thresholdBasedDetectionPolicyName = botMitigatePolicyDetail.threshold_based_detection || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -532,6 +533,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
                             <p className="policy-meta">Bot Mitigate Policy: {botMitigatePolicyName || '-'}</p>
                             <p className="policy-meta">Biometric Based Detection Policy: {biometricBasedDetectionPolicyName || '-'}</p>
+                            <p className="policy-meta">Threshold Based Detection Policy: {thresholdBasedDetectionPolicyName || '-'}</p>
                             <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
                             <p className="policy-meta">HTTP Request Flood Prevention Rule: {applicationLayerDosPreventionPolicy.http_request_flood_prevention_rule || '-'}</p>
                             <p className="policy-meta">Access Limit in HTTP Session: {applicationLayerDosPreventionPolicy.access_limit_in_http_session || '-'}</p>

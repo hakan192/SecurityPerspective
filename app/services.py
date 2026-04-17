@@ -1016,6 +1016,80 @@ def _upsert_biometric_based_detection_row(db: Session, device_id: int, row: dict
     )
 
 
+def _extract_threshold_based_detection_row(payload: dict, policy_name: str) -> dict:
+    rows = _extract_results(payload)
+    row = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "bot_confirmation": _normalize_optional_text(row.get("bot-confirmation") or row.get("bot_confirmation")),
+        "bot_recognition": _normalize_optional_text(row.get("bot-recognition") or row.get("bot_recognition")),
+        "crawler_detection": _normalize_optional_text(row.get("crawler-detection") or row.get("crawler_detection")),
+        "crawler_action": _normalize_optional_text(row.get("crawler-action") or row.get("crawler_action")),
+        "crawler_occurrence_num": _normalize_optional_text(row.get("crawler-occurrence-num") or row.get("crawler_occurrence_num")),
+        "crawler_within": _normalize_optional_text(row.get("crawler-within") or row.get("crawler_within")),
+        "slow_attack_detection": _normalize_optional_text(row.get("slow-attack-detection") or row.get("slow_attack_detection")),
+        "slow_attack_action": _normalize_optional_text(row.get("slow-attack-action") or row.get("slow_attack_action")),
+        "slow_attack_occurrence_num": _normalize_optional_text(
+            row.get("slow-attack-occurrence-num") or row.get("slow_attack_occurrence_num")
+        ),
+        "slow_attack_within": _normalize_optional_text(row.get("slow-attack-within") or row.get("slow_attack_within")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": row},
+    }
+
+
+def _upsert_threshold_based_detection_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO threshold_based_detection (
+                device_id,
+                name,
+                bot_confirmation,
+                bot_recognition,
+                crawler_detection,
+                crawler_action,
+                crawler_occurrence_num,
+                crawler_within,
+                slow_attack_detection,
+                slow_attack_action,
+                slow_attack_occurrence_num,
+                slow_attack_within,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :bot_confirmation,
+                :bot_recognition,
+                :crawler_detection,
+                :crawler_action,
+                :crawler_occurrence_num,
+                :crawler_within,
+                :slow_attack_detection,
+                :slow_attack_action,
+                :slow_attack_occurrence_num,
+                :slow_attack_within,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                bot_confirmation = EXCLUDED.bot_confirmation,
+                bot_recognition = EXCLUDED.bot_recognition,
+                crawler_detection = EXCLUDED.crawler_detection,
+                crawler_action = EXCLUDED.crawler_action,
+                crawler_occurrence_num = EXCLUDED.crawler_occurrence_num,
+                crawler_within = EXCLUDED.crawler_within,
+                slow_attack_detection = EXCLUDED.slow_attack_detection,
+                slow_attack_action = EXCLUDED.slow_attack_action,
+                slow_attack_occurrence_num = EXCLUDED.slow_attack_occurrence_num,
+                slow_attack_within = EXCLUDED.slow_attack_within,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1798,6 +1872,27 @@ def _fetch_and_upsert_biometric_based_detection(
         _upsert_biometric_based_detection_row(db, device.id, row)
 
 
+def _fetch_and_upsert_threshold_based_detection(
+    db: Session,
+    device: ManagedDevice,
+    threshold_based_detection_name: str,
+    headers: dict,
+):
+    encoded_name = quote(threshold_based_detection_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/threshold-based-detection.policy?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_threshold_based_detection_row(payload, threshold_based_detection_name)
+    _upsert_threshold_based_detection_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1901,6 +1996,21 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                 _fetch_and_upsert_biometric_based_detection(db, device, biometric_policy_names, headers)
             except Exception:
                 db.rollback()
+            threshold_based_detection_names = {
+                row["threshold_based_detection"]
+                for row in fetched_bot_mitigate_rows
+                if row.get("threshold_based_detection")
+            }
+            for threshold_based_detection_name in threshold_based_detection_names:
+                try:
+                    _fetch_and_upsert_threshold_based_detection(
+                        db,
+                        device,
+                        threshold_based_detection_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
 
             unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
             for signature_rule in unique_signature_rules:
@@ -2051,6 +2161,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 bmp.threshold_based_detection,
                 bmp.known_bots,
                 bbd.name AS biometric_based_detection_name,
+                tbd.name AS threshold_based_detection_name,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -2084,6 +2195,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN biometric_based_detection bbd
                 ON bbd.device_id = bmp.device_id
                 AND bbd.name = bmp.biometrics_based_detection
+            LEFT JOIN threshold_based_detection tbd
+                ON tbd.device_id = bmp.device_id
+                AND tbd.name = bmp.threshold_based_detection
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -2191,7 +2305,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                             "bot_mitigate_policy_detail": {
                                 "name": row["bot_mitigate_policy_name"],
                                 "biometrics_based_detection": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
-                                "threshold_based_detection": row["threshold_based_detection"],
+                                "threshold_based_detection": row["threshold_based_detection_name"] or row["threshold_based_detection"],
                                 "known_bots": row["known_bots"],
                             },
                         },

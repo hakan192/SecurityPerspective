@@ -560,6 +560,41 @@ def startup_event():
         connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS host text"))
         connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS raw_json_url_list jsonb"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS threshold_based_detection (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    bot_confirmation text,
+                    bot_recognition text,
+                    crawler_detection text,
+                    crawler_action text,
+                    crawler_occurrence_num text,
+                    crawler_within text,
+                    slow_attack_detection text,
+                    slow_attack_action text,
+                    slow_attack_occurrence_num text,
+                    slow_attack_within text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS bot_confirmation text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS bot_recognition text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_detection text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_action text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_occurrence_num text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_within text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_detection text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_action text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_occurrence_num text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_within text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))
