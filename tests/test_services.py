@@ -1,4 +1,4 @@
-from app.services import _iter_relevant_objects, maturity_level_from_score
+from app.services import _extract_ip_intelligence_row, _iter_relevant_objects, maturity_level_from_score
 
 
 def test_maturity_level_thresholds():
@@ -21,3 +21,14 @@ def test_iter_relevant_objects_single_object():
     rows = list(_iter_relevant_objects(payload))
     assert len(rows) == 1
     assert rows[0]["name"] == "single"
+
+
+def test_extract_ip_intelligence_row():
+    payload = {"results": [{"category": "botnet", "status": "enable", "action": "block"}]}
+    row = _extract_ip_intelligence_row(payload, "threat-feed")
+
+    assert row["ip_intelligence_name"] == "threat-feed"
+    assert row["category"] == "botnet"
+    assert row["status"] == "enable"
+    assert row["action"] == "block"
+    assert row["raw_json"] == payload

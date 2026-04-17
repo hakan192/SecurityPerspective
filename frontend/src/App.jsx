@@ -502,6 +502,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
                           const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
                           const ipListPolicyName = webProtectionDetails.ip_list_policy || ''
+                          const ipIntelligenceDetail = webProtectionDetails.ip_intelligence_detail || {}
+                          const ipIntelligenceName = ipIntelligenceDetail.name || webProtectionDetails.ip_intelligence || ''
                           const geoIpPolicyName = webProtectionDetails.geo_block_list_policy || ''
                           const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
                           const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
@@ -533,6 +535,10 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">IP List Policy: {ipListPolicyName || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Policy: {ipIntelligenceName || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Category: {ipIntelligenceDetail.category || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Status: {ipIntelligenceDetail.status || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Action: {ipIntelligenceDetail.action || '-'}</p>
                             <p className="policy-meta">Geo-IP Policy: {geoIpPolicyName || '-'}</p>
                             <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
