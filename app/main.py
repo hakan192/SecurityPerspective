@@ -417,7 +417,223 @@ def startup_event():
         connection.execute(text('ALTER TABLE "xml-validation-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text('ALTER TABLE "json-validation-policy" ADD COLUMN IF NOT EXISTS enable_signature_detection text'))
         connection.execute(text('ALTER TABLE "json-validation-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
-        connection.execute(text('DROP TABLE IF EXISTS "application-layer-dos-prevention"'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "application-layer-dos-prevention" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    http_request_flood_prevention_rule text,
+                    enable_layer4_dos_prevention text,
+                    layer4_access_limit_rule text,
+                    layer4_connection_flood_check_rule text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS http_request_flood_prevention_rule text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS enable_layer4_dos_prevention text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_access_limit_rule text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_connection_flood_check_rule text'))
+        connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "http-request-flood-prevention-rule" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    access_limit_in_http_session text,
+                    action text,
+                    bot_confirmation text,
+                    bot_recognition text,
+                    raw_json_http_connection jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" DROP COLUMN IF EXISTS http_connection_name'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS access_limit_in_http_session text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS action text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS bot_confirmation text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS bot_recognition text'))
+        connection.execute(text('ALTER TABLE "http-request-flood-prevention-rule" ADD COLUMN IF NOT EXISTS raw_json_http_connection jsonb'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "/layer4-access-limit-rule" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    access_limit_standalone_ip text,
+                    access_limit_share_ip text,
+                    bot_confirmation text,
+                    bot_recognition text,
+                    action text,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS access_limit_standalone_ip text'))
+        connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS access_limit_share_ip text'))
+        connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS bot_confirmation text'))
+        connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS bot_recognition text'))
+        connection.execute(text('ALTER TABLE "/layer4-access-limit-rule" ADD COLUMN IF NOT EXISTS action text'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS tcp_flood_prevention (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    layer4_connection_threshold text,
+                    action text,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE tcp_flood_prevention ADD COLUMN IF NOT EXISTS layer4_connection_threshold text"))
+        connection.execute(text("ALTER TABLE tcp_flood_prevention ADD COLUMN IF NOT EXISTS action text"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "bot-mitigate-policy" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    biometrics_based_detection text,
+                    threshold_based_detection text,
+                    known_bots text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS biometrics_based_detection text'))
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS threshold_based_detection text'))
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS known_bots text'))
+        connection.execute(text('ALTER TABLE "bot-mitigate-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS biometric_based_detection (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    mouse_movement text,
+                    page_focus text,
+                    keyboard text,
+                    screen_touch text,
+                    scroll text,
+                    bot_traits text,
+                    bot_traits_num text,
+                    action text,
+                    host text,
+                    raw_json jsonb,
+                    raw_json_url_list jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS mouse_movement text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS page_focus text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS keyboard text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS screen_touch text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS scroll text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS bot_traits text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS bot_traits_num text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS action text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS host text"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS raw_json jsonb"))
+        connection.execute(text("ALTER TABLE biometric_based_detection ADD COLUMN IF NOT EXISTS raw_json_url_list jsonb"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS threshold_based_detection (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    bot_confirmation text,
+                    bot_recognition text,
+                    crawler_detection text,
+                    crawler_action text,
+                    crawler_occurrence_num text,
+                    crawler_within text,
+                    slow_attack_detection text,
+                    slow_attack_action text,
+                    slow_attack_occurrence_num text,
+                    slow_attack_within text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS bot_confirmation text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS bot_recognition text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_detection text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_action text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_occurrence_num text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS crawler_within text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_detection text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_action text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_occurrence_num text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_within text"))
+        connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS raw_json jsonb"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "Known-bots" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    known_bots_name text NOT NULL,
+                    dos_status text,
+                    dos_action text,
+                    spam_status text,
+                    spam_action text,
+                    trojan_status text,
+                    trojan_action text,
+                    scanner_status text,
+                    scanner_action text,
+                    crawler_status text,
+                    crawler_action text,
+                    known_engines_status text,
+                    known_engines_action text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, known_bots_name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS dos_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS dos_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS spam_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS spam_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS trojan_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS trojan_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS scanner_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS scanner_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS crawler_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS crawler_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS known_engines_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS known_engines_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))

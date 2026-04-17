@@ -675,6 +675,501 @@ def _upsert_json_validation_policy_rows(db: Session, device_id: int, rows: list[
         )
 
 
+def _extract_application_layer_dos_prevention_row(payload: dict, policy_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "http_request_flood_prevention_rule": _normalize_optional_text(
+            result.get("http-request-flood-prevention-rule") or result.get("http_request_flood_prevention_rule")
+        ),
+        "enable_layer4_dos_prevention": _normalize_optional_text(
+            result.get("enable-layer4-dos-prevention") or result.get("enable_layer4_dos_prevention")
+        ),
+        "layer4_access_limit_rule": _normalize_optional_text(
+            result.get("layer4-access-limit-rule") or result.get("layer4_access_limit_rule")
+        ),
+        "layer4_connection_flood_check_rule": _normalize_optional_text(
+            result.get("layer4-connection-flood-check-rule") or result.get("layer4_connection_flood_check_rule")
+        ),
+        "raw_json": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_application_layer_dos_prevention_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "application-layer-dos-prevention" (
+                device_id,
+                name,
+                http_request_flood_prevention_rule,
+                enable_layer4_dos_prevention,
+                layer4_access_limit_rule,
+                layer4_connection_flood_check_rule,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :http_request_flood_prevention_rule,
+                :enable_layer4_dos_prevention,
+                :layer4_access_limit_rule,
+                :layer4_connection_flood_check_rule,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                http_request_flood_prevention_rule = EXCLUDED.http_request_flood_prevention_rule,
+                enable_layer4_dos_prevention = EXCLUDED.enable_layer4_dos_prevention,
+                layer4_access_limit_rule = EXCLUDED.layer4_access_limit_rule,
+                layer4_connection_flood_check_rule = EXCLUDED.layer4_connection_flood_check_rule,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
+def _extract_http_request_flood_prevention_rule_row(payload: dict, rule_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": rule_name,
+        "access_limit_in_http_session": _normalize_optional_text(
+            result.get("access-limit-in-http-session") or result.get("access_limit_in_http_session")
+        ),
+        "action": _normalize_optional_text(result.get("action")),
+        "bot_confirmation": _normalize_optional_text(
+            result.get("bot-confirmation") or result.get("bot_confirmation")
+        ),
+        "bot_recognition": _normalize_optional_text(
+            result.get("bot-recognition") or result.get("bot_recognition")
+        ),
+        "raw_json_http_connection": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_http_request_flood_prevention_rule_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "http-request-flood-prevention-rule" (
+                device_id,
+                name,
+                access_limit_in_http_session,
+                action,
+                bot_confirmation,
+                bot_recognition,
+                raw_json_http_connection
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :access_limit_in_http_session,
+                :action,
+                :bot_confirmation,
+                :bot_recognition,
+                CAST(:raw_json_http_connection AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                access_limit_in_http_session = EXCLUDED.access_limit_in_http_session,
+                action = EXCLUDED.action,
+                bot_confirmation = EXCLUDED.bot_confirmation,
+                bot_recognition = EXCLUDED.bot_recognition,
+                raw_json_http_connection = EXCLUDED.raw_json_http_connection,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json_http_connection": json.dumps(row["raw_json_http_connection"])},
+    )
+
+
+def _extract_layer4_access_limit_rule_row(payload: dict, rule_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": rule_name,
+        "access_limit_standalone_ip": _normalize_optional_text(
+            result.get("access-limit-standalone-ip") or result.get("access_limit_standalone_ip")
+        ),
+        "access_limit_share_ip": _normalize_optional_text(
+            result.get("access-limit-share-ip") or result.get("access_limit_share_ip")
+        ),
+        "bot_confirmation": _normalize_optional_text(
+            result.get("bot-confirmation") or result.get("bot_confirmation")
+        ),
+        "bot_recognition": _normalize_optional_text(
+            result.get("bot-recognition") or result.get("bot_recognition")
+        ),
+        "action": _normalize_optional_text(result.get("action")),
+    }
+
+
+def _upsert_layer4_access_limit_rule_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "/layer4-access-limit-rule" (
+                device_id,
+                name,
+                access_limit_standalone_ip,
+                access_limit_share_ip,
+                bot_confirmation,
+                bot_recognition,
+                action
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :access_limit_standalone_ip,
+                :access_limit_share_ip,
+                :bot_confirmation,
+                :bot_recognition,
+                :action
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                access_limit_standalone_ip = EXCLUDED.access_limit_standalone_ip,
+                access_limit_share_ip = EXCLUDED.access_limit_share_ip,
+                bot_confirmation = EXCLUDED.bot_confirmation,
+                bot_recognition = EXCLUDED.bot_recognition,
+                action = EXCLUDED.action,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row},
+    )
+
+
+def _extract_tcp_flood_prevention_row(payload: dict, rule_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": rule_name,
+        "layer4_connection_threshold": _normalize_optional_text(
+            result.get("layer4-connection-threshold") or result.get("layer4_connection_threshold")
+        ),
+        "action": _normalize_optional_text(result.get("action")),
+    }
+
+
+def _upsert_tcp_flood_prevention_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO tcp_flood_prevention (
+                device_id,
+                name,
+                layer4_connection_threshold,
+                action
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :layer4_connection_threshold,
+                :action
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                layer4_connection_threshold = EXCLUDED.layer4_connection_threshold,
+                action = EXCLUDED.action,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row},
+    )
+
+
+def _extract_bot_mitigate_policy_row(payload: dict, policy_name: str) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "biometrics_based_detection": _normalize_optional_text(
+            result.get("biometrics-based-detection") or result.get("biometrics_based_detection")
+        ),
+        "threshold_based_detection": _normalize_optional_text(
+            result.get("threshold-based-detection") or result.get("threshold_based_detection")
+        ),
+        "known_bots": _normalize_optional_text(result.get("known-bots") or result.get("known_bots")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": result},
+    }
+
+
+def _upsert_bot_mitigate_policy_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "bot-mitigate-policy" (
+                device_id,
+                name,
+                biometrics_based_detection,
+                threshold_based_detection,
+                known_bots,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :biometrics_based_detection,
+                :threshold_based_detection,
+                :known_bots,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                biometrics_based_detection = EXCLUDED.biometrics_based_detection,
+                threshold_based_detection = EXCLUDED.threshold_based_detection,
+                known_bots = EXCLUDED.known_bots,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
+def _extract_biometric_based_detection_row(payload: dict, policy_name: str) -> dict:
+    rows = _extract_results(payload)
+    row = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "mouse_movement": _normalize_optional_text(row.get("mouse-movement") or row.get("mouse_movement")),
+        "page_focus": _normalize_optional_text(row.get("page-focus") or row.get("page_focus")),
+        "keyboard": _normalize_optional_text(row.get("keyboard")),
+        "screen_touch": _normalize_optional_text(row.get("screen-touch") or row.get("screen_touch")),
+        "scroll": _normalize_optional_text(row.get("scroll")),
+        "bot_traits": _normalize_optional_text(row.get("bot-traits") or row.get("bot_traits")),
+        "bot_traits_num": _normalize_optional_text(row.get("bot-traits-num") or row.get("bot_traits_num")),
+        "action": _normalize_optional_text(row.get("action")),
+        "host": None,
+        "raw_json": payload if isinstance(payload, dict) else {"results": row},
+        "raw_json_url_list": None,
+    }
+
+
+def _extract_biometric_hosts(payload: dict) -> str | None:
+    rows = _extract_results(payload)
+    hosts = []
+    for row in rows:
+        host = _normalize_optional_text(row.get("host") or row.get("url") or row.get("name"))
+        if host and host not in hosts:
+            hosts.append(host)
+    if not hosts:
+        return None
+    return ", ".join(hosts)
+
+
+def _upsert_biometric_based_detection_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO biometric_based_detection (
+                device_id,
+                name,
+                mouse_movement,
+                page_focus,
+                keyboard,
+                screen_touch,
+                scroll,
+                bot_traits,
+                bot_traits_num,
+                action,
+                host,
+                raw_json,
+                raw_json_url_list
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :mouse_movement,
+                :page_focus,
+                :keyboard,
+                :screen_touch,
+                :scroll,
+                :bot_traits,
+                :bot_traits_num,
+                :action,
+                :host,
+                CAST(:raw_json AS jsonb),
+                CAST(:raw_json_url_list AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                mouse_movement = EXCLUDED.mouse_movement,
+                page_focus = EXCLUDED.page_focus,
+                keyboard = EXCLUDED.keyboard,
+                screen_touch = EXCLUDED.screen_touch,
+                scroll = EXCLUDED.scroll,
+                bot_traits = EXCLUDED.bot_traits,
+                bot_traits_num = EXCLUDED.bot_traits_num,
+                action = EXCLUDED.action,
+                host = EXCLUDED.host,
+                raw_json = EXCLUDED.raw_json,
+                raw_json_url_list = EXCLUDED.raw_json_url_list,
+                updated_at = now()
+            """
+        ),
+        {
+            "device_id": device_id,
+            **row,
+            "raw_json": json.dumps(row["raw_json"]),
+            "raw_json_url_list": json.dumps(row["raw_json_url_list"]) if row.get("raw_json_url_list") is not None else "null",
+        },
+    )
+
+
+def _extract_threshold_based_detection_row(payload: dict, policy_name: str) -> dict:
+    rows = _extract_results(payload)
+    row = rows[0] if rows else {}
+    return {
+        "name": policy_name,
+        "bot_confirmation": _normalize_optional_text(row.get("bot-confirmation") or row.get("bot_confirmation")),
+        "bot_recognition": _normalize_optional_text(row.get("bot-recognition") or row.get("bot_recognition")),
+        "crawler_detection": _normalize_optional_text(row.get("crawler-detection") or row.get("crawler_detection")),
+        "crawler_action": _normalize_optional_text(row.get("crawler-action") or row.get("crawler_action")),
+        "crawler_occurrence_num": _normalize_optional_text(row.get("crawler-occurrence-num") or row.get("crawler_occurrence_num")),
+        "crawler_within": _normalize_optional_text(row.get("crawler-within") or row.get("crawler_within")),
+        "slow_attack_detection": _normalize_optional_text(row.get("slow-attack-detection") or row.get("slow_attack_detection")),
+        "slow_attack_action": _normalize_optional_text(row.get("slow-attack-action") or row.get("slow_attack_action")),
+        "slow_attack_occurrence_num": _normalize_optional_text(
+            row.get("slow-attack-occurrence-num") or row.get("slow_attack_occurrence_num")
+        ),
+        "slow_attack_within": _normalize_optional_text(row.get("slow-attack-within") or row.get("slow_attack_within")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": row},
+    }
+
+
+def _upsert_threshold_based_detection_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO threshold_based_detection (
+                device_id,
+                name,
+                bot_confirmation,
+                bot_recognition,
+                crawler_detection,
+                crawler_action,
+                crawler_occurrence_num,
+                crawler_within,
+                slow_attack_detection,
+                slow_attack_action,
+                slow_attack_occurrence_num,
+                slow_attack_within,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :bot_confirmation,
+                :bot_recognition,
+                :crawler_detection,
+                :crawler_action,
+                :crawler_occurrence_num,
+                :crawler_within,
+                :slow_attack_detection,
+                :slow_attack_action,
+                :slow_attack_occurrence_num,
+                :slow_attack_within,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                bot_confirmation = EXCLUDED.bot_confirmation,
+                bot_recognition = EXCLUDED.bot_recognition,
+                crawler_detection = EXCLUDED.crawler_detection,
+                crawler_action = EXCLUDED.crawler_action,
+                crawler_occurrence_num = EXCLUDED.crawler_occurrence_num,
+                crawler_within = EXCLUDED.crawler_within,
+                slow_attack_detection = EXCLUDED.slow_attack_detection,
+                slow_attack_action = EXCLUDED.slow_attack_action,
+                slow_attack_occurrence_num = EXCLUDED.slow_attack_occurrence_num,
+                slow_attack_within = EXCLUDED.slow_attack_within,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
+def _extract_known_bots_row(payload: dict, known_bots_name: str) -> dict:
+    rows = _extract_results(payload)
+    row = rows[0] if rows else {}
+    return {
+        "known_bots_name": known_bots_name,
+        "dos_status": _normalize_optional_text(row.get("dos-status") or row.get("dos_status")),
+        "dos_action": _normalize_optional_text(row.get("dos-action") or row.get("dos_action")),
+        "spam_status": _normalize_optional_text(row.get("spam-status") or row.get("spam_status")),
+        "spam_action": _normalize_optional_text(row.get("spam-action") or row.get("spam_action")),
+        "trojan_status": _normalize_optional_text(row.get("trojan-status") or row.get("trojan_status")),
+        "trojan_action": _normalize_optional_text(row.get("trojan-action") or row.get("trojan_action")),
+        "scanner_status": _normalize_optional_text(row.get("scanner-status") or row.get("scanner_status")),
+        "scanner_action": _normalize_optional_text(row.get("scanner-action") or row.get("scanner_action")),
+        "crawler_status": _normalize_optional_text(row.get("crawler-status") or row.get("crawler_status")),
+        "crawler_action": _normalize_optional_text(row.get("crawler-action") or row.get("crawler_action")),
+        "known_engines_status": _normalize_optional_text(row.get("known-engines-status") or row.get("known_engines_status")),
+        "known_engines_action": _normalize_optional_text(row.get("known-engines-action") or row.get("known_engines_action")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": row},
+    }
+
+
+def _upsert_known_bots_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "Known-bots" (
+                device_id,
+                known_bots_name,
+                dos_status,
+                dos_action,
+                spam_status,
+                spam_action,
+                trojan_status,
+                trojan_action,
+                scanner_status,
+                scanner_action,
+                crawler_status,
+                crawler_action,
+                known_engines_status,
+                known_engines_action,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :known_bots_name,
+                :dos_status,
+                :dos_action,
+                :spam_status,
+                :spam_action,
+                :trojan_status,
+                :trojan_action,
+                :scanner_status,
+                :scanner_action,
+                :crawler_status,
+                :crawler_action,
+                :known_engines_status,
+                :known_engines_action,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, known_bots_name) DO UPDATE SET
+                dos_status = EXCLUDED.dos_status,
+                dos_action = EXCLUDED.dos_action,
+                spam_status = EXCLUDED.spam_status,
+                spam_action = EXCLUDED.spam_action,
+                trojan_status = EXCLUDED.trojan_status,
+                trojan_action = EXCLUDED.trojan_action,
+                scanner_status = EXCLUDED.scanner_status,
+                scanner_action = EXCLUDED.scanner_action,
+                crawler_status = EXCLUDED.crawler_status,
+                crawler_action = EXCLUDED.crawler_action,
+                known_engines_status = EXCLUDED.known_engines_status,
+                known_engines_action = EXCLUDED.known_engines_action,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1315,6 +1810,190 @@ def _fetch_and_upsert_json_validation_policy(
     _upsert_json_validation_policy_rows(db, device.id, rows)
 
 
+def _fetch_and_upsert_application_layer_dos_prevention(
+    db: Session,
+    device: ManagedDevice,
+    application_layer_dos_prevention_name: str,
+    headers: dict,
+):
+    encoded_name = quote(application_layer_dos_prevention_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/application-layer-dos-prevention?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_application_layer_dos_prevention_row(payload, application_layer_dos_prevention_name)
+    _upsert_application_layer_dos_prevention_row(db, device.id, row)
+    return row
+
+
+def _fetch_and_upsert_http_request_flood_prevention_rule(
+    db: Session,
+    device: ManagedDevice,
+    http_request_flood_prevention_rule_name: str,
+    headers: dict,
+):
+    encoded_name = quote(http_request_flood_prevention_rule_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/http-request-flood-prevention-rule?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_http_request_flood_prevention_rule_row(payload, http_request_flood_prevention_rule_name)
+    _upsert_http_request_flood_prevention_rule_row(db, device.id, row)
+
+
+def _fetch_and_upsert_layer4_access_limit_rule(
+    db: Session,
+    device: ManagedDevice,
+    layer4_access_limit_rule_name: str,
+    headers: dict,
+):
+    encoded_name = quote(layer4_access_limit_rule_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/layer4-access-limit-rule?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_layer4_access_limit_rule_row(payload, layer4_access_limit_rule_name)
+    _upsert_layer4_access_limit_rule_row(db, device.id, row)
+
+
+def _fetch_and_upsert_tcp_flood_prevention(
+    db: Session,
+    device: ManagedDevice,
+    layer4_connection_flood_check_rule_name: str,
+    headers: dict,
+):
+    encoded_name = quote(layer4_connection_flood_check_rule_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/layer4-connection-flood-check-rule?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_tcp_flood_prevention_row(payload, layer4_connection_flood_check_rule_name)
+    _upsert_tcp_flood_prevention_row(db, device.id, row)
+
+
+def _fetch_and_upsert_bot_mitigate_policy(
+    db: Session,
+    device: ManagedDevice,
+    bot_mitigate_policy_name: str,
+    headers: dict,
+):
+    encoded_name = quote(bot_mitigate_policy_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/bot-mitigate-policy?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_bot_mitigate_policy_row(payload, bot_mitigate_policy_name)
+    _upsert_bot_mitigate_policy_row(db, device.id, row)
+    return row
+
+
+def _fetch_and_upsert_biometric_based_detection(
+    db: Session,
+    device: ManagedDevice,
+    biometric_policy_names: set[str],
+    headers: dict,
+):
+    if not biometric_policy_names:
+        return
+    for policy_name in biometric_policy_names:
+        encoded_name = quote(policy_name, safe="")
+        endpoint = f"/api/v2.0/cmdb/waf/biometrics-based-detection?mkey={encoded_name}"
+        url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=30,
+            verify=settings.fortiweb_verify_ssl,
+        )
+        response.raise_for_status()
+        row = _extract_biometric_based_detection_row(response.json(), policy_name)
+        url_list_endpoint = f"/api/v2.0/cmdb/waf/biometrics-based-detection/url-list?mkey={encoded_name}"
+        url_list_url = f"{_build_device_base_url(device.ip).rstrip('/')}{url_list_endpoint}"
+        url_list_response = requests.get(
+            url_list_url,
+            headers=headers,
+            timeout=30,
+            verify=settings.fortiweb_verify_ssl,
+        )
+        url_list_response.raise_for_status()
+        url_list_payload = url_list_response.json()
+        row["host"] = _extract_biometric_hosts(url_list_payload)
+        row["raw_json_url_list"] = url_list_payload
+        _upsert_biometric_based_detection_row(db, device.id, row)
+
+
+def _fetch_and_upsert_threshold_based_detection(
+    db: Session,
+    device: ManagedDevice,
+    threshold_based_detection_name: str,
+    headers: dict,
+):
+    encoded_name = quote(threshold_based_detection_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/threshold-based-detection.policy?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_threshold_based_detection_row(payload, threshold_based_detection_name)
+    _upsert_threshold_based_detection_row(db, device.id, row)
+
+
+def _fetch_and_upsert_known_bots(
+    db: Session,
+    device: ManagedDevice,
+    known_bots_name: str,
+    headers: dict,
+):
+    encoded_name = quote(known_bots_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/known-bots?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_known_bots_row(payload, known_bots_name)
+    _upsert_known_bots_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -1401,11 +2080,116 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)
                 except Exception:
                     db.rollback()
+            unique_bot_mitigate_policies = {row["bot_mitigate_policy"] for row in web_protection_profile_rows if row.get("bot_mitigate_policy")}
+            fetched_bot_mitigate_rows = []
+            for bot_mitigate_policy_name in unique_bot_mitigate_policies:
+                try:
+                    fetched_row = _fetch_and_upsert_bot_mitigate_policy(db, device, bot_mitigate_policy_name, headers)
+                    fetched_bot_mitigate_rows.append(fetched_row)
+                except Exception:
+                    db.rollback()
+            biometric_policy_names = {
+                row["biometrics_based_detection"]
+                for row in fetched_bot_mitigate_rows
+                if row.get("biometrics_based_detection")
+            }
+            try:
+                _fetch_and_upsert_biometric_based_detection(db, device, biometric_policy_names, headers)
+            except Exception:
+                db.rollback()
+            threshold_based_detection_names = {
+                row["threshold_based_detection"]
+                for row in fetched_bot_mitigate_rows
+                if row.get("threshold_based_detection")
+            }
+            for threshold_based_detection_name in threshold_based_detection_names:
+                try:
+                    _fetch_and_upsert_threshold_based_detection(
+                        db,
+                        device,
+                        threshold_based_detection_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
+            known_bots_names = {
+                row["known_bots"]
+                for row in fetched_bot_mitigate_rows
+                if row.get("known_bots")
+            }
+            for known_bots_name in known_bots_names:
+                try:
+                    _fetch_and_upsert_known_bots(
+                        db,
+                        device,
+                        known_bots_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
 
             unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
             for signature_rule in unique_signature_rules:
                 try:
                     _fetch_and_upsert_signature(db, device, signature_rule, headers)
+                except Exception:
+                    db.rollback()
+            unique_application_layer_dos_prevention_policies = {
+                row["application_layer_dos_prevention"] for row in web_protection_profile_rows if row.get("application_layer_dos_prevention")
+            }
+            fetched_application_layer_dos_rows = []
+            for application_layer_dos_prevention_name in unique_application_layer_dos_prevention_policies:
+                try:
+                    fetched_row = _fetch_and_upsert_application_layer_dos_prevention(
+                        db,
+                        device,
+                        application_layer_dos_prevention_name,
+                        headers,
+                    )
+                    fetched_application_layer_dos_rows.append(fetched_row)
+                except Exception:
+                    db.rollback()
+            unique_http_request_flood_prevention_rules = {
+                row["http_request_flood_prevention_rule"]
+                for row in fetched_application_layer_dos_rows
+                if row.get("http_request_flood_prevention_rule")
+            }
+            for http_request_flood_prevention_rule_name in unique_http_request_flood_prevention_rules:
+                try:
+                    _fetch_and_upsert_http_request_flood_prevention_rule(
+                        db,
+                        device,
+                        http_request_flood_prevention_rule_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
+            unique_layer4_access_limit_rules = {
+                row["layer4_access_limit_rule"] for row in fetched_application_layer_dos_rows if row.get("layer4_access_limit_rule")
+            }
+            for layer4_access_limit_rule_name in unique_layer4_access_limit_rules:
+                try:
+                    _fetch_and_upsert_layer4_access_limit_rule(
+                        db,
+                        device,
+                        layer4_access_limit_rule_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
+            unique_layer4_connection_flood_check_rules = {
+                row["layer4_connection_flood_check_rule"]
+                for row in fetched_application_layer_dos_rows
+                if row.get("layer4_connection_flood_check_rule")
+            }
+            for layer4_connection_flood_check_rule_name in unique_layer4_connection_flood_check_rules:
+                try:
+                    _fetch_and_upsert_tcp_flood_prevention(
+                        db,
+                        device,
+                        layer4_connection_flood_check_rule_name,
+                        headers,
+                    )
                 except Exception:
                     db.rollback()
 
@@ -1473,6 +2257,28 @@ def load_server_policies_from_db(db: Session) -> dict:
                 wpp.user_tracking_policy,
                 wpp.websocket_security_policy,
                 wpp.cors_protection_policy,
+                aldp.http_request_flood_prevention_rule,
+                aldp.enable_layer4_dos_prevention,
+                aldp.layer4_access_limit_rule,
+                aldp.layer4_connection_flood_check_rule,
+                hrfpr.access_limit_in_http_session,
+                hrfpr.action AS http_request_flood_prevention_action,
+                hrfpr.bot_confirmation,
+                hrfpr.bot_recognition,
+                l4alr.access_limit_standalone_ip,
+                l4alr.access_limit_share_ip,
+                l4alr.bot_confirmation AS layer4_access_limit_bot_confirmation,
+                l4alr.bot_recognition AS layer4_access_limit_bot_recognition,
+                l4alr.action AS layer4_access_limit_action,
+                tcp.layer4_connection_threshold,
+                tcp.action AS tcp_flood_prevention_action,
+                bmp.name AS bot_mitigate_policy_name,
+                bmp.biometrics_based_detection,
+                bmp.threshold_based_detection,
+                bmp.known_bots,
+                bbd.name AS biometric_based_detection_name,
+                tbd.name AS threshold_based_detection_name,
+                kb.known_bots_name,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -1488,6 +2294,30 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
+            LEFT JOIN "application-layer-dos-prevention" aldp
+                ON aldp.device_id = wpp.device_id
+                AND aldp.name = wpp.application_layer_dos_prevention
+            LEFT JOIN "http-request-flood-prevention-rule" hrfpr
+                ON hrfpr.device_id = aldp.device_id
+                AND hrfpr.name = aldp.http_request_flood_prevention_rule
+            LEFT JOIN "/layer4-access-limit-rule" l4alr
+                ON l4alr.device_id = aldp.device_id
+                AND l4alr.name = aldp.layer4_access_limit_rule
+            LEFT JOIN tcp_flood_prevention tcp
+                ON tcp.device_id = aldp.device_id
+                AND tcp.name = aldp.layer4_connection_flood_check_rule
+            LEFT JOIN "bot-mitigate-policy" bmp
+                ON bmp.device_id = wpp.device_id
+                AND bmp.name = wpp.bot_mitigate_policy
+            LEFT JOIN biometric_based_detection bbd
+                ON bbd.device_id = bmp.device_id
+                AND bbd.name = bmp.biometrics_based_detection
+            LEFT JOIN threshold_based_detection tbd
+                ON tbd.device_id = bmp.device_id
+                AND tbd.name = bmp.threshold_based_detection
+            LEFT JOIN "Known-bots" kb
+                ON kb.device_id = bmp.device_id
+                AND kb.known_bots_name = bmp.known_bots
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -1569,6 +2399,36 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "user_tracking_policy": row["user_tracking_policy"],
                         "websocket_security_policy": row["websocket_security_policy"],
                         "cors_protection_policy": row["cors_protection_policy"],
+                        "application_layer_dos_prevention_policy": {
+                            "name": row["application_layer_dos_prevention"],
+                            "http_request_flood_prevention_rule": row["http_request_flood_prevention_rule"],
+                            "enable_layer4_dos_prevention": row["enable_layer4_dos_prevention"],
+                            "layer4_access_limit_rule": row["layer4_access_limit_rule"],
+                            "layer4_connection_flood_check_rule": row["layer4_connection_flood_check_rule"],
+                            "access_limit_in_http_session": row["access_limit_in_http_session"],
+                            "action": row["http_request_flood_prevention_action"],
+                            "bot_confirmation": row["bot_confirmation"],
+                            "bot_recognition": row["bot_recognition"],
+                            "layer4_access_limit_rule_policy": {
+                                "name": row["layer4_access_limit_rule"],
+                                "access_limit_standalone_ip": row["access_limit_standalone_ip"],
+                                "access_limit_share_ip": row["access_limit_share_ip"],
+                                "bot_confirmation": row["layer4_access_limit_bot_confirmation"],
+                                "bot_recognition": row["layer4_access_limit_bot_recognition"],
+                                "action": row["layer4_access_limit_action"],
+                            },
+                            "tcp_flood_prevention_policy": {
+                                "name": row["layer4_connection_flood_check_rule"],
+                                "layer4_connection_threshold": row["layer4_connection_threshold"],
+                                "action": row["tcp_flood_prevention_action"],
+                            },
+                            "bot_mitigate_policy_detail": {
+                                "name": row["bot_mitigate_policy_name"],
+                                "biometrics_based_detection": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
+                                "threshold_based_detection": row["threshold_based_detection_name"] or row["threshold_based_detection"],
+                                "known_bots": row["known_bots_name"] or row["known_bots"],
+                            },
+                        },
                     },
                 }
             )

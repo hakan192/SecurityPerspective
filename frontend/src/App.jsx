@@ -503,6 +503,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
                           const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
                           const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
+                          const applicationLayerDosPreventionPolicy = webProtectionDetails.application_layer_dos_prevention_policy || {}
+                          const applicationLayerDosPreventionName = applicationLayerDosPreventionPolicy.name || webProtectionDetails.application_layer_dos_prevention || ''
+                          const layer4AccessLimitRulePolicy = applicationLayerDosPreventionPolicy.layer4_access_limit_rule_policy || {}
+                          const tcpFloodPreventionPolicy = applicationLayerDosPreventionPolicy.tcp_flood_prevention_policy || {}
+                          const botMitigatePolicyDetail = applicationLayerDosPreventionPolicy.bot_mitigate_policy_detail || {}
+                          const botMitigatePolicyName = botMitigatePolicyDetail.name || webProtectionDetails.bot_mitigate_policy || ''
+                          const biometricBasedDetectionPolicyName = botMitigatePolicyDetail.biometrics_based_detection || ''
+                          const thresholdBasedDetectionPolicyName = botMitigatePolicyDetail.threshold_based_detection || ''
+                          const knownBotsPolicyName = botMitigatePolicyDetail.known_bots || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -523,6 +532,26 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
+                            <p className="policy-meta">Bot Mitigate Policy: {botMitigatePolicyName || '-'}</p>
+                            <p className="policy-meta">Known Bot Policy: {knownBotsPolicyName || '-'}</p>
+                            <p className="policy-meta">Biometric Based Detection Policy: {biometricBasedDetectionPolicyName || '-'}</p>
+                            <p className="policy-meta">Threshold Based Detection Policy: {thresholdBasedDetectionPolicyName || '-'}</p>
+                            <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
+                            <p className="policy-meta">HTTP Request Flood Prevention Rule: {applicationLayerDosPreventionPolicy.http_request_flood_prevention_rule || '-'}</p>
+                            <p className="policy-meta">Access Limit in HTTP Session: {applicationLayerDosPreventionPolicy.access_limit_in_http_session || '-'}</p>
+                            <p className="policy-meta">HTTP Request Flood Action: {applicationLayerDosPreventionPolicy.action || '-'}</p>
+                            <p className="policy-meta">Bot Confirmation: {applicationLayerDosPreventionPolicy.bot_confirmation || '-'}</p>
+                            <p className="policy-meta">Bot Recognition: {applicationLayerDosPreventionPolicy.bot_recognition || '-'}</p>
+                            <p className="policy-meta">Enable Layer4 DoS Prevention: {applicationLayerDosPreventionPolicy.enable_layer4_dos_prevention || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Rule: {applicationLayerDosPreventionPolicy.layer4_access_limit_rule || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Standalone IP: {layer4AccessLimitRulePolicy.access_limit_standalone_ip || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Share IP: {layer4AccessLimitRulePolicy.access_limit_share_ip || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Bot Confirmation: {layer4AccessLimitRulePolicy.bot_confirmation || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Bot Recognition: {layer4AccessLimitRulePolicy.bot_recognition || '-'}</p>
+                            <p className="policy-meta">Layer4 Access Limit Action: {layer4AccessLimitRulePolicy.action || '-'}</p>
+                            <p className="policy-meta">Layer4 Connection Flood Check Rule: {applicationLayerDosPreventionPolicy.layer4_connection_flood_check_rule || '-'}</p>
+                            <p className="policy-meta">TCP Flood Prevention Threshold: {tcpFloodPreventionPolicy.layer4_connection_threshold || '-'}</p>
+                            <p className="policy-meta">TCP Flood Prevention Action: {tcpFloodPreventionPolicy.action || '-'}</p>
                             <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
                             <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
                             <p className="policy-meta">HTTP Protocol Parameter Restriction: {httpProtocolParameterRestrictionName || '-'}</p>
