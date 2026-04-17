@@ -67,6 +67,7 @@ def startup_event():
         connection.execute(text('DROP TABLE IF EXISTS "Server_Policy" CASCADE'))
         connection.execute(text("DROP TABLE IF EXISTS server_policy CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS server_pool CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS geo_ip CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS baseline_controls_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS exchange_rate_snapshots_id_seq CASCADE"))
         connection.execute(text("DROP SEQUENCE IF EXISTS fortiweb_snapshots_id_seq CASCADE"))
@@ -435,6 +436,54 @@ def startup_event():
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS geo_ip (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    action text,
+                    block_period text,
+                    country_name jsonb NOT NULL DEFAULT '[]'::jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS action text"))
+        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS block_period text"))
+        connection.execute(text("ALTER TABLE geo_ip ADD COLUMN IF NOT EXISTS country_name jsonb"))
+        connection.execute(text("UPDATE geo_ip SET country_name = '[]'::jsonb WHERE country_name IS NULL"))
+        connection.execute(text("ALTER TABLE geo_ip ALTER COLUMN country_name SET DEFAULT '[]'::jsonb"))
+        connection.execute(text("ALTER TABLE geo_ip ALTER COLUMN country_name SET NOT NULL"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS ip_list_policy (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    seq integer NOT NULL,
+                    type text,
+                    group_type text,
+                    ip text,
+                    ip_group text,
+                    ip_external text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name, seq)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS type text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS group_type text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip_group text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip_external text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS http_request_flood_prevention_rule text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS enable_layer4_dos_prevention text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_access_limit_rule text'))
