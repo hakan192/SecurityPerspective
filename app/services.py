@@ -1090,6 +1090,86 @@ def _upsert_threshold_based_detection_row(db: Session, device_id: int, row: dict
     )
 
 
+def _extract_known_bots_row(payload: dict, known_bots_name: str) -> dict:
+    rows = _extract_results(payload)
+    row = rows[0] if rows else {}
+    return {
+        "known_bots_name": known_bots_name,
+        "dos_status": _normalize_optional_text(row.get("dos-status") or row.get("dos_status")),
+        "dos_action": _normalize_optional_text(row.get("dos-action") or row.get("dos_action")),
+        "spam_status": _normalize_optional_text(row.get("spam-status") or row.get("spam_status")),
+        "spam_action": _normalize_optional_text(row.get("spam-action") or row.get("spam_action")),
+        "trojan_status": _normalize_optional_text(row.get("trojan-status") or row.get("trojan_status")),
+        "trojan_action": _normalize_optional_text(row.get("trojan-action") or row.get("trojan_action")),
+        "scanner_status": _normalize_optional_text(row.get("scanner-status") or row.get("scanner_status")),
+        "scanner_action": _normalize_optional_text(row.get("scanner-action") or row.get("scanner_action")),
+        "crawler_status": _normalize_optional_text(row.get("crawler-status") or row.get("crawler_status")),
+        "crawler_action": _normalize_optional_text(row.get("crawler-action") or row.get("crawler_action")),
+        "known_engines_status": _normalize_optional_text(row.get("known-engines-status") or row.get("known_engines_status")),
+        "known_engines_action": _normalize_optional_text(row.get("known-engines-action") or row.get("known_engines_action")),
+        "raw_json": payload if isinstance(payload, dict) else {"results": row},
+    }
+
+
+def _upsert_known_bots_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "Known-bots" (
+                device_id,
+                known_bots_name,
+                dos_status,
+                dos_action,
+                spam_status,
+                spam_action,
+                trojan_status,
+                trojan_action,
+                scanner_status,
+                scanner_action,
+                crawler_status,
+                crawler_action,
+                known_engines_status,
+                known_engines_action,
+                raw_json
+            )
+            VALUES (
+                :device_id,
+                :known_bots_name,
+                :dos_status,
+                :dos_action,
+                :spam_status,
+                :spam_action,
+                :trojan_status,
+                :trojan_action,
+                :scanner_status,
+                :scanner_action,
+                :crawler_status,
+                :crawler_action,
+                :known_engines_status,
+                :known_engines_action,
+                CAST(:raw_json AS jsonb)
+            )
+            ON CONFLICT (device_id, known_bots_name) DO UPDATE SET
+                dos_status = EXCLUDED.dos_status,
+                dos_action = EXCLUDED.dos_action,
+                spam_status = EXCLUDED.spam_status,
+                spam_action = EXCLUDED.spam_action,
+                trojan_status = EXCLUDED.trojan_status,
+                trojan_action = EXCLUDED.trojan_action,
+                scanner_status = EXCLUDED.scanner_status,
+                scanner_action = EXCLUDED.scanner_action,
+                crawler_status = EXCLUDED.crawler_status,
+                crawler_action = EXCLUDED.crawler_action,
+                known_engines_status = EXCLUDED.known_engines_status,
+                known_engines_action = EXCLUDED.known_engines_action,
+                raw_json = EXCLUDED.raw_json,
+                updated_at = now()
+            """
+        ),
+        {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
 def _extract_signature_row(payload: dict, signature_set_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(results, dict):
@@ -1893,6 +1973,27 @@ def _fetch_and_upsert_threshold_based_detection(
     _upsert_threshold_based_detection_row(db, device.id, row)
 
 
+def _fetch_and_upsert_known_bots(
+    db: Session,
+    device: ManagedDevice,
+    known_bots_name: str,
+    headers: dict,
+):
+    encoded_name = quote(known_bots_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/known-bots?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    row = _extract_known_bots_row(payload, known_bots_name)
+    _upsert_known_bots_row(db, device.id, row)
+
+
 def _fetch_and_upsert_signature(
     db: Session,
     device: ManagedDevice,
@@ -2007,6 +2108,21 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                         db,
                         device,
                         threshold_based_detection_name,
+                        headers,
+                    )
+                except Exception:
+                    db.rollback()
+            known_bots_names = {
+                row["known_bots"]
+                for row in fetched_bot_mitigate_rows
+                if row.get("known_bots")
+            }
+            for known_bots_name in known_bots_names:
+                try:
+                    _fetch_and_upsert_known_bots(
+                        db,
+                        device,
+                        known_bots_name,
                         headers,
                     )
                 except Exception:
@@ -2162,6 +2278,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 bmp.known_bots,
                 bbd.name AS biometric_based_detection_name,
                 tbd.name AS threshold_based_detection_name,
+                kb.known_bots_name,
                 pool.ip AS server_pool_ip,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -2198,6 +2315,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN threshold_based_detection tbd
                 ON tbd.device_id = bmp.device_id
                 AND tbd.name = bmp.threshold_based_detection
+            LEFT JOIN "Known-bots" kb
+                ON kb.device_id = bmp.device_id
+                AND kb.known_bots_name = bmp.known_bots
             ORDER BY d.id DESC, sp.server_policy_name ASC
             """
         )
@@ -2306,7 +2426,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                                 "name": row["bot_mitigate_policy_name"],
                                 "biometrics_based_detection": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
                                 "threshold_based_detection": row["threshold_based_detection_name"] or row["threshold_based_detection"],
-                                "known_bots": row["known_bots"],
+                                "known_bots": row["known_bots_name"] or row["known_bots"],
                             },
                         },
                     },

@@ -595,6 +595,45 @@ def startup_event():
         connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_occurrence_num text"))
         connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS slow_attack_within text"))
         connection.execute(text("ALTER TABLE threshold_based_detection ADD COLUMN IF NOT EXISTS raw_json jsonb"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "Known-bots" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    known_bots_name text NOT NULL,
+                    dos_status text,
+                    dos_action text,
+                    spam_status text,
+                    spam_action text,
+                    trojan_status text,
+                    trojan_action text,
+                    scanner_status text,
+                    scanner_action text,
+                    crawler_status text,
+                    crawler_action text,
+                    known_engines_status text,
+                    known_engines_action text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, known_bots_name)
+                )
+                """
+            )
+        )
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS dos_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS dos_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS spam_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS spam_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS trojan_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS trojan_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS scanner_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS scanner_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS crawler_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS crawler_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS known_engines_status text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS known_engines_action text'))
+        connection.execute(text('ALTER TABLE "Known-bots" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS cross_site_scripting_extended_action text"))
         connection.execute(text("ALTER TABLE signature ADD COLUMN IF NOT EXISTS sql_injection_action text"))

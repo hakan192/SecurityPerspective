@@ -511,6 +511,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const botMitigatePolicyName = botMitigatePolicyDetail.name || webProtectionDetails.bot_mitigate_policy || ''
                           const biometricBasedDetectionPolicyName = botMitigatePolicyDetail.biometrics_based_detection || ''
                           const thresholdBasedDetectionPolicyName = botMitigatePolicyDetail.threshold_based_detection || ''
+                          const knownBotsPolicyName = botMitigatePolicyDetail.known_bots || ''
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -532,6 +533,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
                             <p className="policy-meta">Bot Mitigate Policy: {botMitigatePolicyName || '-'}</p>
+                            <p className="policy-meta">Known Bot Policy: {knownBotsPolicyName || '-'}</p>
                             <p className="policy-meta">Biometric Based Detection Policy: {biometricBasedDetectionPolicyName || '-'}</p>
                             <p className="policy-meta">Threshold Based Detection Policy: {thresholdBasedDetectionPolicyName || '-'}</p>
                             <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
