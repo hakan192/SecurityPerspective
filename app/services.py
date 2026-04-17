@@ -675,6 +675,73 @@ def _upsert_json_validation_policy_rows(db: Session, device_id: int, rows: list[
         )
 
 
+def _extract_ip_list_policy_rows(payload: dict, ip_list_policy_name: str) -> list[dict]:
+    rows = _extract_results(payload)
+    parsed_rows = []
+    for row in rows:
+        seq_value = row.get("seq")
+        try:
+            seq = int(seq_value) if seq_value is not None else None
+        except (TypeError, ValueError):
+            seq = None
+        if seq is None:
+            continue
+        parsed_rows.append(
+            {
+                "name": ip_list_policy_name,
+                "seq": seq,
+                "type": _normalize_optional_text(row.get("type")),
+                "group_type": _normalize_optional_text(row.get("group-type") or row.get("group_type")),
+                "ip": _normalize_optional_text(row.get("ip")),
+                "ip_group": _normalize_optional_text(row.get("ip-group") or row.get("ip_group")),
+                "ip_external": _normalize_optional_text(row.get("ip-external") or row.get("ip_external")),
+                "raw_json": row,
+            }
+        )
+    return parsed_rows
+
+
+def _upsert_ip_list_policy_rows(db: Session, device_id: int, rows: list[dict]):
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO ip_list_policy (
+                    device_id,
+                    name,
+                    seq,
+                    type,
+                    group_type,
+                    ip,
+                    ip_group,
+                    ip_external,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :name,
+                    :seq,
+                    :type,
+                    :group_type,
+                    :ip,
+                    :ip_group,
+                    :ip_external,
+                    CAST(:raw_json AS jsonb)
+                )
+                ON CONFLICT (device_id, name, seq) DO UPDATE SET
+                    type = EXCLUDED.type,
+                    group_type = EXCLUDED.group_type,
+                    ip = EXCLUDED.ip,
+                    ip_group = EXCLUDED.ip_group,
+                    ip_external = EXCLUDED.ip_external,
+                    raw_json = EXCLUDED.raw_json,
+                    updated_at = now()
+                """
+            ),
+            {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+        )
+
+
 def _extract_application_layer_dos_prevention_row(payload: dict, policy_name: str) -> dict:
     rows = _extract_results(payload)
     result = rows[0] if rows else {}
@@ -1832,6 +1899,27 @@ def _fetch_and_upsert_application_layer_dos_prevention(
     return row
 
 
+def _fetch_and_upsert_ip_list_policy(
+    db: Session,
+    device: ManagedDevice,
+    ip_list_policy_name: str,
+    headers: dict,
+):
+    encoded_name = quote(ip_list_policy_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/waf/ip-list/members?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_ip_list_policy_rows(payload, ip_list_policy_name)
+    _upsert_ip_list_policy_rows(db, device.id, rows)
+
+
 def _fetch_and_upsert_http_request_flood_prevention_rule(
     db: Session,
     device: ManagedDevice,
@@ -2138,6 +2226,12 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                 row["application_layer_dos_prevention"] for row in web_protection_profile_rows if row.get("application_layer_dos_prevention")
             }
             fetched_application_layer_dos_rows = []
+            unique_ip_list_policies = {row["ip_list_policy"] for row in web_protection_profile_rows if row.get("ip_list_policy")}
+            for ip_list_policy_name in unique_ip_list_policies:
+                try:
+                    _fetch_and_upsert_ip_list_policy(db, device, ip_list_policy_name, headers)
+                except Exception:
+                    db.rollback()
             for application_layer_dos_prevention_name in unique_application_layer_dos_prevention_policies:
                 try:
                     fetched_row = _fetch_and_upsert_application_layer_dos_prevention(
@@ -2348,6 +2442,41 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
+    ip_list_policy_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                name,
+                seq,
+                type,
+                group_type,
+                ip,
+                ip_group,
+                ip_external,
+                raw_json
+            FROM ip_list_policy
+            ORDER BY seq ASC
+            """
+        )
+    ).mappings().all()
+
+    ip_list_policy_by_name = {}
+    for row in ip_list_policy_rows:
+        key = (row["device_id"], row["name"])
+        ip_list_policy_by_name.setdefault(key, []).append(
+            {
+                "name": row["name"],
+                "seq": row["seq"],
+                "type": row["type"],
+                "group_type": row["group_type"],
+                "ip": row["ip"],
+                "ip_group": row["ip_group"],
+                "ip_external": row["ip_external"],
+                "raw_json": row["raw_json"],
+            }
+        )
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -2393,6 +2522,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "openapi_validation_policy": row["openapi_validation_policy"],
                         "application_layer_dos_prevention": row["application_layer_dos_prevention"],
                         "ip_list_policy": row["ip_list_policy"],
+                        "ip_list_policy_entries": ip_list_policy_by_name.get((device_id, row["ip_list_policy"]), []),
                         "ip_intelligence": row["ip_intelligence"],
                         "geo_block_list_policy": row["geo_block_list_policy"],
                         "waiting_room_policy": row["waiting_room_policy"],

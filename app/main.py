@@ -435,6 +435,32 @@ def startup_event():
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS ip_list_policy (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    seq integer NOT NULL,
+                    type text,
+                    group_type text,
+                    ip text,
+                    ip_group text,
+                    ip_external text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, name, seq)
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS type text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS group_type text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip_group text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip_external text"))
+        connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS http_request_flood_prevention_rule text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS enable_layer4_dos_prevention text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_access_limit_rule text'))
