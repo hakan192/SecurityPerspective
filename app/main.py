@@ -478,12 +478,33 @@ def startup_event():
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS "ip-intelligence" (
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    ip_intelligence_name text NOT NULL,
+                    category text,
+                    status text,
+                    action text,
+                    raw_json jsonb,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    PRIMARY KEY (device_id, ip_intelligence_name)
+                )
+                """
+            )
+        )
         connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS type text"))
         connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS group_type text"))
         connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip text"))
         connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip_group text"))
         connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS ip_external text"))
         connection.execute(text("ALTER TABLE ip_list_policy ADD COLUMN IF NOT EXISTS raw_json jsonb"))
+        connection.execute(text('ALTER TABLE "ip-intelligence" ADD COLUMN IF NOT EXISTS category text'))
+        connection.execute(text('ALTER TABLE "ip-intelligence" ADD COLUMN IF NOT EXISTS status text'))
+        connection.execute(text('ALTER TABLE "ip-intelligence" ADD COLUMN IF NOT EXISTS action text'))
+        connection.execute(text('ALTER TABLE "ip-intelligence" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS http_request_flood_prevention_rule text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS enable_layer4_dos_prevention text'))
         connection.execute(text('ALTER TABLE "application-layer-dos-prevention" ADD COLUMN IF NOT EXISTS layer4_access_limit_rule text'))
@@ -773,6 +794,7 @@ def startup_event():
                     web_protection_profile_name text,
                     server_pool_name text,
                     allow_hosts text,
+                    monitor_mode text,
                     traffic_mirror boolean,
                     raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
@@ -800,6 +822,7 @@ def startup_event():
             )
         )
         connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS allow_hosts text"))
+        connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS monitor_mode text"))
         connection.execute(
             text(
                 """

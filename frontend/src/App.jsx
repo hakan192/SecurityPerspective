@@ -492,6 +492,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
                           const http2 = typeof policy === 'string' ? null : policy.http2
                           const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
+                          const monitorMode = typeof policy === 'string' ? '' : policy.monitor_mode
                           const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
                           const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
@@ -502,6 +503,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
                           const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
                           const ipListPolicyName = webProtectionDetails.ip_list_policy || ''
+                          const ipIntelligenceDetail = webProtectionDetails.ip_intelligence_detail || {}
+                          const ipIntelligenceEntries = webProtectionDetails.ip_intelligence_entries || []
+                          const ipIntelligenceName = ipIntelligenceDetail.name || webProtectionDetails.ip_intelligence || ''
                           const geoIpPolicyName = webProtectionDetails.geo_block_list_policy || ''
                           const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
                           const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
@@ -529,10 +533,24 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
                             <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
+                            <p className="policy-meta">Monitor Mode: {monitorMode || '-'}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">IP List Policy: {ipListPolicyName || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Policy: {ipIntelligenceName || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Category: {ipIntelligenceDetail.category || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Status: {ipIntelligenceDetail.status || '-'}</p>
+                            <p className="policy-meta">IP Intelligence Action: {ipIntelligenceDetail.action || '-'}</p>
+                            {ipIntelligenceEntries.length > 1 && (
+                              <ul className="policy-host-list policy-meta">
+                                {ipIntelligenceEntries.map((entry, entryIndex) => (
+                                  <li key={`${selectedWafDevice}-${policyName}-${index}-ip-intelligence-${entryIndex}`}>
+                                    {(entry.name || 'global')} · {entry.category || '-'} · {entry.status || '-'} · {entry.action || '-'}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                             <p className="policy-meta">Geo-IP Policy: {geoIpPolicyName || '-'}</p>
                             <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
                             <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
