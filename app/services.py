@@ -147,6 +147,23 @@ def _as_bool(value):
     return None
 
 
+def _as_enable_disable(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "enable" if value else "disable"
+    if isinstance(value, (int, float)):
+        return "enable" if value != 0 else "disable"
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on", "enable", "enabled"}:
+            return "enable"
+        if normalized in {"false", "0", "no", "off", "disable", "disabled"}:
+            return "disable"
+        return normalized or None
+    return str(value).strip().lower() or None
+
+
 def _normalize_optional_text(value):
     if value is None:
         return None
@@ -1439,23 +1456,21 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
             continue
 
         web_protection_profile_name = _normalize_optional_text(
-            item.get("web_protection_profile_name")
-            or item.get("web_protection_profile")
-            or item.get("web-protection-profile")
+            _extract_by_aliases(item, ["web_protection_profile_name", "web_protection_profile", "web-protection-profile"])
         )
-        server_pool_name = _normalize_optional_text(item.get("server_pool_name") or item.get("server_pool") or item.get("server-pool"))
-        allow_hosts = _normalize_optional_text(item.get("allow_hosts") or item.get("allow-hosts") or item.get("allowhosts"))
+        server_pool_name = _normalize_optional_text(_extract_by_aliases(item, ["server_pool_name", "server_pool", "server-pool"]))
+        allow_hosts = _normalize_optional_text(_extract_by_aliases(item, ["allow_hosts", "allow-hosts", "allowhosts"]))
         rows.append(
             {
                 "server_policy_name": policy_name,
                 "web_protection_profile_name": web_protection_profile_name,
                 "server_pool_name": server_pool_name,
                 "allow_hosts": allow_hosts,
-                "traffic_mirror": _as_bool(
-                    item.get("traffic_mirror")
-                    or item.get("traffic-mirror")
-                    or item.get("traffic_mirror_val")
-                    or item.get("traffic-mirror_val")
+                "traffic_mirror": _as_enable_disable(
+                    _extract_by_aliases(item, ["traffic_mirror", "traffic-mirror", "traffic_mirror_val", "traffic-mirror_val"])
+                ),
+                "monitor_mode": _as_enable_disable(
+                    _extract_by_aliases(item, ["monitor_mode", "monitor-mode", "monitor_mode_val", "monitor-mode_val"])
                 ),
                 "raw_json": item,
             }
@@ -1490,6 +1505,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     server_pool_name,
                     allow_hosts,
                     traffic_mirror,
+                    monitor_mode,
                     raw_json
                 )
                 VALUES (
@@ -1499,6 +1515,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     :server_pool_name,
                     :allow_hosts,
                     :traffic_mirror,
+                    :monitor_mode,
                     CAST(:raw_json AS jsonb)
                 )
                 ON CONFLICT (device_id, server_policy_name) DO UPDATE SET
@@ -1506,6 +1523,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     server_pool_name = EXCLUDED.server_pool_name,
                     allow_hosts = EXCLUDED.allow_hosts,
                     traffic_mirror = EXCLUDED.traffic_mirror,
+                    monitor_mode = EXCLUDED.monitor_mode,
                     raw_json = EXCLUDED.raw_json,
                     updated_at = now()
                 """
@@ -1517,6 +1535,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                 "server_pool_name": row["server_pool_name"],
                 "allow_hosts": row["allow_hosts"],
                 "traffic_mirror": row["traffic_mirror"],
+                "monitor_mode": row["monitor_mode"],
                 "raw_json": json.dumps(row["raw_json"]),
             },
         )
@@ -2425,6 +2444,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sp.web_protection_profile_name,
                 sp.server_pool_name,
                 sp.allow_hosts,
+                sp.traffic_mirror,
+                sp.monitor_mode,
                 wpp.signature_rule,
                 wpp.http_protocol_parameter_restriction,
                 wpp.cookie_security_policy,
@@ -2593,6 +2614,10 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "web_protection_profile_name": row["web_protection_profile_name"],
                     "server_pool_name": row["server_pool_name"],
                     "allow_hosts": row["allow_hosts"],
+                    "traffic_mirror": row["traffic_mirror"],
+                    "traffic-mirror": row["traffic_mirror"],
+                    "monitor_mode": row["monitor_mode"],
+                    "monitor-mode": row["monitor_mode"],
                     "ip": row["server_pool_ip"],
                     "tls13_custom_cipher": row["tls13_custom_cipher"],
                     "tls_v10": row["tls_v10"],

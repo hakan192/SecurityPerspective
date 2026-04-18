@@ -773,7 +773,8 @@ def startup_event():
                     web_protection_profile_name text,
                     server_pool_name text,
                     allow_hosts text,
-                    traffic_mirror boolean,
+                    traffic_mirror text,
+                    monitor_mode text,
                     raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -800,6 +801,58 @@ def startup_event():
             )
         )
         connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS allow_hosts text"))
+        connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS traffic_mirror text"))
+        connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS monitor_mode text"))
+        connection.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'server_policy'
+                          AND column_name = 'traffic_mirror'
+                          AND udt_name = 'bool'
+                    ) THEN
+                        ALTER TABLE server_policy
+                        ALTER COLUMN traffic_mirror TYPE text
+                        USING CASE
+                            WHEN traffic_mirror IS TRUE THEN 'enable'
+                            WHEN traffic_mirror IS FALSE THEN 'disable'
+                            ELSE NULL
+                        END;
+                    END IF;
+                END $$;
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'server_policy'
+                          AND column_name = 'monitor_mode'
+                          AND udt_name = 'bool'
+                    ) THEN
+                        ALTER TABLE server_policy
+                        ALTER COLUMN monitor_mode TYPE text
+                        USING CASE
+                            WHEN monitor_mode IS TRUE THEN 'enable'
+                            WHEN monitor_mode IS FALSE THEN 'disable'
+                            ELSE NULL
+                        END;
+                    END IF;
+                END $$;
+                """
+            )
+        )
         connection.execute(
             text(
                 """
