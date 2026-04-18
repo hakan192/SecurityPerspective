@@ -2640,8 +2640,18 @@ def load_server_policies_from_db(db: Session) -> dict:
         ).mappings().all()
 
     custom_access_rules_by_policy = {}
+    custom_access_rules_seen = {}
     for row in custom_access_policy_rows:
         key = (row["device_id"], row["custom_access_policy_name"])
+        dedupe_key = (
+            row["custom_access_rules"],
+            row["visfiltertype"],
+            row["visvalue"],
+        )
+        seen_for_policy = custom_access_rules_seen.setdefault(key, set())
+        if dedupe_key in seen_for_policy:
+            continue
+        seen_for_policy.add(dedupe_key)
         custom_access_rules_by_policy.setdefault(key, []).append(
             {
                 "custom_access_rules": row["custom_access_rules"],
