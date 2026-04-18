@@ -1522,6 +1522,13 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
                 "web_protection_profile_name": web_protection_profile_name,
                 "server_pool_name": server_pool_name,
                 "allow_hosts": allow_hosts,
+                "monitor_mode": _normalize_optional_text(
+                    item.get("monitor_mode")
+                    or item.get("monitor-mode")
+                    or item.get("monitor mode")
+                    or item.get("monitor_mode_val")
+                    or item.get("monitor-mode_val")
+                ),
                 "traffic_mirror": _as_bool(
                     item.get("traffic_mirror")
                     or item.get("traffic-mirror")
@@ -1560,6 +1567,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     web_protection_profile_name,
                     server_pool_name,
                     allow_hosts,
+                    monitor_mode,
                     traffic_mirror,
                     raw_json
                 )
@@ -1569,6 +1577,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     :web_protection_profile_name,
                     :server_pool_name,
                     :allow_hosts,
+                    :monitor_mode,
                     :traffic_mirror,
                     CAST(:raw_json AS jsonb)
                 )
@@ -1576,6 +1585,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                     web_protection_profile_name = EXCLUDED.web_protection_profile_name,
                     server_pool_name = EXCLUDED.server_pool_name,
                     allow_hosts = EXCLUDED.allow_hosts,
+                    monitor_mode = EXCLUDED.monitor_mode,
                     traffic_mirror = EXCLUDED.traffic_mirror,
                     raw_json = EXCLUDED.raw_json,
                     updated_at = now()
@@ -1587,6 +1597,7 @@ def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
                 "web_protection_profile_name": row["web_protection_profile_name"],
                 "server_pool_name": row["server_pool_name"],
                 "allow_hosts": row["allow_hosts"],
+                "monitor_mode": row["monitor_mode"],
                 "traffic_mirror": row["traffic_mirror"],
                 "raw_json": json.dumps(row["raw_json"]),
             },
@@ -2520,6 +2531,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sp.web_protection_profile_name,
                 sp.server_pool_name,
                 sp.allow_hosts,
+                sp.monitor_mode,
                 wpp.signature_rule,
                 wpp.http_protocol_parameter_restriction,
                 wpp.cookie_security_policy,
@@ -2717,6 +2729,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "web_protection_profile_name": row["web_protection_profile_name"],
                     "server_pool_name": row["server_pool_name"],
                     "allow_hosts": row["allow_hosts"],
+                    "monitor_mode": row["monitor_mode"],
                     "ip": row["server_pool_ip"],
                     "tls13_custom_cipher": row["tls13_custom_cipher"],
                     "tls_v10": row["tls_v10"],
