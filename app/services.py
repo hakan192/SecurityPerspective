@@ -2596,21 +2596,48 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
-    custom_access_policy_rows = db.execute(
-        text(
-            """
-            SELECT
-                device_id,
-                custom_access_policy_name,
-                custom_access_rules,
-                visfiltertype,
-                visvalue,
-                raw_json
-            FROM "custom-access-policy"
-            ORDER BY id ASC
-            """
+    custom_access_policy_rows = []
+    custom_access_policy_table_exists = db.execute(
+        text("""SELECT to_regclass('"custom-access-policy"') IS NOT NULL""")
+    ).scalar()
+    if custom_access_policy_table_exists:
+        custom_access_policy_columns = set(
+            db.execute(
+                text(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'custom-access-policy'
+                    """
+                )
+            ).scalars().all()
         )
-    ).mappings().all()
+        visfilter_column = "NULL"
+        if "visfiltertype" in custom_access_policy_columns:
+            visfilter_column = "visfiltertype"
+        elif "visfilterType" in custom_access_policy_columns:
+            visfilter_column = '"visfilterType"'
+
+        visvalue_column = "NULL"
+        if "visvalue" in custom_access_policy_columns:
+            visvalue_column = "visvalue"
+
+        custom_access_policy_rows = db.execute(
+            text(
+                f"""
+                SELECT
+                    device_id,
+                    custom_access_policy_name,
+                    custom_access_rules,
+                    {visfilter_column} AS visfiltertype,
+                    {visvalue_column} AS visvalue,
+                    raw_json
+                FROM "custom-access-policy"
+                ORDER BY id ASC
+                """
+            )
+        ).mappings().all()
 
     custom_access_rules_by_policy = {}
     for row in custom_access_policy_rows:
