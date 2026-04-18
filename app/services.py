@@ -1439,12 +1439,10 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
             continue
 
         web_protection_profile_name = _normalize_optional_text(
-            item.get("web_protection_profile_name")
-            or item.get("web_protection_profile")
-            or item.get("web-protection-profile")
+            _extract_by_aliases(item, ["web_protection_profile_name", "web_protection_profile", "web-protection-profile"])
         )
-        server_pool_name = _normalize_optional_text(item.get("server_pool_name") or item.get("server_pool") or item.get("server-pool"))
-        allow_hosts = _normalize_optional_text(item.get("allow_hosts") or item.get("allow-hosts") or item.get("allowhosts"))
+        server_pool_name = _normalize_optional_text(_extract_by_aliases(item, ["server_pool_name", "server_pool", "server-pool"]))
+        allow_hosts = _normalize_optional_text(_extract_by_aliases(item, ["allow_hosts", "allow-hosts", "allowhosts"]))
         rows.append(
             {
                 "server_policy_name": policy_name,
@@ -1452,10 +1450,7 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
                 "server_pool_name": server_pool_name,
                 "allow_hosts": allow_hosts,
                 "traffic_mirror": _as_bool(
-                    item.get("traffic_mirror")
-                    or item.get("traffic-mirror")
-                    or item.get("traffic_mirror_val")
-                    or item.get("traffic-mirror_val")
+                    _extract_by_aliases(item, ["traffic_mirror", "traffic-mirror", "traffic_mirror_val", "traffic-mirror_val"])
                 ),
                 "raw_json": item,
             }

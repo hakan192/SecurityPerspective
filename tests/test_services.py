@@ -1,4 +1,4 @@
-from app.services import _iter_relevant_objects, maturity_level_from_score
+from app.services import _extract_policy_rows, _iter_relevant_objects, maturity_level_from_score
 
 
 def test_maturity_level_thresholds():
@@ -21,3 +21,19 @@ def test_iter_relevant_objects_single_object():
     rows = list(_iter_relevant_objects(payload))
     assert len(rows) == 1
     assert rows[0]["name"] == "single"
+
+
+def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
+    payload = {"results": [{"name": "policy-a", "traffic-mirror": "disable"}]}
+    rows = _extract_policy_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["traffic_mirror"] is False
+
+
+def test_extract_policy_rows_preserves_zero_valued_traffic_mirror():
+    payload = {"results": [{"name": "policy-b", "traffic-mirror": 0}]}
+    rows = _extract_policy_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["traffic_mirror"] is False
