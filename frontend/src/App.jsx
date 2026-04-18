@@ -502,6 +502,10 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const cookieSecurityPolicyName = webProtectionDetails.cookie_security_policy || ''
                           const syntaxBasedAttackDetectionName = webProtectionDetails.syntax_based_attack_detection || ''
                           const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
+                          const customAccessPolicyEntries = webProtectionDetails.custom_access_policy_entries || []
+                          const customAccessRules = customAccessPolicyEntries
+                            .map((entry) => entry.custom_access_rules)
+                            .filter(Boolean)
                           const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
                           const ipListPolicyName = webProtectionDetails.ip_list_policy || ''
                           const geoIpPolicyName = webProtectionDetails.geo_block_list_policy || ''
@@ -535,6 +539,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Monitor Mode: {monitorMode || '-'}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
+                            <p className="policy-meta">Custom Access Rules: {customAccessRules.length > 0 ? customAccessRules.join(', ') : '-'}</p>
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
                             <p className="policy-meta">IP List Policy: {ipListPolicyName || '-'}</p>
                             <p className="policy-meta">Geo-IP Policy: {geoIpPolicyName || '-'}</p>

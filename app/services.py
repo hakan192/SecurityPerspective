@@ -2596,6 +2596,35 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
+    custom_access_policy_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                custom_access_policy_name,
+                custom_access_rules,
+                visfilterType,
+                visvalue,
+                raw_json
+            FROM "custom-access-policy"
+            ORDER BY id ASC
+            """
+        )
+    ).mappings().all()
+
+    custom_access_policy_by_name = {}
+    for row in custom_access_policy_rows:
+        key = (row["device_id"], row["custom_access_policy_name"])
+        custom_access_policy_by_name.setdefault(key, []).append(
+            {
+                "custom_access_policy_name": row["custom_access_policy_name"],
+                "custom_access_rules": row["custom_access_rules"],
+                "visfilterType": row["visfilterType"],
+                "visvalue": row["visvalue"],
+                "raw_json": row["raw_json"],
+            }
+        )
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -2631,6 +2660,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "http_protocol_parameter_restriction": row["http_protocol_parameter_restriction"],
                         "cookie_security_policy": row["cookie_security_policy"],
                         "custom_access_policy": row["custom_access_policy"],
+                        "custom_access_policy_entries": custom_access_policy_by_name.get((device_id, row["custom_access_policy"]), []),
                         "csrf_protection": row["csrf_protection"],
                         "syntax_based_attack_detection": row["syntax_based_attack_detection"],
                         "parameter_validation_rule": row["parameter_validation_rule"],
