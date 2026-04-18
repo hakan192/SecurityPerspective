@@ -493,16 +493,43 @@ def _extract_custom_access_rule_names(payload: dict) -> list[str]:
     return deduped
 
 
-def _extract_custom_access_rule_details(payload: dict, custom_access_policy_name: str, custom_access_rules: str) -> dict:
-    rows = _extract_results(payload)
-    result = rows[0] if rows else {}
-    return {
-        "custom_access_policy_name": custom_access_policy_name,
-        "custom_access_rules": custom_access_rules,
-        "visfilterType": _normalize_optional_text(result.get("visfilterType") or result.get("visfilter-type")),
-        "visvalue": _normalize_optional_text(result.get("visvalue") or result.get("vis-value")),
-        "raw_json": payload if isinstance(payload, dict) else {"results": result},
-    }
+def _extract_custom_access_rule_details_rows(payload: dict, custom_access_policy_name: str, custom_access_rules: str) -> list[dict]:
+    def as_list(value):
+        if isinstance(value, list):
+            return value
+        if value is None:
+            return []
+        return [value]
+
+    results = _extract_results(payload)
+    if not results:
+        results = [{}]
+
+    parsed_rows = []
+    for result_idx, result in enumerate(results):
+        visfilter_values = as_list(result.get("visfilterType") or result.get("visfilter-type"))
+        visvalue_values = as_list(result.get("visvalue") or result.get("vis-value"))
+        id_values = as_list(result.get("id"))
+        max_items = max(len(visfilter_values), len(visvalue_values), len(id_values), 1)
+
+        for value_idx in range(max_items):
+            custom_access_rule_id = _normalize_optional_text(id_values[value_idx] if value_idx < len(id_values) else None)
+            if custom_access_rule_id is None:
+                custom_access_rule_id = f"{result_idx}:{value_idx}"
+
+            parsed_rows.append(
+                {
+                    "custom_access_policy_name": custom_access_policy_name,
+                    "custom_access_rules": custom_access_rules,
+                    "custom_access_rule_id": custom_access_rule_id,
+                    "visfilterType": _normalize_optional_text(
+                        visfilter_values[value_idx] if value_idx < len(visfilter_values) else None
+                    ),
+                    "visvalue": _normalize_optional_text(visvalue_values[value_idx] if value_idx < len(visvalue_values) else None),
+                    "raw_json": result if isinstance(result, dict) else {"results": result},
+                }
+            )
+    return parsed_rows
 
 
 def _fetch_json_with_fallback_endpoints(device: ManagedDevice, headers: dict, endpoints: list[str]) -> dict:
@@ -533,6 +560,7 @@ def _upsert_custom_access_policy_row(db: Session, device_id: int, row: dict):
                 device_id,
                 custom_access_policy_name,
                 custom_access_rules,
+                custom_access_rule_id,
                 visfilterType,
                 visvalue,
                 raw_json
@@ -541,11 +569,12 @@ def _upsert_custom_access_policy_row(db: Session, device_id: int, row: dict):
                 :device_id,
                 :custom_access_policy_name,
                 :custom_access_rules,
+                :custom_access_rule_id,
                 :visfilterType,
                 :visvalue,
                 CAST(:raw_json AS jsonb)
             )
-            ON CONFLICT (device_id, custom_access_policy_name, custom_access_rules) DO UPDATE SET
+            ON CONFLICT (device_id, custom_access_policy_name, custom_access_rules, custom_access_rule_id) DO UPDATE SET
                 visfilterType = EXCLUDED.visfilterType,
                 visvalue = EXCLUDED.visvalue,
                 raw_json = EXCLUDED.raw_json,
@@ -1943,8 +1972,9 @@ def _fetch_and_upsert_custom_access_policy(
         except Exception:
             details_payload = {"results": {"name": rule_name}}
 
-        row = _extract_custom_access_rule_details(details_payload, custom_access_policy_name, rule_name)
-        _upsert_custom_access_policy_row(db, device.id, row)
+        rows = _extract_custom_access_rule_details_rows(details_payload, custom_access_policy_name, rule_name)
+        for row in rows:
+            _upsert_custom_access_policy_row(db, device.id, row)
 
 
 def _fetch_and_upsert_allow_method_policy(
