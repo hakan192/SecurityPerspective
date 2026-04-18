@@ -2634,7 +2634,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                     {visvalue_column} AS visvalue,
                     raw_json
                 FROM "custom-access-policy"
-                ORDER BY id ASC
+                ORDER BY device_id ASC, custom_access_policy_name ASC, custom_access_rules ASC
                 """
             )
         ).mappings().all()
