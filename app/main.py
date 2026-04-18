@@ -774,6 +774,7 @@ def startup_event():
                     server_pool_name text,
                     allow_hosts text,
                     traffic_mirror boolean,
+                    monitor_mode boolean,
                     raw_json jsonb NOT NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -800,6 +801,7 @@ def startup_event():
             )
         )
         connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS allow_hosts text"))
+        connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS monitor_mode boolean"))
         connection.execute(
             text(
                 """

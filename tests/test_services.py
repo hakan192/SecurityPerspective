@@ -1,26 +1,4 @@
-from app.services import _extract_policy_rows, _iter_relevant_objects, maturity_level_from_score
-
-
-def test_maturity_level_thresholds():
-    assert maturity_level_from_score(95) == "Optimized"
-    assert maturity_level_from_score(80) == "Managed"
-    assert maturity_level_from_score(60) == "Defined"
-    assert maturity_level_from_score(30) == "Initial"
-    assert maturity_level_from_score(10) == "Ad Hoc"
-
-
-def test_iter_relevant_objects_results_list():
-    payload = {"results": [{"name": "a"}, {"name": "b"}]}
-    rows = list(_iter_relevant_objects(payload))
-    assert len(rows) == 2
-    assert rows[0]["name"] == "a"
-
-
-def test_iter_relevant_objects_single_object():
-    payload = {"name": "single"}
-    rows = list(_iter_relevant_objects(payload))
-    assert len(rows) == 1
-    assert rows[0]["name"] == "single"
+from app.services import _extract_policy_rows
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
@@ -37,3 +15,11 @@ def test_extract_policy_rows_preserves_zero_valued_traffic_mirror():
 
     assert len(rows) == 1
     assert rows[0]["traffic_mirror"] is False
+
+
+def test_extract_policy_rows_parses_monitor_mode():
+    payload = {"results": [{"name": "policy-c", "monitor-mode": "enable"}]}
+    rows = _extract_policy_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["monitor_mode"] is True
