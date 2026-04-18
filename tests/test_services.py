@@ -6,7 +6,7 @@ def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
     rows = _extract_policy_rows(payload)
 
     assert len(rows) == 1
-    assert rows[0]["traffic_mirror"] is False
+    assert rows[0]["traffic_mirror"] == "disable"
 
 
 def test_extract_policy_rows_preserves_zero_valued_traffic_mirror():
@@ -14,7 +14,7 @@ def test_extract_policy_rows_preserves_zero_valued_traffic_mirror():
     rows = _extract_policy_rows(payload)
 
     assert len(rows) == 1
-    assert rows[0]["traffic_mirror"] is False
+    assert rows[0]["traffic_mirror"] == "disable"
 
 
 def test_extract_policy_rows_parses_monitor_mode():
@@ -22,4 +22,4 @@ def test_extract_policy_rows_parses_monitor_mode():
     rows = _extract_policy_rows(payload)
 
     assert len(rows) == 1
-    assert rows[0]["monitor_mode"] is True
+    assert rows[0]["monitor_mode"] == "enable"

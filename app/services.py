@@ -147,6 +147,23 @@ def _as_bool(value):
     return None
 
 
+def _as_enable_disable(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "enable" if value else "disable"
+    if isinstance(value, (int, float)):
+        return "enable" if value != 0 else "disable"
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on", "enable", "enabled"}:
+            return "enable"
+        if normalized in {"false", "0", "no", "off", "disable", "disabled"}:
+            return "disable"
+        return normalized or None
+    return str(value).strip().lower() or None
+
+
 def _normalize_optional_text(value):
     if value is None:
         return None
@@ -1449,10 +1466,10 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
                 "web_protection_profile_name": web_protection_profile_name,
                 "server_pool_name": server_pool_name,
                 "allow_hosts": allow_hosts,
-                "traffic_mirror": _as_bool(
+                "traffic_mirror": _as_enable_disable(
                     _extract_by_aliases(item, ["traffic_mirror", "traffic-mirror", "traffic_mirror_val", "traffic-mirror_val"])
                 ),
-                "monitor_mode": _as_bool(
+                "monitor_mode": _as_enable_disable(
                     _extract_by_aliases(item, ["monitor_mode", "monitor-mode", "monitor_mode_val", "monitor-mode_val"])
                 ),
                 "raw_json": item,
