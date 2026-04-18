@@ -350,12 +350,13 @@ def startup_event():
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     custom_access_policy_name text NOT NULL,
                     custom_access_rules text NOT NULL,
+                    custom_access_rule_id text NOT NULL,
                     visfilterType text,
                     visvalue text,
                     raw_json jsonb,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now(),
-                    PRIMARY KEY (device_id, custom_access_policy_name, custom_access_rules)
+                    PRIMARY KEY (device_id, custom_access_policy_name, custom_access_rules, custom_access_rule_id)
                 )
                 """
             )
@@ -412,6 +413,15 @@ def startup_event():
         connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS visfilterType text'))
         connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS visvalue text'))
         connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
+        connection.execute(text('ALTER TABLE "custom-access-policy" ADD COLUMN IF NOT EXISTS custom_access_rule_id text'))
+        connection.execute(text('UPDATE "custom-access-policy" SET custom_access_rule_id = \'0\' WHERE custom_access_rule_id IS NULL'))
+        connection.execute(text('ALTER TABLE "custom-access-policy" ALTER COLUMN custom_access_rule_id SET NOT NULL'))
+        connection.execute(text('ALTER TABLE "custom-access-policy" DROP CONSTRAINT IF EXISTS "custom-access-policy_pkey"'))
+        connection.execute(
+            text(
+                'ALTER TABLE "custom-access-policy" ADD PRIMARY KEY (device_id, custom_access_policy_name, custom_access_rules, custom_access_rule_id)'
+            )
+        )
         connection.execute(text('ALTER TABLE "allow-method-policy" ADD COLUMN IF NOT EXISTS allow_method text'))
         connection.execute(text('ALTER TABLE "allow-method-policy" ADD COLUMN IF NOT EXISTS raw_json jsonb'))
         connection.execute(text('ALTER TABLE "xml-validation-policy" ADD COLUMN IF NOT EXISTS enable_signature_detection text'))
