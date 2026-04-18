@@ -491,6 +491,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
                           const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
                           const http2 = typeof policy === 'string' ? null : policy.http2
+                          const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
+                          const monitorMode = typeof policy === 'string' ? '' : (policy['monitor-mode'] ?? policy.monitor_mode ?? '')
                           const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
                           const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
@@ -529,6 +531,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
                             <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
+                            <p className="policy-meta">Traffic Mirror: {trafficMirror || '-'}</p>
+                            <p className="policy-meta">Monitor Mode: {monitorMode || '-'}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
