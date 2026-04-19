@@ -1866,11 +1866,18 @@ def _fetch_and_upsert_custom_access_policy(
     headers: dict,
 ):
     encoded_policy_name = quote(custom_access_policy_name, safe="")
-    rules_payload = _fetch_json_with_fallback_endpoints(
-        device,
-        headers,
-        [f"/api/v2.0/cmdb/waf/custom-access.policy/rule?mkey={encoded_policy_name}"],
-    )
+    rules_payload = {}
+    try:
+        rules_payload = _fetch_json_with_fallback_endpoints(
+            device,
+            headers,
+            [
+                f"/api/v2.0/cmdb/waf/custom-access-policy/rule?mkey={encoded_policy_name}",
+                f"/api/v2.0/cmdb/waf/custom-access.policy/rule?mkey={encoded_policy_name}",
+            ],
+        )
+    except Exception:
+        rules_payload = {}
     rule_names = _extract_custom_access_rule_names(rules_payload)
 
     if not rule_names:
@@ -1884,6 +1891,8 @@ def _fetch_and_upsert_custom_access_policy(
                 device,
                 headers,
                 [
+                    f"/api/v2.0/cmdb/waf/custom-access-policy/rule?mkey={encoded_rule_name}",
+                    f"/api/v2.0/cmdb/waf/custom-access.policy/rule?mkey={encoded_rule_name}",
                     f"/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}",
                     f"/api/v2.0/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}",
                 ],
