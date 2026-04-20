@@ -373,7 +373,7 @@ input,
 
 .waf-search-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 200px;
+  grid-template-columns: minmax(0, 1.35fr) 190px;
   gap: 0.8rem;
   align-items: center;
 }
@@ -385,8 +385,11 @@ input,
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   background: rgba(241, 245, 249, 0.8);
-  padding: 0.65rem 0.9rem;
-  max-width: 780px;
+  padding: 0.72rem 1rem;
+  max-width: 980px;
+  width: 100%;
+  justify-self: start;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .dark .waf-policy-search {
@@ -395,6 +398,7 @@ input,
 
 .waf-policy-search span {
   color: #64748b;
+  font-size: 1.05rem;
 }
 
 .waf-policy-search input {
@@ -402,6 +406,17 @@ input,
   background: transparent;
   width: 100%;
   padding: 0;
+}
+
+.waf-policy-search:focus-within {
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12);
+}
+
+.dark .waf-policy-search:focus-within {
+  background: rgba(15, 23, 42, 0.88);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.16);
 }
 
 .waf-actions-only {
