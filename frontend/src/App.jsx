@@ -544,6 +544,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Client Certificate Issuer: {clientCertificateDetails.issuer || '-'}</p>
                             <p className="policy-meta">Client Certificate Valid From: {clientCertificateDetails.valid_from || '-'}</p>
                             <p className="policy-meta">Client Certificate Valid To: {clientCertificateDetails.valid_to || '-'}</p>
+                            <p className="policy-meta">Client Certificate Days Left: {clientCertificateDetails.days_left ?? '-'}</p>
                             <p className="policy-meta">Client Certificate Serial Number: {clientCertificateDetails.serial_number || '-'}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>

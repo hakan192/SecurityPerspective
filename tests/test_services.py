@@ -50,7 +50,7 @@ def test_extract_certificate_local_row_parses_certificate_attributes():
                 "subject": "CN=client.example.com",
                 "issuer": "CN=Example-CA",
                 "not-before": "2025-01-01",
-                "not-after": "2027-01-01",
+                "not-after": "2027-04-19 20:41:03+00",
                 "serial-number": "ABCD1234",
             }
         ]
@@ -62,7 +62,7 @@ def test_extract_certificate_local_row_parses_certificate_attributes():
     assert row["subject"] == "CN=client.example.com"
     assert row["issuer"] == "CN=Example-CA"
     assert row["valid_from"] == "2025-01-01"
-    assert row["valid_to"] == "2027-01-01"
+    assert row["valid_to"] == "2027-04-19"
     assert row["serial_number"] == "ABCD1234"
 
 
@@ -70,7 +70,7 @@ def test_extract_certificate_local_row_parses_camel_case_valid_to_and_serial_num
     payload = {
         "results": [
             {
-                "validTo": "2028-12-31",
+                "validTo": "2028-12-31T23:59:59Z",
                 "serialNumber": "XYZ7890",
             }
         ]

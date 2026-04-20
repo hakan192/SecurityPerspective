@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from urllib.parse import urlparse
 from urllib.parse import quote
 
@@ -171,6 +172,18 @@ def _normalize_optional_text(value):
         return str(value)
     normalized = value.strip()
     return normalized or None
+
+
+def _normalize_optional_date(value):
+    text_value = _normalize_optional_text(value)
+    if not text_value:
+        return None
+    if len(text_value) >= 10 and text_value[4] == "-" and text_value[7] == "-":
+        return text_value[:10]
+    try:
+        return datetime.fromisoformat(text_value.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        return None
 
 
 def _extract_by_aliases(item: dict, aliases: list[str]):
@@ -1686,7 +1699,7 @@ def _extract_certificate_local_row(payload: dict, certificate_name: str) -> dict
         "valid_from": _normalize_optional_text(
             result.get("valid_from") or result.get("valid-from") or result.get("not_before") or result.get("not-before")
         ),
-        "valid_to": _normalize_optional_text(
+        "valid_to": _normalize_optional_date(
             result.get("valid_to")
             or result.get("valid-to")
             or result.get("validTo")
@@ -1711,6 +1724,7 @@ def _upsert_certificate_local_row(db: Session, device_id: int, row: dict):
                 issuer,
                 valid_from,
                 valid_to,
+                days_left,
                 serial_number,
                 raw_json
             )
@@ -1720,7 +1734,8 @@ def _upsert_certificate_local_row(db: Session, device_id: int, row: dict):
                 :subject,
                 :issuer,
                 :valid_from,
-                :valid_to,
+                CAST(:valid_to AS date),
+                CASE WHEN :valid_to IS NULL THEN NULL ELSE CURRENT_DATE - CAST(:valid_to AS date) END,
                 :serial_number,
                 CAST(:raw_json AS jsonb)
             )
@@ -1729,6 +1744,7 @@ def _upsert_certificate_local_row(db: Session, device_id: int, row: dict):
                 issuer = EXCLUDED.issuer,
                 valid_from = EXCLUDED.valid_from,
                 valid_to = EXCLUDED.valid_to,
+                days_left = EXCLUDED.days_left,
                 serial_number = EXCLUDED.serial_number,
                 raw_json = EXCLUDED.raw_json
             """
@@ -2686,6 +2702,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 cl.issuer AS client_certificate_issuer,
                 cl.valid_from AS client_certificate_valid_from,
                 cl.valid_to AS client_certificate_valid_to,
+                cl.days_left AS client_certificate_days_left,
                 cl.serial_number AS client_certificate_serial_number,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
@@ -2826,6 +2843,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "issuer": row["client_certificate_issuer"],
                         "valid_from": row["client_certificate_valid_from"],
                         "valid_to": row["client_certificate_valid_to"],
+                        "days_left": row["client_certificate_days_left"],
                         "serial_number": row["client_certificate_serial_number"],
                     },
                     "tls13_custom_cipher": row["tls13_custom_cipher"],

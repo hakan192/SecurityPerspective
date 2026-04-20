@@ -144,7 +144,8 @@ def startup_event():
                     subject text,
                     issuer text,
                     valid_from text,
-                    valid_to text,
+                    valid_to date,
+                    days_left integer,
                     serial_number text,
                     raw_json jsonb,
                     PRIMARY KEY (device_id, certificate_name)
@@ -155,7 +156,22 @@ def startup_event():
         connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS subject text"))
         connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS issuer text"))
         connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS valid_from text"))
-        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS valid_to text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS valid_to date"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS days_left integer"))
+        connection.execute(
+            text(
+                """
+                ALTER TABLE certificate_local
+                ALTER COLUMN valid_to TYPE date
+                USING (
+                    CASE
+                        WHEN valid_to IS NULL THEN NULL
+                        ELSE (valid_to::timestamptz)::date
+                    END
+                )
+                """
+            )
+        )
         connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS serial_number text"))
         connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(
