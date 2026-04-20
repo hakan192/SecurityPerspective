@@ -1,4 +1,4 @@
-from app.services import _extract_policy_rows
+from app.services import _extract_policy_rows, _extract_server_pool_row
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
@@ -23,3 +23,12 @@ def test_extract_policy_rows_parses_monitor_mode():
 
     assert len(rows) == 1
     assert rows[0]["monitor_mode"] == "enable"
+
+
+def test_extract_server_pool_row_parses_sni_and_client_certificate():
+    payload = {"results": [{"name": "pool-a", "sni": "example.com", "client-certificate": "client-cert-a"}]}
+
+    row = _extract_server_pool_row(payload, "pool-a")
+
+    assert row["sni"] == "example.com"
+    assert row["client_certificate"] == "client-cert-a"

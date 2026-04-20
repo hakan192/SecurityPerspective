@@ -762,6 +762,8 @@ def startup_event():
                     server_pool_name text NOT NULL,
                     ip inet,
                     certificate_name text,
+                    client_certificate text,
+                    sni text,
                     sni_certificate_name text,
                     intermediate_certificate_group_name text,
                     ssl_custom_cipher text,
@@ -841,6 +843,8 @@ def startup_event():
         connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS allow_hosts text"))
         connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS traffic_mirror text"))
         connection.execute(text("ALTER TABLE server_policy ADD COLUMN IF NOT EXISTS monitor_mode text"))
+        connection.execute(text("ALTER TABLE server_pool ADD COLUMN IF NOT EXISTS client_certificate text"))
+        connection.execute(text("ALTER TABLE server_pool ADD COLUMN IF NOT EXISTS sni text"))
         connection.execute(
             text(
                 """

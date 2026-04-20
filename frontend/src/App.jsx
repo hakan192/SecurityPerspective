@@ -485,6 +485,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         {selectedWafDevicePolicies.map((policy, index) => {
                           const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
                           const policyIp = typeof policy === 'string' ? '' : policy.ip
+                          const sni = typeof policy === 'string' ? '' : policy.sni
+                          const clientCertificate = typeof policy === 'string' ? '' : policy.client_certificate
                           const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
                           const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
                           const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
@@ -525,6 +527,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-label">Server Policy Name</p>
                             <p className="policy-name">{policyName}</p>
                             <p className="policy-meta">IP: {policyIp || '-'}</p>
+                            <p className="policy-meta">SNI: {sni || '-'}</p>
+                            <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
                             <p className="policy-meta">TLS13 Custom Cipher: {tls13CustomCipher || '-'}</p>
                             <p className="policy-meta">TLS v1.0: {tlsV10 === null ? '-' : String(tlsV10)}</p>
                             <p className="policy-meta">TLS v1.1: {tlsV11 === null ? '-' : String(tlsV11)}</p>
