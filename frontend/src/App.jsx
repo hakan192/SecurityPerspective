@@ -668,7 +668,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         })}
                       </div>
                     )}
-                    {wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}
                   </>
                 )}
               </section>
