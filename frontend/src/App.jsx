@@ -488,6 +488,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const sni = typeof policy === 'string' ? '' : policy.sni
                           const clientCertificate = typeof policy === 'string' ? '' : policy.client_certificate
                           const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
+                          const certificateName = typeof policy === 'string' ? '' : policy.certificate_name
+                          const certificateIssuer = typeof policy === 'string' ? '' : policy.issuer
+                          const certificateSerialNumber = typeof policy === 'string' ? '' : policy.serialNumber
+                          const certificateSubject = typeof policy === 'string' ? '' : policy.subject
+                          const certificateValidTo = typeof policy === 'string' ? '' : policy.validTo
+                          const certificateDaysLeft = typeof policy === 'string' ? null : policy.days_left
+                          const certificateRawJson = typeof policy === 'string' ? null : policy.certificate_raw_json
                           const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
                           const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
                           const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
@@ -531,6 +538,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">SNI: {sni || '-'}</p>
                             <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
                             <p className="policy-meta">SNI Certificate: {sniCertificate || '-'}</p>
+                            <p className="policy-meta">Certificate Name: {certificateName || '-'}</p>
+                            <p className="policy-meta">Issuer: {certificateIssuer || '-'}</p>
+                            <p className="policy-meta">Serial Number: {certificateSerialNumber || '-'}</p>
+                            <p className="policy-meta">Subject: {certificateSubject || '-'}</p>
+                            <p className="policy-meta">Valid To: {certificateValidTo ? String(certificateValidTo) : '-'}</p>
+                            <p className="policy-meta">Days Left: {certificateDaysLeft === null ? '-' : String(certificateDaysLeft)}</p>
+                            <p className="policy-meta">Certificate Raw JSON: {certificateRawJson ? JSON.stringify(certificateRawJson) : '-'}</p>
                             <p className="policy-meta">TLS13 Custom Cipher: {tls13CustomCipher || '-'}</p>
                             <p className="policy-meta">TLS v1.0: {tlsV10 === null ? '-' : String(tlsV10)}</p>
                             <p className="policy-meta">TLS v1.1: {tlsV11 === null ? '-' : String(tlsV11)}</p>

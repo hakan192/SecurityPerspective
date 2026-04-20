@@ -1648,6 +1648,82 @@ def _upsert_allow_hosts_rows(db: Session, device_id: int, allow_hosts_name: str,
         )
 
 
+def _extract_certificate_local_rows(payload: dict) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if isinstance(results, dict):
+        results = [results]
+    if not isinstance(results, list):
+        return []
+
+    rows = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        certificate_name = _normalize_optional_text(item.get("name") or item.get("certificate_name") or item.get("certificate"))
+        if not certificate_name:
+            continue
+        rows.append(
+            {
+                "certificate_name": certificate_name,
+                "issuer": _normalize_optional_text(item.get("issuer")),
+                "serial_number": _normalize_optional_text(item.get("serialNumber") or item.get("serial-number") or item.get("serial_number")),
+                "subject": _normalize_optional_text(item.get("subject")),
+                "valid_to": _normalize_optional_text(item.get("validTo") or item.get("valid-to") or item.get("valid_to")),
+                "raw_json": item,
+            }
+        )
+    return rows
+
+
+def _upsert_certificate_local_rows(db: Session, device_id: int, rows: list[dict]):
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO certificate_local (
+                    device_id,
+                    certificate_name,
+                    issuer,
+                    serial_number,
+                    subject,
+                    valid_to,
+                    days_left,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :certificate_name,
+                    :issuer,
+                    :serial_number,
+                    :subject,
+                    CAST(:valid_to AS timestamptz),
+                    CASE
+                        WHEN :valid_to IS NULL THEN NULL
+                        ELSE FLOOR(EXTRACT(EPOCH FROM (CAST(:valid_to AS timestamptz) - CURRENT_TIMESTAMP)) / 86400)::int
+                    END,
+                    CAST(:raw_json AS jsonb)
+                )
+                ON CONFLICT (device_id, certificate_name) DO UPDATE SET
+                    issuer = EXCLUDED.issuer,
+                    serial_number = EXCLUDED.serial_number,
+                    subject = EXCLUDED.subject,
+                    valid_to = EXCLUDED.valid_to,
+                    days_left = EXCLUDED.days_left,
+                    raw_json = EXCLUDED.raw_json
+                """
+            ),
+            {
+                "device_id": device_id,
+                "certificate_name": row["certificate_name"],
+                "issuer": row["issuer"],
+                "serial_number": row["serial_number"],
+                "subject": row["subject"],
+                "valid_to": row["valid_to"],
+                "raw_json": json.dumps(row["raw_json"]),
+            },
+        )
+
+
 def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
@@ -1814,6 +1890,25 @@ def _fetch_and_upsert_server_pool(
     payload = response.json()
     server_pool_row = _extract_server_pool_row(payload, server_pool_name)
     _upsert_server_pool_row(db, device.id, server_pool_row)
+
+
+def _fetch_and_upsert_certificate_local(
+    db: Session,
+    device: ManagedDevice,
+    headers: dict,
+):
+    endpoint = "/api/v2.0/system/certificate.local"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_certificate_local_rows(payload)
+    _upsert_certificate_local_rows(db, device.id, rows)
 
 
 def _fetch_and_upsert_allow_hosts(
@@ -2295,6 +2390,11 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
         }
 
         try:
+            try:
+                _fetch_and_upsert_certificate_local(db, device, headers)
+            except Exception:
+                db.rollback()
+
             web_protection_profile_rows = []
             try:
                 web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
@@ -2561,9 +2661,16 @@ def load_server_policies_from_db(db: Session) -> dict:
                 tbd.name AS threshold_based_detection_name,
                 kb.known_bots_name,
                 pool.ip AS server_pool_ip,
+                pool.certificate_name AS server_pool_certificate_name,
                 pool.sni AS server_pool_sni,
                 pool.client_certificate AS server_pool_client_certificate,
                 pool.sni_certificate_name AS server_pool_sni_certificate,
+                cert.issuer AS certificate_issuer,
+                cert.serial_number AS certificate_serial_number,
+                cert.subject AS certificate_subject,
+                cert.valid_to AS certificate_valid_to,
+                cert.days_left AS certificate_days_left,
+                cert.raw_json AS certificate_raw_json,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
                 pool.tls_v11,
@@ -2575,6 +2682,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN server_pool pool
                 ON pool.device_id = sp.device_id
                 AND pool.server_pool_name = sp.server_pool_name
+            LEFT JOIN certificate_local cert
+                ON cert.device_id = pool.device_id
+                AND cert.certificate_name = pool.certificate_name
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
@@ -2690,10 +2800,17 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "monitor_mode": row["monitor_mode"],
                     "monitor-mode": row["monitor_mode"],
                     "ip": row["server_pool_ip"],
+                    "certificate_name": row["server_pool_certificate_name"],
                     "sni": row["server_pool_sni"],
                     "client_certificate": row["server_pool_client_certificate"],
                     "sni_certificate": row["server_pool_sni_certificate"],
                     "sni-certificate": row["server_pool_sni_certificate"],
+                    "issuer": row["certificate_issuer"],
+                    "serialNumber": row["certificate_serial_number"],
+                    "subject": row["certificate_subject"],
+                    "validTo": row["certificate_valid_to"],
+                    "days_left": row["certificate_days_left"],
+                    "certificate_raw_json": row["certificate_raw_json"],
                     "tls13_custom_cipher": row["tls13_custom_cipher"],
                     "tls_v10": row["tls_v10"],
                     "tls_v11": row["tls_v11"],
