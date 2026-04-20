@@ -490,15 +490,12 @@ def _extract_custom_access_rule_names(payload: dict) -> list[str]:
     return deduped
 
 
-def _extract_custom_access_rule_details(payload: dict, custom_access_policy_name: str, custom_access_rules: str) -> dict:
-    rows = _extract_results(payload)
-    result = rows[0] if rows else {}
+def _extract_custom_access_policy_row(payload: dict, custom_access_policy_name: str) -> dict:
+    rule_names = _extract_custom_access_rule_names(payload)
     return {
         "custom_access_policy_name": custom_access_policy_name,
-        "custom_access_rules": custom_access_rules,
-        "visfilterType": _normalize_optional_text(result.get("visfilterType") or result.get("visfilter-type")),
-        "visvalue": _normalize_optional_text(result.get("visvalue") or result.get("vis-value")),
-        "raw_json": payload if isinstance(payload, dict) else {"results": result},
+        "rule_names": rule_names,
+        "raw_json": payload if isinstance(payload, dict) else {},
     }
 
 
@@ -529,27 +526,75 @@ def _upsert_custom_access_policy_row(db: Session, device_id: int, row: dict):
             INSERT INTO "custom-access-policy" (
                 device_id,
                 custom_access_policy_name,
-                custom_access_rules,
-                visfilterType,
-                visvalue,
+                rule_names,
                 raw_json
             )
             VALUES (
                 :device_id,
                 :custom_access_policy_name,
-                :custom_access_rules,
-                :visfilterType,
-                :visvalue,
+                :rule_names,
                 CAST(:raw_json AS jsonb)
             )
-            ON CONFLICT (device_id, custom_access_policy_name, custom_access_rules) DO UPDATE SET
-                visfilterType = EXCLUDED.visfilterType,
-                visvalue = EXCLUDED.visvalue,
+            ON CONFLICT (device_id, custom_access_policy_name) DO UPDATE SET
+                rule_names = EXCLUDED.rule_names,
                 raw_json = EXCLUDED.raw_json,
                 updated_at = now()
             """
         ),
         {"device_id": device_id, **row, "raw_json": json.dumps(row["raw_json"])},
+    )
+
+
+def _extract_custom_access_rule_row(rule_name: str, payload: dict, custom_rule_payload: dict) -> dict:
+    rows = _extract_results(payload)
+    result = rows[0] if rows else {}
+    return {
+        "name": rule_name,
+        "action": _normalize_optional_text(result.get("action")),
+        "bot_confirmation": _normalize_optional_text(result.get("bot-confirmation") or result.get("bot_confirmation")),
+        "bot_recognition": _normalize_optional_text(result.get("bot-recognition") or result.get("bot_recognition")),
+        "raw_json": payload if isinstance(payload, dict) else {},
+        "raw_json_custom_rule": custom_rule_payload if isinstance(custom_rule_payload, dict) else {},
+    }
+
+
+def _upsert_custom_access_rule_row(db: Session, device_id: int, row: dict):
+    db.execute(
+        text(
+            """
+            INSERT INTO "custom-access-rule" (
+                device_id,
+                name,
+                action,
+                "bot-confirmation",
+                "bot-recognition",
+                raw_json,
+                raw_json_custom_rule
+            )
+            VALUES (
+                :device_id,
+                :name,
+                :action,
+                :bot_confirmation,
+                :bot_recognition,
+                CAST(:raw_json AS jsonb),
+                CAST(:raw_json_custom_rule AS jsonb)
+            )
+            ON CONFLICT (device_id, name) DO UPDATE SET
+                action = EXCLUDED.action,
+                "bot-confirmation" = EXCLUDED."bot-confirmation",
+                "bot-recognition" = EXCLUDED."bot-recognition",
+                raw_json = EXCLUDED.raw_json,
+                raw_json_custom_rule = EXCLUDED.raw_json_custom_rule,
+                updated_at = now()
+            """
+        ),
+        {
+            "device_id": device_id,
+            **row,
+            "raw_json": json.dumps(row["raw_json"]),
+            "raw_json_custom_rule": json.dumps(row["raw_json_custom_rule"]),
+        },
     )
 
 
@@ -1871,28 +1916,32 @@ def _fetch_and_upsert_custom_access_policy(
         headers,
         [f"/api/v2.0/cmdb/waf/custom-access.policy/rule?mkey={encoded_policy_name}"],
     )
-    rule_names = _extract_custom_access_rule_names(rules_payload)
+    row = _extract_custom_access_policy_row(rules_payload, custom_access_policy_name)
+    _upsert_custom_access_policy_row(db, device.id, row)
+    return row
 
-    if not rule_names:
-        rule_names = [custom_access_policy_name]
 
-    for rule_name in rule_names:
-        encoded_rule_name = quote(rule_name, safe="")
-        details_payload = {}
-        try:
-            details_payload = _fetch_json_with_fallback_endpoints(
-                device,
-                headers,
-                [
-                    f"/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}",
-                    f"/api/v2.0/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}",
-                ],
-            )
-        except Exception:
-            details_payload = {"results": {"name": rule_name}}
+def _fetch_and_upsert_custom_access_rule(
+    db: Session,
+    device: ManagedDevice,
+    custom_access_rule_name: str,
+    headers: dict,
+):
+    encoded_rule_name = quote(custom_access_rule_name, safe="")
 
-        row = _extract_custom_access_rule_details(details_payload, custom_access_policy_name, rule_name)
-        _upsert_custom_access_policy_row(db, device.id, row)
+    policy_rule_payload = _fetch_json_with_fallback_endpoints(
+        device,
+        headers,
+        [f"/api/v2.0/cmdb/waf/custom-access.rule?mkey={encoded_rule_name}"],
+    )
+    custom_rule_payload = _fetch_json_with_fallback_endpoints(
+        device,
+        headers,
+        [f"/api/v2.0/waf/webprotection.advancedprotection.customrule.newcustomaccessrule?name={encoded_rule_name}"],
+    )
+
+    row = _extract_custom_access_rule_row(custom_access_rule_name, policy_rule_payload, custom_rule_payload)
+    _upsert_custom_access_rule_row(db, device.id, row)
 
 
 def _fetch_and_upsert_allow_method_policy(
@@ -2267,9 +2316,16 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                 db.rollback()
 
             unique_custom_access_policies = {row["custom_access_policy"] for row in web_protection_profile_rows if row.get("custom_access_policy")}
+            unique_custom_access_rules = set()
             for custom_access_policy_name in unique_custom_access_policies:
                 try:
-                    _fetch_and_upsert_custom_access_policy(db, device, custom_access_policy_name, headers)
+                    custom_access_policy_row = _fetch_and_upsert_custom_access_policy(db, device, custom_access_policy_name, headers)
+                    unique_custom_access_rules.update(custom_access_policy_row.get("rule_names") or [])
+                except Exception:
+                    db.rollback()
+            for custom_access_rule_name in unique_custom_access_rules:
+                try:
+                    _fetch_and_upsert_custom_access_rule(db, device, custom_access_rule_name, headers)
                 except Exception:
                     db.rollback()
 
