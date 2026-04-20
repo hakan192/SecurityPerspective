@@ -1,4 +1,4 @@
-from app.services import _extract_policy_rows, _extract_server_pool_row
+from app.services import _extract_certificate_local_row, _extract_policy_rows, _extract_server_pool_row
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
@@ -41,3 +41,26 @@ def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate()
     assert row["sni"] == "enable"
     assert row["sni_certificate"] == "sni-cert-01"
     assert row["client_certificate"] == "client-cert-01"
+
+
+def test_extract_certificate_local_row_parses_certificate_attributes():
+    payload = {
+        "results": [
+            {
+                "subject": "CN=client.example.com",
+                "issuer": "CN=Example-CA",
+                "not-before": "2025-01-01",
+                "not-after": "2027-01-01",
+                "serial-number": "ABCD1234",
+            }
+        ]
+    }
+
+    row = _extract_certificate_local_row(payload, "client-cert-01")
+
+    assert row["certificate_name"] == "client-cert-01"
+    assert row["subject"] == "CN=client.example.com"
+    assert row["issuer"] == "CN=Example-CA"
+    assert row["valid_from"] == "2025-01-01"
+    assert row["valid_to"] == "2027-01-01"
+    assert row["serial_number"] == "ABCD1234"

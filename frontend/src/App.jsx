@@ -496,6 +496,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const sni = typeof policy === 'string' ? '' : policy.sni
                           const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
                           const clientCertificate = typeof policy === 'string' ? '' : (policy['client-certificate'] ?? policy.client_certificate ?? '')
+                          const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
                           const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
                           const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
@@ -539,6 +540,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">SNI: {sni || '-'}</p>
                             <p className="policy-meta">SNI Certificate: {sniCertificate || '-'}</p>
                             <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
+                            <p className="policy-meta">Client Certificate Subject: {clientCertificateDetails.subject || '-'}</p>
+                            <p className="policy-meta">Client Certificate Issuer: {clientCertificateDetails.issuer || '-'}</p>
+                            <p className="policy-meta">Client Certificate Valid From: {clientCertificateDetails.valid_from || '-'}</p>
+                            <p className="policy-meta">Client Certificate Valid To: {clientCertificateDetails.valid_to || '-'}</p>
+                            <p className="policy-meta">Client Certificate Serial Number: {clientCertificateDetails.serial_number || '-'}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>

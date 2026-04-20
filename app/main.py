@@ -141,11 +141,23 @@ def startup_event():
                 CREATE TABLE IF NOT EXISTS certificate_local (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     certificate_name text NOT NULL,
+                    subject text,
+                    issuer text,
+                    valid_from text,
+                    valid_to text,
+                    serial_number text,
+                    raw_json jsonb,
                     PRIMARY KEY (device_id, certificate_name)
                 )
                 """
             )
         )
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS subject text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS issuer text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS valid_from text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS valid_to text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS serial_number text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(
             text(
                 """
