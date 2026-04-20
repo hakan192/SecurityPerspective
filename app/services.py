@@ -1658,7 +1658,9 @@ def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
         "certificate_name": _normalize_optional_text(result.get("certificate_name") or result.get("certificate")),
         "client_certificate": _normalize_optional_text(result.get("client_certificate") or result.get("client-certificate")),
         "sni": _normalize_optional_text(result.get("sni")),
-        "sni_certificate_name": _normalize_optional_text(result.get("sni_certificate_name") or result.get("sni_name")),
+        "sni_certificate_name": _normalize_optional_text(
+            result.get("sni_certificate_name") or result.get("sni-certificate") or result.get("sni_name")
+        ),
         "intermediate_certificate_group_name": _normalize_optional_text(
             result.get("intermediate_certificate_group_name")
             or result.get("intermediate-group")
@@ -2561,6 +2563,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 pool.ip AS server_pool_ip,
                 pool.sni AS server_pool_sni,
                 pool.client_certificate AS server_pool_client_certificate,
+                pool.sni_certificate_name AS server_pool_sni_certificate,
                 pool.tls13_custom_cipher,
                 pool.tls_v10,
                 pool.tls_v11,
@@ -2689,6 +2692,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "ip": row["server_pool_ip"],
                     "sni": row["server_pool_sni"],
                     "client_certificate": row["server_pool_client_certificate"],
+                    "sni_certificate": row["server_pool_sni_certificate"],
+                    "sni-certificate": row["server_pool_sni_certificate"],
                     "tls13_custom_cipher": row["tls13_custom_cipher"],
                     "tls_v10": row["tls_v10"],
                     "tls_v11": row["tls_v11"],

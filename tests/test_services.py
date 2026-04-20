@@ -25,10 +25,13 @@ def test_extract_policy_rows_parses_monitor_mode():
     assert rows[0]["monitor_mode"] == "enable"
 
 
-def test_extract_server_pool_row_parses_sni_and_client_certificate():
-    payload = {"results": [{"name": "pool-a", "sni": "example.com", "client-certificate": "client-cert-a"}]}
+def test_extract_server_pool_row_parses_sni_client_certificate_and_sni_certificate():
+    payload = {
+        "results": [{"name": "pool-a", "sni": "example.com", "client-certificate": "client-cert-a", "sni-certificate": "sni-cert-a"}]
+    }
 
     row = _extract_server_pool_row(payload, "pool-a")
 
     assert row["sni"] == "example.com"
     assert row["client_certificate"] == "client-cert-a"
+    assert row["sni_certificate_name"] == "sni-cert-a"
