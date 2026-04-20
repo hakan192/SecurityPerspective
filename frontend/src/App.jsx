@@ -119,6 +119,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
   const [selectedWafDevice, setSelectedWafDevice] = useState('')
+  const [selectedLocation, setSelectedLocation] = useState('All')
+  const [wafPolicySearch, setWafPolicySearch] = useState('')
+  const [lastWafUpdatedAt, setLastWafUpdatedAt] = useState('')
   const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
@@ -144,10 +147,27 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     const devices = wafResponse?.devices
     return Array.isArray(devices) ? devices : []
   }, [wafResponse])
+  const deviceLocationMap = useMemo(() => {
+    return devices.reduce((acc, device) => {
+      if (device?.name) acc[device.name.toLowerCase()] = device.region || 'Unknown'
+      return acc
+    }, {})
+  }, [devices])
+  const locationOptions = useMemo(() => {
+    const regions = Array.from(new Set(devices.map((device) => device.region).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+    return ['All', ...regions]
+  }, [devices])
+  const filteredWafDevices = useMemo(() => {
+    if (selectedLocation === 'All') return wafDevices
+    return wafDevices.filter((device) => {
+      const region = deviceLocationMap[device.device_name?.toLowerCase()]
+      return region === selectedLocation
+    })
+  }, [deviceLocationMap, selectedLocation, wafDevices])
   const selectedWafDeviceData = useMemo(() => {
-    if (!selectedWafDevice) return wafDevices[0] || null
-    return wafDevices.find((device) => device.device_name === selectedWafDevice) || null
-  }, [selectedWafDevice, wafDevices])
+    if (!selectedWafDevice) return filteredWafDevices[0] || null
+    return filteredWafDevices.find((device) => device.device_name === selectedWafDevice) || null
+  }, [filteredWafDevices, selectedWafDevice])
   const selectedWafDevicePolicies = useMemo(() => {
     if (!selectedWafDeviceData) return []
     if (selectedWafDeviceData.error) {
@@ -155,6 +175,22 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
     return Array.isArray(selectedWafDeviceData.server_policies) ? selectedWafDeviceData.server_policies : []
   }, [selectedWafDeviceData])
+  const visibleWafPolicies = useMemo(() => {
+    const searchTerm = wafPolicySearch.trim().toLowerCase()
+    if (!searchTerm) return selectedWafDevicePolicies
+
+    return selectedWafDevicePolicies.filter((policy) => {
+      if (typeof policy === 'string') return policy.toLowerCase().includes(searchTerm)
+      const hostnameValues = [
+        policy.server_policy_name,
+        policy.ip,
+        policy.allow_hosts,
+        ...(policy.allow_hosts_entries || []).map((entry) => entry.host),
+        ...(policy.sni_entries || []).map((entry) => entry.domain)
+      ]
+      return hostnameValues.filter(Boolean).some((value) => String(value).toLowerCase().includes(searchTerm))
+    })
+  }, [selectedWafDevicePolicies, wafPolicySearch])
   const filteredDevices = useMemo(() => {
     const search = deviceSearch.trim().toLowerCase()
     return devices.filter((device) => {
@@ -193,6 +229,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
       const data = await res.json()
       setWafResponse(data.payload)
+      setLastWafUpdatedAt(new Date().toLocaleString())
     } catch (err) {
       setWafError(err.message)
     } finally {
@@ -211,6 +248,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
       const data = await response.json()
       setWafResponse(data.payload)
+      setLastWafUpdatedAt(new Date().toLocaleString())
     } catch (err) {
       setWafError(err.message)
     } finally {
@@ -223,19 +261,23 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }, [activeNav])
 
   useEffect(() => {
-    if (!wafDevices.length) {
+    if (!filteredWafDevices.length) {
       setSelectedWafDevice('')
       setExpandedPolicyCard('')
       return
     }
-    if (!selectedWafDevice || !wafDevices.some((device) => device.device_name === selectedWafDevice)) {
-      setSelectedWafDevice(wafDevices[0].device_name || '')
+    if (!selectedWafDevice || !filteredWafDevices.some((device) => device.device_name === selectedWafDevice)) {
+      setSelectedWafDevice(filteredWafDevices[0].device_name || '')
     }
-  }, [wafDevices, selectedWafDevice])
+  }, [filteredWafDevices, selectedWafDevice])
 
   useEffect(() => {
     setExpandedPolicyCard('')
   }, [selectedWafDevice])
+
+  useEffect(() => {
+    if (!locationOptions.includes(selectedLocation)) setSelectedLocation('All')
+  }, [locationOptions, selectedLocation])
 
   const loadDevices = async () => {
     setLoadingDevices(true)
@@ -253,7 +295,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'device-config') loadDevices()
+    if (activeNav === 'device-config' || activeNav === 'waf') loadDevices()
   }, [activeNav])
 
   const submitSearch = (event) => {
@@ -456,33 +498,58 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
             {activeNav === 'waf' && (
               <section className="waf-panel modern-waf">
-                <div className="waf-header-row">
+                <div className="waf-hero-card">
                   <div>
+                    <div className="kicker">Workspace</div>
+                    <h2 className="waf-title">WAF Configuration</h2>
+                    <p className="waf-updated">Last updated: {lastWafUpdatedAt || 'Not synced yet'}</p>
+                  </div>
+                  <div className="waf-location-card">
+                    <label htmlFor="waf-location-select">Location</label>
+                    <select id="waf-location-select" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}>
+                      {locationOptions.map((location) => (
+                        <option key={location} value={location}>{location}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="waf-search-shell">
+                  <div className="waf-policy-search">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                      type="text"
+                      value={wafPolicySearch}
+                      onChange={(e) => setWafPolicySearch(e.target.value)}
+                      placeholder="Search by hostname, IP, or server policy"
+                    />
+                  </div>
+                  <div className="waf-header-row">
                     <div className="waf-device-picker">
                       <label htmlFor="waf-device-select">Device</label>
                       <select id="waf-device-select" value={selectedWafDevice} onChange={(e) => setSelectedWafDevice(e.target.value)}>
-                        {wafDevices.map((device) => (
+                        {filteredWafDevices.map((device) => (
                           <option key={device.device_id} value={device.device_name}>
                             {device.device_name}
                           </option>
                         ))}
                       </select>
                     </div>
-                  </div>
-                  <div className="waf-buttons">
-                    <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
-                    <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
+                    <div className="waf-buttons">
+                      <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
+                      <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
+                    </div>
                   </div>
                 </div>
                 {loadingWaf && <p className="nav-desc">Loading...</p>}
                 {wafError && <p className="error-box">{wafError}</p>}
                 {!loadingWaf && !wafError && (
                   <>
-                    {selectedWafDevicePolicies.length === 0 ? (
-                      <p className="nav-desc">No devices or server policies found.</p>
+                    {visibleWafPolicies.length === 0 ? (
+                      <p className="nav-desc">No server policies found for this location and search criteria.</p>
                     ) : (
                       <div className="waf-card-grid">
-                        {selectedWafDevicePolicies.map((policy, index) => {
+                        {visibleWafPolicies.map((policy, index) => {
                           const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
                           const policyIp = typeof policy === 'string' ? '' : policy.ip
                           const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
