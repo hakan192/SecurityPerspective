@@ -121,28 +121,59 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [selectedLocation, setSelectedLocation] = useState('All')
   const [wafPolicySearch, setWafPolicySearch] = useState('')
   const [lastWafUpdatedAt, setLastWafUpdatedAt] = useState('')
-  const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
-  const [devices, setDevices] = useState([])
-  const [deviceSearch, setDeviceSearch] = useState('')
-  const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
-  const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false)
-  const [viewedDevice, setViewedDevice] = useState(null)
-  const [deviceError, setDeviceError] = useState('')
-  const [loadingDevices, setLoadingDevices] = useState(false)
-  const [newDevice, setNewDevice] = useState({
-    name: 'FortiWeb-Prod-02',
-    ip: '10.10.1.25',
-    environment: 'Production',
-    region: 'Istanbul',
-    model: 'FortiWeb VM',
-    firmware: '7.4.2',
-    apikey: ''
-  })
-  const menuRef = useRef(null)
+  const deviceLocationMap = useMemo(() => {
+    return devices.reduce((acc, device) => {
+      if (device?.name) acc[device.name.toLowerCase()] = device.region || 'Unknown'
+      return acc
+    }, {})
+  }, [devices])
+  const locationOptions = useMemo(() => {
+    const regions = Array.from(new Set(devices.map((device) => device.region).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+    return ['All', ...regions]
+  }, [devices])
+  const filteredWafDevices = useMemo(() => {
+    if (selectedLocation === 'All') return wafDevices
+    return wafDevices.filter((device) => {
+      const region = deviceLocationMap[device.device_name?.toLowerCase()]
+      return region === selectedLocation
+    })
+  }, [deviceLocationMap, selectedLocation, wafDevices])
+  const locationPolicies = useMemo(() => {
+    return filteredWafDevices.flatMap((device) => {
+      if (device.error) {
+        return [{ server_policy_name: `Error: ${device.error}`, __deviceName: device.device_name }]
+      }
+      if (!Array.isArray(device.server_policies)) return []
+      return device.server_policies.map((policy) => {
+        if (typeof policy === 'string') return { server_policy_name: policy, __deviceName: device.device_name }
+        return { ...policy, __deviceName: device.device_name }
+      })
+    })
+  }, [filteredWafDevices])
+  const visibleWafPolicies = useMemo(() => {
+    const searchTerm = wafPolicySearch.trim().toLowerCase()
+    if (!searchTerm) return locationPolicies
 
-  const username = useMemo(() => session?.username || 'admin', [session])
-  const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
-  const wafDevices = useMemo(() => {
+    return locationPolicies.filter((policy) => {
+      const hostnameValues = [
+        policy.server_policy_name,
+        policy.ip,
+        policy.allow_hosts,
+        policy.__deviceName,
+        ...(policy.allow_hosts_entries || []).map((entry) => entry.host),
+        ...(policy.sni_entries || []).map((entry) => entry.domain)
+      ]
+      return hostnameValues.filter(Boolean).some((value) => String(value).toLowerCase().includes(searchTerm))
+    })
+  }, [locationPolicies, wafPolicySearch])
+      setLastWafUpdatedAt(new Date().toLocaleString())
+      setLastWafUpdatedAt(new Date().toLocaleString())
+    setExpandedPolicyCard('')
+  }, [selectedLocation, wafPolicySearch])
+
+    if (!locationOptions.includes(selectedLocation)) setSelectedLocation('All')
+  }, [locationOptions, selectedLocation])
+    if (activeNav === 'device-config' || activeNav === 'waf') loadDevices()
     const devices = wafResponse?.devices
     return Array.isArray(devices) ? devices : []
   }, [wafResponse])
@@ -391,46 +422,87 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               <div>
                 <div className="kicker">Security Platform</div>
                 <div className="brand-title sidebar-title">
-                  <span>Security</span> <span className="gradient-text">Perspective</span>
-                </div>
-              </div>
-            </button>
-            <nav className="nav-list">
-              {navItems.map((item) => {
-                const active = activeNav === item.id
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveNav(item.id)
-                    }}
-                    className={`nav-item ${active ? 'active' : ''}`}
-                  >
-                    <div>
-                      <div className="nav-title">{item.label}</div>
-                      <div className="nav-desc">{item.description}</div>
+              {activeNav === 'waf' && <p className="waf-updated topbar-waf-updated">Last updated: {lastWafUpdatedAt || 'Not synced yet'}</p>}
+                <div className="waf-search-shell">
+                  <div className="waf-search-row">
+                    <div className="waf-policy-search">
+                      <span aria-hidden="true">⌕</span>
+                      <input
+                        type="text"
+                        value={wafPolicySearch}
+                        onChange={(e) => setWafPolicySearch(e.target.value)}
+                        placeholder="Search by hostname, IP, or server policy"
+                      />
                     </div>
-                    <span className="status-dot" />
-                  </button>
-                )
-              })}
-            </nav>
-          </div>
-
-          <div className={`settings-box ${settingsExpanded ? 'expanded' : ''}`}>
-            <button type="button" className={`settings-btn ${settingsGearSpinning ? 'spinning' : ''}`} onClick={openPlatformSettings}>
-              <span className="settings-gear" aria-hidden="true">⚙</span> Platform Settings
-            </button>
-            {settingsExpanded && (
-              <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => setActiveNav('device-config')}>
-                Device Config
-              </button>
-            )}
-          </div>
-        </aside>
-
-        <main className="main-panel">
+                    <div className="waf-location-card">
+                      <label htmlFor="waf-location-select">Location</label>
+                      <select id="waf-location-select" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}>
+                        {locationOptions.map((location) => (
+                          <option key={location} value={location}>{location}</option>
+                  <div className="waf-header-row waf-actions-only">
+                    <div className="waf-buttons">
+                      <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
+                      <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
+                    </div>
+                    {visibleWafPolicies.length === 0 ? (
+                      <p className="nav-desc">No server policies found for this location and search criteria.</p>
+                        {visibleWafPolicies.map((policy, index) => {
+                          const policyName = policy.server_policy_name
+                          const policyDeviceName = policy.__deviceName || '-'
+                          const policyIp = policy.ip
+                          const tls13CustomCipher = policy.tls13_custom_cipher
+                          const tlsV10 = policy.tls_v10 ?? null
+                          const tlsV11 = policy.tls_v11 ?? null
+                          const tlsV12 = policy.tls_v12 ?? null
+                          const tlsV13 = policy.tls_v13 ?? null
+                          const http2 = policy.http2 ?? null
+                          const trafficMirror = policy['traffic-mirror'] ?? policy.traffic_mirror ?? ''
+                          const monitorMode = policy['monitor-mode'] ?? policy.monitor_mode ?? ''
+                          const sni = policy.sni
+                          const sniCertificate = policy['sni-certificate'] ?? policy.sni_certificate ?? ''
+                          const sniEntries = policy.sni_entries || []
+                          const clientCertificate = policy['client-certificate'] ?? policy.client_certificate ?? ''
+                          const clientCertificateDetails = policy.client_certificate_details || {}
+                          const allowHosts = policy.allow_hosts
+                          const webProtectionProfileName = policy.web_protection_profile_name
+                          const allowHostsEntries = policy.allow_hosts_entries || []
+                          const webProtectionDetails = policy.web_protection_profile_details || {}
+                          const normalizedMonitorMode = String(monitorMode).toLowerCase()
+                          const ipConfigured = Boolean(String(policyIp || '').trim())
+                          const monitorEnabled = ['enable', 'enabled', 'true', 'on', '1'].includes(normalizedMonitorMode)
+                          const statusLabel = !ipConfigured ? 'Not Protected' : monitorEnabled ? 'Monitoring' : 'Blocking'
+                          const statusClass = statusLabel.toLowerCase().replace(/\s+/g, '-')
+                            key={`${policyDeviceName}-${policyName}-${index}`}
+                            <div className="policy-card-top">
+                              <div>
+                                <p className="policy-label">Server Policy</p>
+                                <p className="policy-name">{policyName}</p>
+                              </div>
+                              <div className="policy-status-wrap">
+                                <span className={`policy-status ${statusClass}`}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M20 6c0 7-5 10-8 12-3-2-8-5-8-12l8-3 8 3Z" />
+                                    <path d="m9 12 2 2 4-4" />
+                                  </svg>
+                                  {statusLabel}
+                                </span>
+                                <span className="policy-expand-icon" aria-hidden="true">⌄</span>
+                              </div>
+                            </div>
+                            <div className="policy-device-chip">
+                              <span className="policy-device-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+                                  <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+                                  <line x1="6" x2="6.01" y1="6" y2="6" />
+                                  <line x1="6" x2="6.01" y1="18" y2="18" />
+                                </svg>
+                              </span>
+                              <span>Device</span>
+                              <strong>{policyDeviceName}</strong>
+                            </div>
+                                  <li key={`${policyDeviceName}-${policyName}-${index}-sni-${entryIndex}`}>
+                                  <li key={`${policyDeviceName}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
           <header className="topbar">
             <div>
               <button type="button" onClick={() => setSidebarOpen((prev) => !prev)} className="sidebar-icon-btn" aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}>
