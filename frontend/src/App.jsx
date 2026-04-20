@@ -488,27 +488,25 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
             {activeNav === 'waf' && (
               <section className="waf-panel modern-waf">
-                <div className="waf-hero-card">
-                  <div className="waf-hero-spacer" />
-                  <div className="waf-location-card">
-                    <label htmlFor="waf-location-select">Location</label>
-                    <select id="waf-location-select" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}>
-                      {locationOptions.map((location) => (
-                        <option key={location} value={location}>{location}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
                 <div className="waf-search-shell">
-                  <div className="waf-policy-search">
-                    <span aria-hidden="true">⌕</span>
-                    <input
-                      type="text"
-                      value={wafPolicySearch}
-                      onChange={(e) => setWafPolicySearch(e.target.value)}
-                      placeholder="Search by hostname, IP, or server policy"
-                    />
+                  <div className="waf-search-row">
+                    <div className="waf-policy-search">
+                      <span aria-hidden="true">⌕</span>
+                      <input
+                        type="text"
+                        value={wafPolicySearch}
+                        onChange={(e) => setWafPolicySearch(e.target.value)}
+                        placeholder="Search by hostname, IP, or server policy"
+                      />
+                    </div>
+                    <div className="waf-location-card">
+                      <label htmlFor="waf-location-select">Location</label>
+                      <select id="waf-location-select" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}>
+                        {locationOptions.map((location) => (
+                          <option key={location} value={location}>{location}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="waf-header-row waf-actions-only">
                     <div className="waf-buttons">
