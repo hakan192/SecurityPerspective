@@ -402,44 +402,8 @@ input,
   padding: 0;
 }
 
-.waf-endpoint {
-  font-size: 0.82rem;
-  color: #475569;
-}
-
-.dark .waf-endpoint {
-  color: #cbd5e1;
-}
-
-.waf-device-picker {
-  margin-top: 0.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  width: min(100%, 320px);
-}
-
-.waf-device-picker label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #64748b;
-}
-
-.waf-device-picker select {
-  border: 1px solid rgba(100, 116, 139, 0.5);
-  border-radius: 0.8rem;
-  padding: 0.65rem 0.75rem;
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.dark .waf-device-picker label {
-  color: #cbd5e1;
-}
-
-.dark .waf-device-picker select {
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.78);
+.waf-actions-only {
+  justify-content: flex-end;
 }
 
 .waf-card-grid {
@@ -497,6 +461,87 @@ input,
   margin: 0.3rem 0 0;
   font-size: 1rem;
   font-weight: 700;
+}
+
+.policy-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.policy-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.policy-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.36rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.policy-status.blocking {
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.16);
+}
+
+.policy-status.monitoring {
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.policy-status.not-protected {
+  color: #b91c1c;
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.13);
+}
+
+.policy-expand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.dark .policy-expand-icon {
+  background: rgba(15, 23, 42, 0.8);
+  color: #cbd5e1;
+}
+
+.policy-device-chip {
+  margin-top: 0.75rem;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(241, 245, 249, 0.85);
+  color: #475569;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.dark .policy-device-chip {
+  background: rgba(30, 41, 59, 0.74);
+  color: #dbeafe;
+}
+
+.policy-device-icon {
+  color: #64748b;
 }
 
 .policy-meta {

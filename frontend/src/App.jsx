@@ -118,7 +118,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [wafResponse, setWafResponse] = useState(null)
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
-  const [selectedWafDevice, setSelectedWafDevice] = useState('')
   const [selectedLocation, setSelectedLocation] = useState('All')
   const [wafPolicySearch, setWafPolicySearch] = useState('')
   const [lastWafUpdatedAt, setLastWafUpdatedAt] = useState('')
@@ -164,33 +163,34 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       return region === selectedLocation
     })
   }, [deviceLocationMap, selectedLocation, wafDevices])
-  const selectedWafDeviceData = useMemo(() => {
-    if (!selectedWafDevice) return filteredWafDevices[0] || null
-    return filteredWafDevices.find((device) => device.device_name === selectedWafDevice) || null
-  }, [filteredWafDevices, selectedWafDevice])
-  const selectedWafDevicePolicies = useMemo(() => {
-    if (!selectedWafDeviceData) return []
-    if (selectedWafDeviceData.error) {
-      return [{ server_policy_name: `Error: ${selectedWafDeviceData.error}` }]
-    }
-    return Array.isArray(selectedWafDeviceData.server_policies) ? selectedWafDeviceData.server_policies : []
-  }, [selectedWafDeviceData])
+  const locationPolicies = useMemo(() => {
+    return filteredWafDevices.flatMap((device) => {
+      if (device.error) {
+        return [{ server_policy_name: `Error: ${device.error}`, __deviceName: device.device_name }]
+      }
+      if (!Array.isArray(device.server_policies)) return []
+      return device.server_policies.map((policy) => {
+        if (typeof policy === 'string') return { server_policy_name: policy, __deviceName: device.device_name }
+        return { ...policy, __deviceName: device.device_name }
+      })
+    })
+  }, [filteredWafDevices])
   const visibleWafPolicies = useMemo(() => {
     const searchTerm = wafPolicySearch.trim().toLowerCase()
-    if (!searchTerm) return selectedWafDevicePolicies
+    if (!searchTerm) return locationPolicies
 
-    return selectedWafDevicePolicies.filter((policy) => {
-      if (typeof policy === 'string') return policy.toLowerCase().includes(searchTerm)
+    return locationPolicies.filter((policy) => {
       const hostnameValues = [
         policy.server_policy_name,
         policy.ip,
         policy.allow_hosts,
+        policy.__deviceName,
         ...(policy.allow_hosts_entries || []).map((entry) => entry.host),
         ...(policy.sni_entries || []).map((entry) => entry.domain)
       ]
       return hostnameValues.filter(Boolean).some((value) => String(value).toLowerCase().includes(searchTerm))
     })
-  }, [selectedWafDevicePolicies, wafPolicySearch])
+  }, [locationPolicies, wafPolicySearch])
   const filteredDevices = useMemo(() => {
     const search = deviceSearch.trim().toLowerCase()
     return devices.filter((device) => {
@@ -261,19 +261,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }, [activeNav])
 
   useEffect(() => {
-    if (!filteredWafDevices.length) {
-      setSelectedWafDevice('')
-      setExpandedPolicyCard('')
-      return
-    }
-    if (!selectedWafDevice || !filteredWafDevices.some((device) => device.device_name === selectedWafDevice)) {
-      setSelectedWafDevice(filteredWafDevices[0].device_name || '')
-    }
-  }, [filteredWafDevices, selectedWafDevice])
-
-  useEffect(() => {
     setExpandedPolicyCard('')
-  }, [selectedWafDevice])
+  }, [selectedLocation, wafPolicySearch])
 
   useEffect(() => {
     if (!locationOptions.includes(selectedLocation)) setSelectedLocation('All')
@@ -524,17 +513,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       placeholder="Search by hostname, IP, or server policy"
                     />
                   </div>
-                  <div className="waf-header-row">
-                    <div className="waf-device-picker">
-                      <label htmlFor="waf-device-select">Device</label>
-                      <select id="waf-device-select" value={selectedWafDevice} onChange={(e) => setSelectedWafDevice(e.target.value)}>
-                        {filteredWafDevices.map((device) => (
-                          <option key={device.device_id} value={device.device_name}>
-                            {device.device_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="waf-header-row waf-actions-only">
                     <div className="waf-buttons">
                       <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
                       <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
@@ -550,25 +529,26 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     ) : (
                       <div className="waf-card-grid">
                         {visibleWafPolicies.map((policy, index) => {
-                          const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
-                          const policyIp = typeof policy === 'string' ? '' : policy.ip
-                          const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
-                          const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
-                          const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
-                          const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
-                          const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
-                          const http2 = typeof policy === 'string' ? null : policy.http2
-                          const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
-                          const monitorMode = typeof policy === 'string' ? '' : (policy['monitor-mode'] ?? policy.monitor_mode ?? '')
-                          const sni = typeof policy === 'string' ? '' : policy.sni
-                          const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
-                          const sniEntries = typeof policy === 'string' ? [] : (policy.sni_entries || [])
-                          const clientCertificate = typeof policy === 'string' ? '' : (policy['client-certificate'] ?? policy.client_certificate ?? '')
-                          const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
-                          const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
-                          const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
-                          const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
-                          const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
+                          const policyName = policy.server_policy_name
+                          const policyDeviceName = policy.__deviceName || '-'
+                          const policyIp = policy.ip
+                          const tls13CustomCipher = policy.tls13_custom_cipher
+                          const tlsV10 = policy.tls_v10 ?? null
+                          const tlsV11 = policy.tls_v11 ?? null
+                          const tlsV12 = policy.tls_v12 ?? null
+                          const tlsV13 = policy.tls_v13 ?? null
+                          const http2 = policy.http2 ?? null
+                          const trafficMirror = policy['traffic-mirror'] ?? policy.traffic_mirror ?? ''
+                          const monitorMode = policy['monitor-mode'] ?? policy.monitor_mode ?? ''
+                          const sni = policy.sni
+                          const sniCertificate = policy['sni-certificate'] ?? policy.sni_certificate ?? ''
+                          const sniEntries = policy.sni_entries || []
+                          const clientCertificate = policy['client-certificate'] ?? policy.client_certificate ?? ''
+                          const clientCertificateDetails = policy.client_certificate_details || {}
+                          const allowHosts = policy.allow_hosts
+                          const webProtectionProfileName = policy.web_protection_profile_name
+                          const allowHostsEntries = policy.allow_hosts_entries || []
+                          const webProtectionDetails = policy.web_protection_profile_details || {}
                           const signatureRuleName = webProtectionDetails.signature_rule || ''
                           const httpProtocolParameterRestrictionName = webProtectionDetails.http_protocol_parameter_restriction || ''
                           const cookieSecurityPolicyName = webProtectionDetails.cookie_security_policy || ''
@@ -588,14 +568,32 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const biometricBasedDetectionPolicyName = botMitigatePolicyDetail.biometrics_based_detection || ''
                           const thresholdBasedDetectionPolicyName = botMitigatePolicyDetail.threshold_based_detection || ''
                           const knownBotsPolicyName = botMitigatePolicyDetail.known_bots || ''
+                          const normalizedMonitorMode = String(monitorMode).toLowerCase()
+                          const ipConfigured = Boolean(String(policyIp || '').trim())
+                          const monitorEnabled = ['enable', 'enabled', 'true', 'on', '1'].includes(normalizedMonitorMode)
+                          const statusLabel = !ipConfigured ? 'Not Protected' : monitorEnabled ? 'Monitoring' : 'Blocking'
+                          const statusClass = statusLabel.toLowerCase().replace(/\s+/g, '-')
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
-                            key={`${selectedWafDevice}-${policyName}-${index}`}
+                            key={`${policyDeviceName}-${policyName}-${index}`}
                             onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
                           >
-                            <p className="policy-label">Server Policy Name</p>
-                            <p className="policy-name">{policyName}</p>
+                            <div className="policy-card-top">
+                              <div>
+                                <p className="policy-label">Server Policy</p>
+                                <p className="policy-name">{policyName}</p>
+                              </div>
+                              <div className="policy-status-wrap">
+                                <span className={`policy-status ${statusClass}`}>{statusLabel}</span>
+                                <span className="policy-expand-icon" aria-hidden="true">⌄</span>
+                              </div>
+                            </div>
+                            <div className="policy-device-chip">
+                              <span className="policy-device-icon" aria-hidden="true">▭</span>
+                              <span>Device</span>
+                              <strong>{policyDeviceName}</strong>
+                            </div>
                             <p className="policy-meta">IP: {policyIp || '-'}</p>
                             <p className="policy-meta">TLS13 Custom Cipher: {tls13CustomCipher || '-'}</p>
                             <p className="policy-meta">TLS v1.0: {tlsV10 === null ? '-' : String(tlsV10)}</p>
@@ -611,7 +609,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             {sniEntries.length > 0 && (
                               <ul className="policy-host-list policy-meta">
                                 {sniEntries.map((entry, entryIndex) => (
-                                  <li key={`${selectedWafDevice}-${policyName}-${index}-sni-${entryIndex}`}>
+                                  <li key={`${policyDeviceName}-${policyName}-${index}-sni-${entryIndex}`}>
                                     {(entry.domain || '-') + ' | local-cert: ' + (entry.local_cert || '-')}
                                   </li>
                                 ))}
@@ -659,7 +657,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             {allowHostsEntries.length > 0 && (
                               <ul className="policy-host-list policy-meta">
                                 {allowHostsEntries.map((entry, hostIndex) => (
-                                  <li key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
+                                  <li key={`${policyDeviceName}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
                                 ))}
                               </ul>
                             )}
