@@ -1,4 +1,4 @@
-from app.services import _extract_certificate_local_rows, _extract_policy_rows, _extract_server_pool_row
+from app.services import _extract_certificate_local_rows, _extract_certificate_sni_rows, _extract_policy_rows, _extract_server_pool_row
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
@@ -64,3 +64,25 @@ def test_extract_certificate_local_rows_parses_all_certificates():
     assert rows[0]["serial_number"] == "1234"
     assert rows[1]["certificate_name"] == "cert-b"
     assert rows[1]["serial_number"] == "5678"
+
+
+def test_extract_certificate_sni_rows_parses_requested_fields():
+    payload = {
+        "results": [
+            {
+                "name": "sni-cert-a",
+                "domain": "app.example.com",
+                "local-cert": "local-cert-a",
+                "inter-group": "inter-group-a",
+            }
+        ]
+    }
+
+    rows = _extract_certificate_sni_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["sni_name"] == "sni-cert-a"
+    assert rows[0]["name"] == "sni-cert-a"
+    assert rows[0]["domain"] == "app.example.com"
+    assert rows[0]["local_cert"] == "local-cert-a"
+    assert rows[0]["inter_group"] == "inter-group-a"

@@ -1724,6 +1724,87 @@ def _upsert_certificate_local_rows(db: Session, device_id: int, rows: list[dict]
         )
 
 
+def _extract_certificate_sni_rows(payload: dict) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if isinstance(results, dict):
+        results = [results]
+    if not isinstance(results, list):
+        return []
+
+    rows = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        name = _normalize_optional_text(item.get("name") or item.get("sni_name") or item.get("sni-name"))
+        if not name:
+            continue
+        rows.append(
+            {
+                "sni_name": name,
+                "name": name,
+                "domain": _normalize_optional_text(item.get("domain")),
+                "local_cert": _normalize_optional_text(item.get("local-cert") or item.get("local_cert")),
+                "inter_group": _normalize_optional_text(item.get("inter-group") or item.get("inter_group")),
+                "raw_json": item,
+            }
+        )
+    return rows
+
+
+def _upsert_certificate_sni_rows(db: Session, device_id: int, rows: list[dict]):
+    for row in rows:
+        if row["local_cert"]:
+            db.execute(
+                text(
+                    """
+                    INSERT INTO certificate_local (device_id, certificate_name)
+                    VALUES (:device_id, :certificate_name)
+                    ON CONFLICT (device_id, certificate_name) DO NOTHING
+                    """
+                ),
+                {"device_id": device_id, "certificate_name": row["local_cert"]},
+            )
+        db.execute(
+            text(
+                """
+                INSERT INTO certificate_sni (
+                    device_id,
+                    sni_name,
+                    name,
+                    domain,
+                    local_cert,
+                    inter_group,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :sni_name,
+                    :name,
+                    :domain,
+                    :local_cert,
+                    :inter_group,
+                    CAST(:raw_json AS jsonb)
+                )
+                ON CONFLICT (device_id, sni_name) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    domain = EXCLUDED.domain,
+                    local_cert = EXCLUDED.local_cert,
+                    inter_group = EXCLUDED.inter_group,
+                    raw_json = EXCLUDED.raw_json
+                """
+            ),
+            {
+                "device_id": device_id,
+                "sni_name": row["sni_name"],
+                "name": row["name"],
+                "domain": row["domain"],
+                "local_cert": row["local_cert"],
+                "inter_group": row["inter_group"],
+                "raw_json": json.dumps(row["raw_json"]),
+            },
+        )
+
+
 def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
     results = payload.get("results", []) if isinstance(payload, dict) else []
     result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
@@ -1770,12 +1851,13 @@ def _upsert_server_pool_row(db: Session, device_id: int, row: dict):
         db.execute(
             text(
                 """
-                INSERT INTO certificate_sni (device_id, sni_name)
-                VALUES (:device_id, :sni_name)
-                ON CONFLICT (device_id, sni_name) DO NOTHING
+                INSERT INTO certificate_sni (device_id, sni_name, name)
+                VALUES (:device_id, :sni_name, :name)
+                ON CONFLICT (device_id, sni_name) DO UPDATE SET
+                    name = EXCLUDED.name
                 """
             ),
-            {"device_id": device_id, "sni_name": row["sni_certificate_name"]},
+            {"device_id": device_id, "sni_name": row["sni_certificate_name"], "name": row["sni_certificate_name"]},
         )
 
     if row["intermediate_certificate_group_name"]:
@@ -1909,6 +1991,25 @@ def _fetch_and_upsert_certificate_local(
     payload = response.json()
     rows = _extract_certificate_local_rows(payload)
     _upsert_certificate_local_rows(db, device.id, rows)
+
+
+def _fetch_and_upsert_certificate_sni(
+    db: Session,
+    device: ManagedDevice,
+    headers: dict,
+):
+    endpoint = "/api/v2.0/system/certificate.sni"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_certificate_sni_rows(payload)
+    _upsert_certificate_sni_rows(db, device.id, rows)
 
 
 def _fetch_and_upsert_allow_hosts(
@@ -2394,6 +2495,10 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                 _fetch_and_upsert_certificate_local(db, device, headers)
             except Exception:
                 db.rollback()
+            try:
+                _fetch_and_upsert_certificate_sni(db, device, headers)
+            except Exception:
+                db.rollback()
 
             web_protection_profile_rows = []
             try:
@@ -2665,6 +2770,16 @@ def load_server_policies_from_db(db: Session) -> dict:
                 pool.sni AS server_pool_sni,
                 pool.client_certificate AS server_pool_client_certificate,
                 pool.sni_certificate_name AS server_pool_sni_certificate,
+                sni.name AS sni_cert_name,
+                sni.domain AS sni_cert_domain,
+                sni.local_cert AS sni_cert_local_cert,
+                sni.inter_group AS sni_cert_inter_group,
+                sni.raw_json AS sni_cert_raw_json,
+                sni_local.issuer AS sni_local_cert_issuer,
+                sni_local.serial_number AS sni_local_cert_serial_number,
+                sni_local.subject AS sni_local_cert_subject,
+                sni_local.valid_to AS sni_local_cert_valid_to,
+                sni_local.days_left AS sni_local_cert_days_left,
                 cert.issuer AS certificate_issuer,
                 cert.serial_number AS certificate_serial_number,
                 cert.subject AS certificate_subject,
@@ -2685,6 +2800,12 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN certificate_local cert
                 ON cert.device_id = pool.device_id
                 AND cert.certificate_name = pool.certificate_name
+            LEFT JOIN certificate_sni sni
+                ON sni.device_id = pool.device_id
+                AND sni.sni_name = pool.sni_certificate_name
+            LEFT JOIN certificate_local sni_local
+                ON sni_local.device_id = sni.device_id
+                AND sni_local.certificate_name = sni.local_cert
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
@@ -2805,6 +2926,20 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "client_certificate": row["server_pool_client_certificate"],
                     "sni_certificate": row["server_pool_sni_certificate"],
                     "sni-certificate": row["server_pool_sni_certificate"],
+                    "sni_certificate_name": row["sni_cert_name"],
+                    "sni_certificate_domain": row["sni_cert_domain"],
+                    "sni_certificate_local_cert": row["sni_cert_local_cert"],
+                    "sni_certificate_inter_group": row["sni_cert_inter_group"],
+                    "sni_certificate_raw_json": row["sni_cert_raw_json"],
+                    "local-cert": row["sni_cert_local_cert"],
+                    "inter-group": row["sni_cert_inter_group"],
+                    "domain": row["sni_cert_domain"],
+                    "name": row["sni_cert_name"],
+                    "sni_local_cert_issuer": row["sni_local_cert_issuer"],
+                    "sni_local_cert_serialNumber": row["sni_local_cert_serial_number"],
+                    "sni_local_cert_subject": row["sni_local_cert_subject"],
+                    "sni_local_cert_validTo": row["sni_local_cert_valid_to"],
+                    "sni_local_cert_days_left": row["sni_local_cert_days_left"],
                     "issuer": row["certificate_issuer"],
                     "serialNumber": row["certificate_serial_number"],
                     "subject": row["certificate_subject"],

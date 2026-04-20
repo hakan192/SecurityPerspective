@@ -488,6 +488,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const sni = typeof policy === 'string' ? '' : policy.sni
                           const clientCertificate = typeof policy === 'string' ? '' : policy.client_certificate
                           const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
+                          const sniCertificateName = typeof policy === 'string' ? '' : policy.sni_certificate_name
+                          const sniCertificateDomain = typeof policy === 'string' ? '' : (policy.domain ?? policy.sni_certificate_domain)
+                          const sniCertificateLocalCert = typeof policy === 'string' ? '' : (policy['local-cert'] ?? policy.sni_certificate_local_cert)
+                          const sniCertificateInterGroup = typeof policy === 'string' ? '' : (policy['inter-group'] ?? policy.sni_certificate_inter_group)
+                          const sniCertificateRawJson = typeof policy === 'string' ? null : policy.sni_certificate_raw_json
+                          const sniLocalCertIssuer = typeof policy === 'string' ? '' : policy.sni_local_cert_issuer
+                          const sniLocalCertSerialNumber = typeof policy === 'string' ? '' : policy.sni_local_cert_serialNumber
+                          const sniLocalCertSubject = typeof policy === 'string' ? '' : policy.sni_local_cert_subject
+                          const sniLocalCertValidTo = typeof policy === 'string' ? '' : policy.sni_local_cert_validTo
+                          const sniLocalCertDaysLeft = typeof policy === 'string' ? null : policy.sni_local_cert_days_left
                           const certificateName = typeof policy === 'string' ? '' : policy.certificate_name
                           const certificateIssuer = typeof policy === 'string' ? '' : policy.issuer
                           const certificateSerialNumber = typeof policy === 'string' ? '' : policy.serialNumber
@@ -538,6 +548,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">SNI: {sni || '-'}</p>
                             <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
                             <p className="policy-meta">SNI Certificate: {sniCertificate || '-'}</p>
+                            <p className="policy-meta">SNI Cert Name: {sniCertificateName || '-'}</p>
+                            <p className="policy-meta">SNI Cert Domain: {sniCertificateDomain || '-'}</p>
+                            <p className="policy-meta">SNI Cert Local-Cert: {sniCertificateLocalCert || '-'}</p>
+                            <p className="policy-meta">SNI Cert Inter-Group: {sniCertificateInterGroup || '-'}</p>
+                            <p className="policy-meta">SNI Cert Raw JSON: {sniCertificateRawJson ? JSON.stringify(sniCertificateRawJson) : '-'}</p>
+                            <p className="policy-meta">SNI Local Cert Issuer: {sniLocalCertIssuer || '-'}</p>
+                            <p className="policy-meta">SNI Local Cert Serial Number: {sniLocalCertSerialNumber || '-'}</p>
+                            <p className="policy-meta">SNI Local Cert Subject: {sniLocalCertSubject || '-'}</p>
+                            <p className="policy-meta">SNI Local Cert Valid To: {sniLocalCertValidTo ? String(sniLocalCertValidTo) : '-'}</p>
+                            <p className="policy-meta">SNI Local Cert Days Left: {sniLocalCertDaysLeft === null ? '-' : String(sniLocalCertDaysLeft)}</p>
                             <p className="policy-meta">Certificate Name: {certificateName || '-'}</p>
                             <p className="policy-meta">Issuer: {certificateIssuer || '-'}</p>
                             <p className="policy-meta">Serial Number: {certificateSerialNumber || '-'}</p>

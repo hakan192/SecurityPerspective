@@ -749,11 +749,25 @@ def startup_event():
                 CREATE TABLE IF NOT EXISTS certificate_sni (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     sni_name text NOT NULL,
+                    name text,
+                    domain text,
+                    local_cert text,
+                    inter_group text,
+                    raw_json jsonb,
+                    CONSTRAINT fk_certificate_sni_local_cert
+                        FOREIGN KEY (device_id, local_cert)
+                        REFERENCES certificate_local(device_id, certificate_name)
+                        ON DELETE SET NULL,
                     PRIMARY KEY (device_id, sni_name)
                 )
                 """
             )
         )
+        connection.execute(text("ALTER TABLE certificate_sni ADD COLUMN IF NOT EXISTS name text"))
+        connection.execute(text("ALTER TABLE certificate_sni ADD COLUMN IF NOT EXISTS domain text"))
+        connection.execute(text("ALTER TABLE certificate_sni ADD COLUMN IF NOT EXISTS local_cert text"))
+        connection.execute(text("ALTER TABLE certificate_sni ADD COLUMN IF NOT EXISTS inter_group text"))
+        connection.execute(text("ALTER TABLE certificate_sni ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(
             text(
                 """
