@@ -115,6 +115,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [searchResult, setSearchResult] = useState('')
+  const [wafSearch, setWafSearch] = useState('')
+  const [locationFilter, setLocationFilter] = useState('All')
   const [wafResponse, setWafResponse] = useState(null)
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
@@ -155,6 +157,39 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
     return Array.isArray(selectedWafDeviceData.server_policies) ? selectedWafDeviceData.server_policies : []
   }, [selectedWafDeviceData])
+  const normalizedPolicies = useMemo(
+    () =>
+      selectedWafDevicePolicies.map((policy, index) => {
+        const safePolicy = typeof policy === 'string' ? { server_policy_name: policy } : policy
+        return {
+          id: `${selectedWafDevice}-${safePolicy.server_policy_name || index}-${index}`,
+          name: safePolicy.server_policy_name || `Policy ${index + 1}`,
+          deviceName: selectedWafDeviceData?.device_name || '-',
+          location: selectedWafDeviceData?.region || 'All',
+          ip: safePolicy.ip || '',
+          monitorMode: safePolicy['monitor-mode'] ?? safePolicy.monitor_mode ?? '',
+          sni: safePolicy.sni || '',
+          tlsV13: safePolicy.tls_v13,
+          tlsV12: safePolicy.tls_v12,
+          tlsV11: safePolicy.tls_v11,
+          tlsV10: safePolicy.tls_v10,
+          http2: safePolicy.http2,
+          trafficMirror: safePolicy['traffic-mirror'] ?? safePolicy.traffic_mirror ?? '',
+          certificateName: safePolicy['client-certificate'] ?? safePolicy.client_certificate ?? '',
+          certificateDetails: safePolicy.client_certificate_details || {}
+        }
+      }),
+    [selectedWafDevicePolicies, selectedWafDevice, selectedWafDeviceData]
+  )
+  const filteredPolicies = useMemo(() => {
+    const term = wafSearch.trim().toLowerCase()
+    return normalizedPolicies.filter((policy) => {
+      const matchesLocation = locationFilter === 'All' || policy.location === locationFilter
+      if (!matchesLocation) return false
+      if (!term) return true
+      return [policy.name, policy.ip, policy.sni, policy.deviceName].join(' ').toLowerCase().includes(term)
+    })
+  }, [normalizedPolicies, wafSearch, locationFilter])
   const filteredDevices = useMemo(() => {
     const search = deviceSearch.trim().toLowerCase()
     return devices.filter((device) => {
@@ -347,6 +382,22 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
   }
 
+  const getPolicyStatus = (policy) => {
+    if (!policy.ip) return { label: 'IP not configured', tone: 'danger' }
+    const monitorValue = String(policy.monitorMode || '').toLowerCase()
+    if (monitorValue === 'true' || monitorValue === 'monitor' || monitorValue === 'monitoring') {
+      return { label: 'Monitoring', tone: 'warning' }
+    }
+    return { label: 'Blocking', tone: 'success' }
+  }
+
+  const formatEnabled = (value) => {
+    if (value === null || value === undefined || value === '') return 'Unknown'
+    if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled'
+    const normalized = String(value).toLowerCase()
+    return normalized === 'true' || normalized === 'enable' || normalized === 'enabled' ? 'Enabled' : 'Disabled'
+  }
+
   return (
     <div className={`dashboard-page ${darkMode ? 'dark' : 'light'}`}>
       <div className="ambient-layer" />
@@ -456,152 +507,110 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
             {activeNav === 'waf' && (
               <section className="waf-panel modern-waf">
-                <div className="waf-header-row">
+                <div className="waf-hero">
                   <div>
-                    <div className="waf-device-picker">
-                      <label htmlFor="waf-device-select">Device</label>
-                      <select id="waf-device-select" value={selectedWafDevice} onChange={(e) => setSelectedWafDevice(e.target.value)}>
-                        {wafDevices.map((device) => (
-                          <option key={device.device_id} value={device.device_name}>
-                            {device.device_name}
+                    <p className="kicker">Workspace</p>
+                    <h2 className="waf-hero-title">WAF Configuration</h2>
+                    <p className="waf-updated">Last updated: {new Date().toLocaleString()}</p>
+                  </div>
+                  <div className="waf-location-filter">
+                    <label htmlFor="location-filter">Location</label>
+                    <select id="location-filter" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
+                      <option value="All">All</option>
+                      {[...new Set(normalizedPolicies.map((p) => p.location).filter(Boolean))]
+                        .filter((location) => location !== 'All')
+                        .map((location) => (
+                          <option key={location} value={location}>
+                            {location}
                           </option>
                         ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="waf-buttons">
-                    <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
-                    <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
+                    </select>
                   </div>
                 </div>
+
+                <div className="waf-search-row">
+                  <input
+                    type="text"
+                    value={wafSearch}
+                    onChange={(e) => setWafSearch(e.target.value)}
+                    placeholder="Search by policy name, IP, or hostname"
+                  />
+                </div>
+
                 {loadingWaf && <p className="nav-desc">Loading...</p>}
                 {wafError && <p className="error-box">{wafError}</p>}
                 {!loadingWaf && !wafError && (
                   <>
-                    {selectedWafDevicePolicies.length === 0 ? (
+                    {filteredPolicies.length === 0 ? (
                       <p className="nav-desc">No devices or server policies found.</p>
                     ) : (
-                      <div className="waf-card-grid">
-                        {selectedWafDevicePolicies.map((policy, index) => {
-                          const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
-                          const policyIp = typeof policy === 'string' ? '' : policy.ip
-                          const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
-                          const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
-                          const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
-                          const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
-                          const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
-                          const http2 = typeof policy === 'string' ? null : policy.http2
-                          const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
-                          const monitorMode = typeof policy === 'string' ? '' : (policy['monitor-mode'] ?? policy.monitor_mode ?? '')
-                          const sni = typeof policy === 'string' ? '' : policy.sni
-                          const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
-                          const sniEntries = typeof policy === 'string' ? [] : (policy.sni_entries || [])
-                          const clientCertificate = typeof policy === 'string' ? '' : (policy['client-certificate'] ?? policy.client_certificate ?? '')
-                          const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
-                          const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
-                          const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
-                          const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
-                          const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
-                          const signatureRuleName = webProtectionDetails.signature_rule || ''
-                          const httpProtocolParameterRestrictionName = webProtectionDetails.http_protocol_parameter_restriction || ''
-                          const cookieSecurityPolicyName = webProtectionDetails.cookie_security_policy || ''
-                          const syntaxBasedAttackDetectionName = webProtectionDetails.syntax_based_attack_detection || ''
-                          const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
-                          const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
-                          const ipListPolicyName = webProtectionDetails.ip_list_policy || ''
-                          const geoIpPolicyName = webProtectionDetails.geo_block_list_policy || ''
-                          const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
-                          const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
-                          const applicationLayerDosPreventionPolicy = webProtectionDetails.application_layer_dos_prevention_policy || {}
-                          const applicationLayerDosPreventionName = applicationLayerDosPreventionPolicy.name || webProtectionDetails.application_layer_dos_prevention || ''
-                          const layer4AccessLimitRulePolicy = applicationLayerDosPreventionPolicy.layer4_access_limit_rule_policy || {}
-                          const tcpFloodPreventionPolicy = applicationLayerDosPreventionPolicy.tcp_flood_prevention_policy || {}
-                          const botMitigatePolicyDetail = applicationLayerDosPreventionPolicy.bot_mitigate_policy_detail || {}
-                          const botMitigatePolicyName = botMitigatePolicyDetail.name || webProtectionDetails.bot_mitigate_policy || ''
-                          const biometricBasedDetectionPolicyName = botMitigatePolicyDetail.biometrics_based_detection || ''
-                          const thresholdBasedDetectionPolicyName = botMitigatePolicyDetail.threshold_based_detection || ''
-                          const knownBotsPolicyName = botMitigatePolicyDetail.known_bots || ''
+                      <div className="waf-policy-list">
+                        {filteredPolicies.map((policy) => {
+                          const status = getPolicyStatus(policy)
+                          const isExpanded = expandedPolicyCard === policy.id
                           return (
-                          <article
-                            className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
-                            key={`${selectedWafDevice}-${policyName}-${index}`}
-                            onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
-                          >
-                            <p className="policy-label">Server Policy Name</p>
-                            <p className="policy-name">{policyName}</p>
-                            <p className="policy-meta">IP: {policyIp || '-'}</p>
-                            <p className="policy-meta">TLS13 Custom Cipher: {tls13CustomCipher || '-'}</p>
-                            <p className="policy-meta">TLS v1.0: {tlsV10 === null ? '-' : String(tlsV10)}</p>
-                            <p className="policy-meta">TLS v1.1: {tlsV11 === null ? '-' : String(tlsV11)}</p>
-                            <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
-                            <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
-                            <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
-                            <p className="policy-meta">Traffic Mirror: {trafficMirror || '-'}</p>
-                            <p className="policy-meta">Monitor Mode: {monitorMode || '-'}</p>
-                            <p className="policy-meta">SNI: {sni || '-'}</p>
-                            <p className="policy-meta">SNI Certificate: {sniCertificate || '-'}</p>
-                            <p className="policy-meta">SNI Entries: {sniEntries.length}</p>
-                            {sniEntries.length > 0 && (
-                              <ul className="policy-host-list policy-meta">
-                                {sniEntries.map((entry, entryIndex) => (
-                                  <li key={`${selectedWafDevice}-${policyName}-${index}-sni-${entryIndex}`}>
-                                    {(entry.domain || '-') + ' | local-cert: ' + (entry.local_cert || '-')}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
-                            <p className="policy-meta">Client Certificate Subject: {clientCertificateDetails.subject || '-'}</p>
-                            <p className="policy-meta">Client Certificate Issuer: {clientCertificateDetails.issuer || '-'}</p>
-                            <p className="policy-meta">Client Certificate Valid From: {clientCertificateDetails.valid_from || '-'}</p>
-                            <p className="policy-meta">Client Certificate Valid To: {clientCertificateDetails.valid_to || '-'}</p>
-                            <p className="policy-meta">Client Certificate Days Left: {clientCertificateDetails.days_left ?? '-'}</p>
-                            <p className="policy-meta">Client Certificate Serial Number: {clientCertificateDetails.serial_number || '-'}</p>
-                            <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
-                            <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
-                            <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
-                            <p className="policy-meta">IP List Policy: {ipListPolicyName || '-'}</p>
-                            <p className="policy-meta">Geo-IP Policy: {geoIpPolicyName || '-'}</p>
-                            <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
-                            <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
-                            <p className="policy-meta">Bot Mitigate Policy: {botMitigatePolicyName || '-'}</p>
-                            <p className="policy-meta">Known Bot Policy: {knownBotsPolicyName || '-'}</p>
-                            <p className="policy-meta">Biometric Based Detection Policy: {biometricBasedDetectionPolicyName || '-'}</p>
-                            <p className="policy-meta">Threshold Based Detection Policy: {thresholdBasedDetectionPolicyName || '-'}</p>
-                            <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
-                            <p className="policy-meta">HTTP Request Flood Prevention Rule: {applicationLayerDosPreventionPolicy.http_request_flood_prevention_rule || '-'}</p>
-                            <p className="policy-meta">Access Limit in HTTP Session: {applicationLayerDosPreventionPolicy.access_limit_in_http_session || '-'}</p>
-                            <p className="policy-meta">HTTP Request Flood Action: {applicationLayerDosPreventionPolicy.action || '-'}</p>
-                            <p className="policy-meta">Bot Confirmation: {applicationLayerDosPreventionPolicy.bot_confirmation || '-'}</p>
-                            <p className="policy-meta">Bot Recognition: {applicationLayerDosPreventionPolicy.bot_recognition || '-'}</p>
-                            <p className="policy-meta">Enable Layer4 DoS Prevention: {applicationLayerDosPreventionPolicy.enable_layer4_dos_prevention || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Rule: {applicationLayerDosPreventionPolicy.layer4_access_limit_rule || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Standalone IP: {layer4AccessLimitRulePolicy.access_limit_standalone_ip || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Share IP: {layer4AccessLimitRulePolicy.access_limit_share_ip || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Bot Confirmation: {layer4AccessLimitRulePolicy.bot_confirmation || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Bot Recognition: {layer4AccessLimitRulePolicy.bot_recognition || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Action: {layer4AccessLimitRulePolicy.action || '-'}</p>
-                            <p className="policy-meta">Layer4 Connection Flood Check Rule: {applicationLayerDosPreventionPolicy.layer4_connection_flood_check_rule || '-'}</p>
-                            <p className="policy-meta">TCP Flood Prevention Threshold: {tcpFloodPreventionPolicy.layer4_connection_threshold || '-'}</p>
-                            <p className="policy-meta">TCP Flood Prevention Action: {tcpFloodPreventionPolicy.action || '-'}</p>
-                            <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
-                            <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
-                            <p className="policy-meta">HTTP Protocol Parameter Restriction: {httpProtocolParameterRestrictionName || '-'}</p>
-                            <p className="policy-meta">Signature Rule: {signatureRuleName || '-'}</p>
-                            <p className="policy-meta">Allow Hosts: {allowHosts || '-'}</p>
-                            {allowHostsEntries.length > 0 && (
-                              <ul className="policy-host-list policy-meta">
-                                {allowHostsEntries.map((entry, hostIndex) => (
-                                  <li key={`${selectedWafDevice}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </article>
+                            <article className={`waf-policy-item ${isExpanded ? 'expanded' : ''}`} key={policy.id}>
+                              <div className="waf-policy-head">
+                                <div>
+                                  <p className="policy-label">Server Policy</p>
+                                  <p className="policy-name">{policy.name}</p>
+                                  <div className="waf-device-badge">Device&nbsp; {policy.deviceName}</div>
+                                </div>
+                                <div className="waf-policy-actions">
+                                  <span className={`waf-status-pill ${status.tone}`}>{status.label}</span>
+                                  <button
+                                    type="button"
+                                    className="waf-expand-btn"
+                                    onClick={() => setExpandedPolicyCard((prev) => (prev === policy.id ? '' : policy.id))}
+                                    aria-label={isExpanded ? 'Collapse policy details' : 'Expand policy details'}
+                                  >
+                                    {isExpanded ? '⌃' : '⌄'}
+                                  </button>
+                                </div>
+                              </div>
+                              {isExpanded && (
+                                <div className="waf-policy-details">
+                                  <div className="waf-summary-row">
+                                    <div>
+                                      <h3>Quick configuration summary</h3>
+                                      <p>Review endpoint, certificate, and network posture before opening the full page.</p>
+                                    </div>
+                                    <button type="button" className="waf-details-btn">Full Details ↗</button>
+                                  </div>
+                                  <div className="waf-summary-grid">
+                                    <div className="summary-box">
+                                      <p className="summary-title">Endpoint</p>
+                                      <div className="summary-line"><span>IP</span><strong>{policy.ip || 'Not configured'}</strong></div>
+                                      <div className="summary-line"><span>SNI</span><strong>{formatEnabled(policy.sni)}</strong></div>
+                                      <div className="summary-line"><span>Hostname</span><strong>{policy.sni || '-'}</strong></div>
+                                      <div className="summary-line"><span>Traffic Mirror</span><strong>{formatEnabled(policy.trafficMirror)}</strong></div>
+                                    </div>
+                                    <div className="summary-box">
+                                      <p className="summary-title">Certificate</p>
+                                      <div className="summary-line"><span>CN</span><strong>{policy.certificateDetails.subject || '-'}</strong></div>
+                                      <div className="summary-line"><span>Issuer</span><strong>{policy.certificateDetails.issuer || '-'}</strong></div>
+                                      <div className="summary-line"><span>Expire Date</span><strong>{policy.certificateDetails.valid_to || '-'}</strong></div>
+                                      <div className="summary-line"><span>Days Left</span><strong>{policy.certificateDetails.days_left ?? '-'}</strong></div>
+                                    </div>
+                                    <div className="summary-box">
+                                      <p className="summary-title">Network</p>
+                                      <div className="summary-line"><span>TLS v1.3</span><strong>{formatEnabled(policy.tlsV13)}</strong></div>
+                                      <div className="summary-line"><span>TLS v1.2</span><strong>{formatEnabled(policy.tlsV12)}</strong></div>
+                                      <div className="summary-line"><span>TLS v1.0-1.1</span><strong>{formatEnabled(policy.tlsV11 || policy.tlsV10)}</strong></div>
+                                      <div className="summary-line"><span>HTTP/2</span><strong>{formatEnabled(policy.http2)}</strong></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </article>
                           )
                         })}
                       </div>
                     )}
-                    {wafResponse && <pre className="waf-response">{JSON.stringify(wafResponse, null, 2)}</pre>}
+                    <div className="waf-actions-row">
+                      <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
+                      <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
+                    </div>
                   </>
                 )}
               </section>
