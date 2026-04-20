@@ -64,3 +64,19 @@ def test_extract_certificate_local_row_parses_certificate_attributes():
     assert row["valid_from"] == "2025-01-01"
     assert row["valid_to"] == "2027-01-01"
     assert row["serial_number"] == "ABCD1234"
+
+
+def test_extract_certificate_local_row_parses_camel_case_valid_to_and_serial_number():
+    payload = {
+        "results": [
+            {
+                "validTo": "2028-12-31",
+                "serialNumber": "XYZ7890",
+            }
+        ]
+    }
+
+    row = _extract_certificate_local_row(payload, "client-cert-02")
+
+    assert row["valid_to"] == "2028-12-31"
+    assert row["serial_number"] == "XYZ7890"

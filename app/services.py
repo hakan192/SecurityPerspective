@@ -1687,10 +1687,14 @@ def _extract_certificate_local_row(payload: dict, certificate_name: str) -> dict
             result.get("valid_from") or result.get("valid-from") or result.get("not_before") or result.get("not-before")
         ),
         "valid_to": _normalize_optional_text(
-            result.get("valid_to") or result.get("valid-to") or result.get("not_after") or result.get("not-after")
+            result.get("valid_to")
+            or result.get("valid-to")
+            or result.get("validTo")
+            or result.get("not_after")
+            or result.get("not-after")
         ),
         "serial_number": _normalize_optional_text(
-            result.get("serial_number") or result.get("serial-number") or result.get("serial")
+            result.get("serial_number") or result.get("serial-number") or result.get("serialNumber") or result.get("serial")
         ),
         "raw_json": result or {"certificate_name": certificate_name},
     }
