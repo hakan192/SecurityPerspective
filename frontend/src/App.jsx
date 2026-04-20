@@ -585,7 +585,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                 <p className="policy-name">{policyName}</p>
                               </div>
                               <div className="policy-status-wrap">
-                                <span className={`policy-status ${statusClass}`}>{statusLabel}</span>
+                                <span className={`policy-status ${statusClass}`}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M20 6c0 7-5 10-8 12-3-2-8-5-8-12l8-3 8 3Z" />
+                                    <path d="m9 12 2 2 4-4" />
+                                  </svg>
+                                  {statusLabel}
+                                </span>
                                 <span className="policy-expand-icon" aria-hidden="true">⌄</span>
                               </div>
                             </div>
