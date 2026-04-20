@@ -1,4 +1,4 @@
-from app.services import _extract_policy_rows
+from app.services import _extract_certificate_local_row, _extract_certificate_sni_member_rows, _extract_policy_rows, _extract_server_pool_row
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
@@ -23,3 +23,94 @@ def test_extract_policy_rows_parses_monitor_mode():
 
     assert len(rows) == 1
     assert rows[0]["monitor_mode"] == "enable"
+
+
+def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate():
+    payload = {
+        "results": [
+            {
+                "sni": "enable",
+                "sni-certificate": "sni-cert-01",
+                "client-certificate": "client-cert-01",
+            }
+        ]
+    }
+
+    row = _extract_server_pool_row(payload, "pool-a")
+
+    assert row["sni"] == "enable"
+    assert row["sni_certificate"] == "sni-cert-01"
+    assert row["client_certificate"] == "client-cert-01"
+
+
+def test_extract_certificate_local_row_parses_certificate_attributes():
+    payload = {
+        "results": [
+            {
+                "subject": "CN=client.example.com",
+                "issuer": "CN=Example-CA",
+                "not-before": "2025-01-01",
+                "not-after": "2027-04-19 20:41:03+00",
+                "serial-number": "ABCD1234",
+            }
+        ]
+    }
+
+    row = _extract_certificate_local_row(payload, "client-cert-01")
+
+    assert row["certificate_name"] == "client-cert-01"
+    assert row["subject"] == "CN=client.example.com"
+    assert row["issuer"] == "CN=Example-CA"
+    assert row["valid_from"] == "2025-01-01"
+    assert row["valid_to"] == "2027-04-19"
+    assert row["serial_number"] == "ABCD1234"
+
+
+def test_extract_certificate_local_row_parses_camel_case_valid_to_and_serial_number():
+    payload = {
+        "results": [
+            {
+                "validTo": "2028-12-31T23:59:59Z",
+                "serialNumber": "XYZ7890",
+            }
+        ]
+    }
+
+    row = _extract_certificate_local_row(payload, "client-cert-02")
+
+    assert row["valid_to"] == "2028-12-31"
+    assert row["serial_number"] == "XYZ7890"
+
+
+def test_extract_certificate_sni_member_rows_parses_each_result_entry():
+    payload = {
+        "results": [
+            {
+                "seq": 1,
+                "domain": "onlineform.example.com",
+                "domain-type": "plain",
+                "local-cert": "cert-a",
+                "inter-group": "ca-group-a",
+                "verify": "",
+            },
+            {
+                "seq": 2,
+                "domain": "webforms.example.com",
+                "domain-type": "plain",
+                "local-cert": "cert-b",
+                "inter-group": "ca-group-b",
+                "verify": "",
+            },
+        ]
+    }
+
+    rows = _extract_certificate_sni_member_rows(payload, "sni-cert-1")
+
+    assert len(rows) == 2
+    assert rows[0]["sni_name"] == "sni-cert-1"
+    assert rows[0]["seq"] == 1
+    assert rows[0]["domain"] == "onlineform.example.com"
+    assert rows[0]["local_cert"] == "cert-a"
+    assert rows[1]["seq"] == 2
+    assert rows[1]["domain"] == "webforms.example.com"
+    assert rows[1]["local_cert"] == "cert-b"

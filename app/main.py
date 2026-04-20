@@ -141,11 +141,39 @@ def startup_event():
                 CREATE TABLE IF NOT EXISTS certificate_local (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     certificate_name text NOT NULL,
+                    subject text,
+                    issuer text,
+                    valid_from text,
+                    valid_to date,
+                    days_left integer,
+                    serial_number text,
+                    raw_json jsonb,
                     PRIMARY KEY (device_id, certificate_name)
                 )
                 """
             )
         )
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS subject text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS issuer text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS valid_from text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS valid_to date"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS days_left integer"))
+        connection.execute(
+            text(
+                """
+                ALTER TABLE certificate_local
+                ALTER COLUMN valid_to TYPE date
+                USING (
+                    CASE
+                        WHEN valid_to IS NULL THEN NULL
+                        ELSE (valid_to::timestamptz)::date
+                    END
+                )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS serial_number text"))
+        connection.execute(text("ALTER TABLE certificate_local ADD COLUMN IF NOT EXISTS raw_json jsonb"))
         connection.execute(
             text(
                 """
@@ -745,6 +773,30 @@ def startup_event():
         connection.execute(
             text(
                 """
+                CREATE TABLE IF NOT EXISTS certificate_sni_members (
+                    id bigserial PRIMARY KEY,
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    sni_name text NOT NULL,
+                    seq integer,
+                    domain text,
+                    domain_type text,
+                    local_cert text,
+                    inter_group text,
+                    verify text,
+                    raw_json jsonb NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    CONSTRAINT fk_certificate_sni_member_parent
+                        FOREIGN KEY (device_id, sni_name)
+                        REFERENCES certificate_sni(device_id, sni_name)
+                        ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
                 CREATE TABLE IF NOT EXISTS intermediate_certificate_groups (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     intermediate_certificate_group_name text NOT NULL,
@@ -761,6 +813,9 @@ def startup_event():
                     device_id bigint NOT NULL,
                     server_pool_name text NOT NULL,
                     ip inet,
+                    sni text,
+                    sni_certificate text,
+                    client_certificate text,
                     certificate_name text,
                     sni_certificate_name text,
                     intermediate_certificate_group_name text,

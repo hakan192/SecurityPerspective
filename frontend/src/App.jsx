@@ -493,6 +493,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const http2 = typeof policy === 'string' ? null : policy.http2
                           const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
                           const monitorMode = typeof policy === 'string' ? '' : (policy['monitor-mode'] ?? policy.monitor_mode ?? '')
+                          const sni = typeof policy === 'string' ? '' : policy.sni
+                          const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
+                          const sniEntries = typeof policy === 'string' ? [] : (policy.sni_entries || [])
+                          const clientCertificate = typeof policy === 'string' ? '' : (policy['client-certificate'] ?? policy.client_certificate ?? '')
+                          const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
                           const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
                           const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
@@ -533,6 +538,25 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
                             <p className="policy-meta">Traffic Mirror: {trafficMirror || '-'}</p>
                             <p className="policy-meta">Monitor Mode: {monitorMode || '-'}</p>
+                            <p className="policy-meta">SNI: {sni || '-'}</p>
+                            <p className="policy-meta">SNI Certificate: {sniCertificate || '-'}</p>
+                            <p className="policy-meta">SNI Entries: {sniEntries.length}</p>
+                            {sniEntries.length > 0 && (
+                              <ul className="policy-host-list policy-meta">
+                                {sniEntries.map((entry, entryIndex) => (
+                                  <li key={`${selectedWafDevice}-${policyName}-${index}-sni-${entryIndex}`}>
+                                    {(entry.domain || '-') + ' | local-cert: ' + (entry.local_cert || '-')}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
+                            <p className="policy-meta">Client Certificate Subject: {clientCertificateDetails.subject || '-'}</p>
+                            <p className="policy-meta">Client Certificate Issuer: {clientCertificateDetails.issuer || '-'}</p>
+                            <p className="policy-meta">Client Certificate Valid From: {clientCertificateDetails.valid_from || '-'}</p>
+                            <p className="policy-meta">Client Certificate Valid To: {clientCertificateDetails.valid_to || '-'}</p>
+                            <p className="policy-meta">Client Certificate Days Left: {clientCertificateDetails.days_left ?? '-'}</p>
+                            <p className="policy-meta">Client Certificate Serial Number: {clientCertificateDetails.serial_number || '-'}</p>
                             <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
                             <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
                             <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
