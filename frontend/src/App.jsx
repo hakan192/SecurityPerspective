@@ -495,6 +495,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const monitorMode = typeof policy === 'string' ? '' : (policy['monitor-mode'] ?? policy.monitor_mode ?? '')
                           const sni = typeof policy === 'string' ? '' : policy.sni
                           const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
+                          const sniEntries = typeof policy === 'string' ? [] : (policy.sni_entries || [])
                           const clientCertificate = typeof policy === 'string' ? '' : (policy['client-certificate'] ?? policy.client_certificate ?? '')
                           const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
                           const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
@@ -539,6 +540,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <p className="policy-meta">Monitor Mode: {monitorMode || '-'}</p>
                             <p className="policy-meta">SNI: {sni || '-'}</p>
                             <p className="policy-meta">SNI Certificate: {sniCertificate || '-'}</p>
+                            <p className="policy-meta">SNI Entries: {sniEntries.length}</p>
+                            {sniEntries.length > 0 && (
+                              <ul className="policy-host-list policy-meta">
+                                {sniEntries.map((entry, entryIndex) => (
+                                  <li key={`${selectedWafDevice}-${policyName}-${index}-sni-${entryIndex}`}>
+                                    {(entry.domain || '-') + ' | local-cert: ' + (entry.local_cert || '-')}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                             <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
                             <p className="policy-meta">Client Certificate Subject: {clientCertificateDetails.subject || '-'}</p>
                             <p className="policy-meta">Client Certificate Issuer: {clientCertificateDetails.issuer || '-'}</p>

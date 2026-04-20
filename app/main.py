@@ -773,6 +773,30 @@ def startup_event():
         connection.execute(
             text(
                 """
+                CREATE TABLE IF NOT EXISTS certificate_sni_members (
+                    id bigserial PRIMARY KEY,
+                    device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
+                    sni_name text NOT NULL,
+                    seq integer,
+                    domain text,
+                    domain_type text,
+                    local_cert text,
+                    inter_group text,
+                    verify text,
+                    raw_json jsonb NOT NULL,
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now(),
+                    CONSTRAINT fk_certificate_sni_member_parent
+                        FOREIGN KEY (device_id, sni_name)
+                        REFERENCES certificate_sni(device_id, sni_name)
+                        ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
                 CREATE TABLE IF NOT EXISTS intermediate_certificate_groups (
                     device_id bigint NOT NULL REFERENCES managed_devices(id) ON DELETE CASCADE,
                     intermediate_certificate_group_name text NOT NULL,

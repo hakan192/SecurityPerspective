@@ -1762,6 +1762,82 @@ def _upsert_certificate_local_row(db: Session, device_id: int, row: dict):
     )
 
 
+def _extract_certificate_sni_member_rows(payload: dict, sni_name: str) -> list[dict]:
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if not isinstance(results, list):
+        return []
+    rows = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        rows.append(
+            {
+                "sni_name": sni_name,
+                "seq": result.get("seq"),
+                "domain": _normalize_optional_text(result.get("domain")),
+                "domain_type": _normalize_optional_text(result.get("domain-type") or result.get("domain_type")),
+                "local_cert": _normalize_optional_text(result.get("local-cert") or result.get("local_cert")),
+                "inter_group": _normalize_optional_text(result.get("inter-group") or result.get("inter_group")),
+                "verify": _normalize_optional_text(result.get("verify")),
+                "raw_json": result,
+            }
+        )
+    return rows
+
+
+def _upsert_certificate_sni_member_rows(db: Session, device_id: int, sni_name: str, rows: list[dict]):
+    db.execute(
+        text(
+            """
+            DELETE FROM certificate_sni_members
+            WHERE device_id = :device_id
+              AND sni_name = :sni_name
+            """
+        ),
+        {"device_id": device_id, "sni_name": sni_name},
+    )
+    for row in rows:
+        db.execute(
+            text(
+                """
+                INSERT INTO certificate_sni_members (
+                    device_id,
+                    sni_name,
+                    seq,
+                    domain,
+                    domain_type,
+                    local_cert,
+                    inter_group,
+                    verify,
+                    raw_json
+                )
+                VALUES (
+                    :device_id,
+                    :sni_name,
+                    :seq,
+                    :domain,
+                    :domain_type,
+                    :local_cert,
+                    :inter_group,
+                    :verify,
+                    CAST(:raw_json AS jsonb)
+                )
+                """
+            ),
+            {
+                "device_id": device_id,
+                "sni_name": row["sni_name"],
+                "seq": row["seq"],
+                "domain": row["domain"],
+                "domain_type": row["domain_type"],
+                "local_cert": row["local_cert"],
+                "inter_group": row["inter_group"],
+                "verify": row["verify"],
+                "raw_json": json.dumps(row["raw_json"]),
+            },
+        )
+
+
 def _upsert_server_pool_row(db: Session, device_id: int, row: dict):
     if row["certificate_name"]:
         db.execute(
@@ -1936,6 +2012,27 @@ def _fetch_and_upsert_certificate_local(
     payload = response.json()
     certificate_row = _extract_certificate_local_row(payload, certificate_name)
     _upsert_certificate_local_row(db, device.id, certificate_row)
+
+
+def _fetch_and_upsert_certificate_sni_members(
+    db: Session,
+    device: ManagedDevice,
+    sni_name: str,
+    headers: dict,
+):
+    encoded_name = quote(sni_name, safe="")
+    endpoint = f"/api/v2.0/cmdb/system/certificate.sni/members?mkey={encoded_name}"
+    url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        verify=settings.fortiweb_verify_ssl,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    rows = _extract_certificate_sni_member_rows(payload, sni_name)
+    _upsert_certificate_sni_member_rows(db, device.id, sni_name, rows)
 
 
 def _fetch_and_upsert_allow_hosts(
@@ -2619,6 +2716,17 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     _fetch_and_upsert_certificate_local(db, device, certificate_name, headers)
                 except Exception:
                     db.rollback()
+            certificate_sni_names = {
+                sni_name
+                for row in fetched_server_pool_rows
+                for sni_name in [row.get("sni_certificate")]
+                if sni_name
+            }
+            for sni_name in certificate_sni_names:
+                try:
+                    _fetch_and_upsert_certificate_sni_members(db, device, sni_name, headers)
+                except Exception:
+                    db.rollback()
             _upsert_server_policy_rows(db, device.id, rows)
             unique_allow_hosts = {row["allow_hosts"] for row in rows if row["allow_hosts"]}
             for allow_hosts_name in unique_allow_hosts:
@@ -2775,6 +2883,39 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
+    sni_member_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                sni_name,
+                seq,
+                domain,
+                domain_type,
+                local_cert,
+                inter_group,
+                verify,
+                raw_json
+            FROM certificate_sni_members
+            ORDER BY seq ASC
+            """
+        )
+    ).mappings().all()
+    sni_members_by_name = {}
+    for row in sni_member_rows:
+        key = (row["device_id"], row["sni_name"])
+        sni_members_by_name.setdefault(key, []).append(
+            {
+                "seq": row["seq"],
+                "domain": row["domain"],
+                "domain_type": row["domain_type"],
+                "local_cert": row["local_cert"],
+                "inter_group": row["inter_group"],
+                "verify": row["verify"],
+                "raw_json": row["raw_json"],
+            }
+        )
+
     ip_list_policy_rows = db.execute(
         text(
             """
@@ -2836,6 +2977,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "sni": row["sni"],
                     "sni-certificate": row["sni_certificate"],
                     "sni_certificate": row["sni_certificate"],
+                    "sni_entries": sni_members_by_name.get((device_id, row["sni_certificate"]), []),
                     "client-certificate": row["client_certificate"],
                     "client_certificate": row["client_certificate"],
                     "client_certificate_details": {
