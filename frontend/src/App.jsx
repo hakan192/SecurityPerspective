@@ -447,6 +447,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       ? 'Device Config'
                       : 'Executive Overview'}
               </h1>
+              {activeNav === 'waf' && <p className="waf-updated topbar-waf-updated">Last updated: {lastWafUpdatedAt || 'Not synced yet'}</p>}
             </div>
 
             <div className="topbar-right">
@@ -488,11 +489,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             {activeNav === 'waf' && (
               <section className="waf-panel modern-waf">
                 <div className="waf-hero-card">
-                  <div>
-                    <div className="kicker">Workspace</div>
-                    <h2 className="waf-title">WAF Configuration</h2>
-                    <p className="waf-updated">Last updated: {lastWafUpdatedAt || 'Not synced yet'}</p>
-                  </div>
+                  <div className="waf-hero-spacer" />
                   <div className="waf-location-card">
                     <label htmlFor="waf-location-select">Location</label>
                     <select id="waf-location-select" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}>
