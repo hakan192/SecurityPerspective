@@ -586,7 +586,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                 <div className="policy-summary-head">
                                   <h4>Quick configuration summary</h4>
                                   <button type="button" className="policy-full-details-btn">
-                                    Full Details ↗
+                                    <span>Full Details</span>
+                                    <span aria-hidden="true">↗</span>
                                   </button>
                                 </div>
                                 <div className="policy-summary-grid">

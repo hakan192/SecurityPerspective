@@ -592,19 +592,43 @@ input,
 
 .policy-full-details-btn {
   border-radius: 999px;
-  border: 1px solid rgba(14, 116, 144, 0.35);
-  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 116, 144, 0.22);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(16, 185, 129, 0.16));
   color: #0c4a6e;
   font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 0.42rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   cursor: pointer;
+  box-shadow: 0 8px 16px rgba(14, 116, 144, 0.16);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.policy-full-details-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(14, 116, 144, 0.42);
+  box-shadow: 0 10px 22px rgba(14, 116, 144, 0.24);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(16, 185, 129, 0.22));
+}
+
+.policy-full-details-btn:focus-visible {
+  outline: 2px solid rgba(14, 165, 233, 0.65);
+  outline-offset: 2px;
 }
 
 .dark .policy-full-details-btn {
-  background: rgba(14, 165, 233, 0.18);
-  border-color: rgba(56, 189, 248, 0.45);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.3), rgba(16, 185, 129, 0.24));
+  border-color: rgba(56, 189, 248, 0.35);
   color: #bae6fd;
+  box-shadow: 0 10px 22px rgba(2, 132, 199, 0.22);
+}
+
+.dark .policy-full-details-btn:hover {
+  border-color: rgba(103, 232, 249, 0.58);
+  box-shadow: 0 14px 24px rgba(14, 165, 233, 0.3);
 }
 
 .policy-summary-grid {
