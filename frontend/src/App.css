@@ -615,6 +615,12 @@ input,
   background: linear-gradient(135deg, #020617, #1e293b);
 }
 
+.policy-full-details-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+}
+
 .policy-full-details-btn:focus-visible {
   outline: 2px solid rgba(14, 165, 233, 0.65);
   outline-offset: 2px;
