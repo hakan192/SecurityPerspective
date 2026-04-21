@@ -284,6 +284,7 @@ input,
 .menu-action { width: 100%; margin-top: 0.55rem; text-align: left; cursor: pointer; }
 
 .body-content { flex: 1; display: grid; justify-items: center; align-content: start; padding: 1.2rem; }
+.body-content.home-centered { align-content: center; }
 .search-wrap { width: min(100%, 800px); text-align: center; }
 .hero-text { font-size: 1.7rem; color: #475569; }
 .dark .hero-text { color: #cbd5e1; }

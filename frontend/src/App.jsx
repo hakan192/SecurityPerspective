@@ -552,7 +552,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             </div>
           </header>
 
-          <section className="body-content">
+          <section className={`body-content ${activeNav === 'home' ? 'home-centered' : ''}`}>
             {activeNav === 'home' && (
               <form className="search-wrap" onSubmit={submitSearch}>
                 <div className="hero-text">How can I help you? :)</div>
