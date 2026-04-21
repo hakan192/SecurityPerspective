@@ -583,7 +583,12 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             </div>
                             {expandedPolicyCard === `${policyName}-${index}` && (
                               <section className="policy-summary" aria-label="Quick configuration summary">
-                                <h4>Quick configuration summary</h4>
+                                <div className="policy-summary-head">
+                                  <h4>Quick configuration summary</h4>
+                                  <button type="button" className="policy-full-details-btn">
+                                    Full Details ↗
+                                  </button>
+                                </div>
                                 <div className="policy-summary-grid">
                                   <article className="policy-summary-section">
                                     <h5>Endpoint</h5>
