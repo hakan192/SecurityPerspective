@@ -20,6 +20,11 @@ const navItems = [
     id: 'overview',
     label: 'Executive Overview',
     description: 'Leadership-ready security posture summaries'
+  },
+  {
+    id: 'policy-details',
+    label: 'Policy Details',
+    description: 'Focused view with expandable security feature modules'
   }
 ]
 
@@ -128,6 +133,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [viewedDevice, setViewedDevice] = useState(null)
   const [deviceError, setDeviceError] = useState('')
   const [loadingDevices, setLoadingDevices] = useState(false)
+  const [selectedPolicyDetails, setSelectedPolicyDetails] = useState(null)
   const [newDevice, setNewDevice] = useState({
     name: 'FortiWeb-Prod-02',
     ip: '10.10.1.25',
@@ -466,6 +472,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                   ? 'Search'
                   : activeNav === 'waf'
                     ? 'WAF Configuration'
+                    : activeNav === 'policy-details'
+                      ? 'Policy Details'
                     : activeNav === 'device-config'
                       ? 'Device Config'
                       : 'Executive Overview'}
@@ -604,6 +612,21 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                     <h3>Quick configuration summary</h3>
                                     <p>Review endpoint, certificate, and network posture before opening the full page.</p>
                                   </div>
+                                  <button
+                                    type="button"
+                                    className="policy-full-details-btn"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setSelectedPolicyDetails({
+                                        policyName,
+                                        deviceName: policy._deviceName || '-',
+                                        status: policyStatusLabel
+                                      })
+                                      setActiveNav('policy-details')
+                                    }}
+                                  >
+                                    Full Details ↗
+                                  </button>
                                 </div>
                                 <div className="policy-summary-grid">
                                   <section className="policy-summary-card">
@@ -641,6 +664,23 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             )}
 
             {activeNav === 'overview' && <div className="hero-text muted">This page will be designed next.</div>}
+            {activeNav === 'policy-details' && (
+              <section className="waf-panel modern-waf policy-details-panel">
+                <div className="policy-details-head">
+                  <div>
+                    <p className="policy-label">Policy details</p>
+                    <h2>{selectedPolicyDetails?.policyName || 'No policy selected'}</h2>
+                    <p className="nav-desc">
+                      Device: <strong>{selectedPolicyDetails?.deviceName || '-'}</strong> · Status: <strong>{selectedPolicyDetails?.status || '-'}</strong>
+                    </p>
+                  </div>
+                  <button type="button" className="theme-btn" onClick={() => setActiveNav('waf')}>Back to WAF</button>
+                </div>
+                <div className="policy-details-placeholder">
+                  This policy-details tab is ready. We will display additional security features here in the next iteration.
+                </div>
+              </section>
+            )}
             {activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
