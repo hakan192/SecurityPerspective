@@ -908,10 +908,12 @@ input,
   color: #e2e8f0;
 }
 .device-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.device-topbar-actions { display: grid; gap: 0.7rem; justify-items: stretch; }
 .device-kicker { display: inline-block; font-size: 0.78rem; color: #67e8f9; background: rgba(8, 145, 178, 0.2); border: 1px solid rgba(34, 211, 238, 0.25); padding: 0.25rem 0.65rem; border-radius: 999px; }
 .device-title { margin: 0.7rem 0 0; font-size: 2.8rem; letter-spacing: -0.03em; color: #f8fafc; }
 .device-subtitle { margin: 0.5rem 0 0; color: #94a3b8; font-size: 1.05rem; }
 .add-device-btn { border-radius: 1rem; border: 0; background: #f8fafc; color: #020617; font-weight: 700; padding: 0.9rem 1.2rem; cursor: pointer; }
+.add-device-btn:disabled { opacity: 0.75; cursor: not-allowed; }
 
 .device-stats-grid { margin-top: 1.5rem; display: grid; gap: 0.9rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .device-stat-card { border: 1px solid rgba(71, 85, 105, 0.55); border-radius: 1.2rem; background: linear-gradient(140deg, rgba(15, 23, 42, 0.88), rgba(30, 41, 59, 0.52)); padding: 1.25rem; }
