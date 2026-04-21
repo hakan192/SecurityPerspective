@@ -724,12 +724,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                               <article
                                 className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
                                 key={`${policy._deviceName}-${policyName}-${index}`}
-                                onClick={() => {
-                                  setExpandedPolicyCard(`${policyName}-${index}`)
-                                  if (typeof policy !== 'string') {
-                                    openPolicyTab(policy, index)
-                                  }
-                                }}
+                                onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
                               >
                                 <div className="policy-top-row">
                                   <div>
