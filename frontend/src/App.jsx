@@ -23,6 +23,8 @@ const navItems = [
   }
 ]
 
+const MAIN_WAF_TAB_ID = 'waf-main-tab'
+
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
 
@@ -107,6 +109,44 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
   )
 }
 
+function FullDetailsPage({ policy }) {
+  if (!policy) return null
+
+  const details = [
+    ['Device', policy._deviceName || '-'],
+    ['Location', policy._deviceLocation || '-'],
+    ['Server Policy', policy.server_policy_name || '-'],
+    ['IP', policy.ip || '-'],
+    ['SNI', policy.sni || '-'],
+    ['Hostname', policy.allow_hosts_entries?.[0]?.host || '-'],
+    ['Traffic Mirror', policy['traffic-mirror'] ?? policy.traffic_mirror ?? '-'],
+    ['TLS v1.3', String(policy.tls_v13 ?? '-')],
+    ['TLS v1.2', String(policy.tls_v12 ?? '-')],
+    ['TLS v1.1', String(policy.tls_v11 ?? '-')],
+    ['TLS v1.0', String(policy.tls_v10 ?? '-')],
+    ['HTTP/2', String(policy.http2 ?? '-')]
+  ]
+
+  return (
+    <section className="full-details-page">
+      <div className="full-details-head">
+        <h3>{policy.server_policy_name || 'Policy Details'}</h3>
+        <p>Detailed view of selected policy configuration.</p>
+      </div>
+      <table className="policy-table">
+        <tbody>
+          {details.map(([label, value]) => (
+            <tr key={label}>
+              <th>{label}</th>
+              <td>{value || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
@@ -121,6 +161,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [selectedLocation, setSelectedLocation] = useState('All')
   const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
   const [wafSearch, setWafSearch] = useState('')
+  const [wafTabs, setWafTabs] = useState([{ id: MAIN_WAF_TAB_ID, title: 'WAF Configuration', type: 'main' }])
+  const [activeWafTabId, setActiveWafTabId] = useState(MAIN_WAF_TAB_ID)
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
@@ -387,6 +429,33 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return { label: 'Blocking', className: 'blocking' }
   }
 
+  const openPolicyTab = (policy, index) => {
+    const policyName = policy?.server_policy_name || `Policy ${index + 1}`
+    const deviceName = policy?._deviceName || 'Unknown Device'
+    const tabId = `${deviceName}-${policyName}-${index}`
+
+    setWafTabs((prev) => {
+      if (prev.some((tab) => tab.id === tabId)) return prev
+      return [...prev, { id: tabId, title: policyName, type: 'policy', policy }]
+    })
+    setActiveWafTabId(tabId)
+  }
+
+  const closeWafTab = (tabId) => {
+    if (tabId === MAIN_WAF_TAB_ID) return
+    setWafTabs((prev) => {
+      const next = prev.filter((tab) => tab.id !== tabId)
+      if (activeWafTabId === tabId) {
+        const closedIndex = prev.findIndex((tab) => tab.id === tabId)
+        const fallback = next[Math.max(0, closedIndex - 1)] || next[0] || { id: MAIN_WAF_TAB_ID }
+        setActiveWafTabId(fallback.id)
+      }
+      return next
+    })
+  }
+
+  const activeWafTab = wafTabs.find((tab) => tab.id === activeWafTabId) || wafTabs[0]
+
   return (
     <div className={`dashboard-page ${darkMode ? 'dark' : 'light'}`}>
       <div className="ambient-layer" />
@@ -483,7 +552,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             </div>
           </header>
 
-          <section className="body-content">
+          <section className={`body-content ${activeNav === 'home' ? 'home-centered' : ''}`}>
             {activeNav === 'home' && (
               <form className="search-wrap" onSubmit={submitSearch}>
                 <div className="hero-text">How can I help you? :)</div>
@@ -497,142 +566,188 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
             {activeNav === 'waf' && (
               <section className="waf-panel modern-waf">
-                <div className="waf-search-shell">
-                  <div className="waf-policy-search">
-                    <input
-                      type="text"
-                      value={wafSearch}
-                      onChange={(e) => setWafSearch(e.target.value)}
-                      placeholder="Search by policy name, IP, or hostname"
-                      aria-label="Search WAF policies"
-                    />
-                  </div>
-                  <div className="waf-location-card">
-                    <span className="waf-location-label">Location</span>
-                    <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} aria-label="Filter by location">
-                      {locationOptions.map((location) => (
-                        <option key={location} value={location}>{location}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="waf-buttons">
-                    <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
-                    <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
-                  </div>
+                <div className="workspace-tab-bar" role="tablist" aria-label="WAF workspace tabs">
+                  {wafTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeWafTabId === tab.id}
+                      className={`workspace-tab ${activeWafTabId === tab.id ? 'active' : ''}`}
+                      onClick={() => setActiveWafTabId(tab.id)}
+                    >
+                      <span className="workspace-tab-label">{tab.title}</span>
+                      {tab.id !== MAIN_WAF_TAB_ID && (
+                        <span
+                          className="workspace-tab-close"
+                          role="button"
+                          aria-label={`Close ${tab.title}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            closeWafTab(tab.id)
+                          }}
+                        >
+                          ×
+                        </span>
+                      )}
+                    </button>
+                  ))}
                 </div>
-                {loadingWaf && <p className="nav-desc">Loading...</p>}
-                {wafError && <p className="error-box">{wafError}</p>}
-                {!loadingWaf && !wafError && (
+
+                {activeWafTab?.type === 'main' ? (
                   <>
-                    {wafPolicies.length === 0 ? (
-                      <p className="nav-desc">No devices or server policies found.</p>
-                    ) : filteredWafPolicies.length === 0 ? (
-                      <p className="nav-desc">No matches found for "{wafSearch}".</p>
-                    ) : (
-                      <div className="waf-card-grid">
-                        {filteredWafPolicies.map((policy, index) => {
-                          const { label: policyStatusLabel, className: policyStatusClass } = getPolicyStatus(policy)
-                          const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
-                          const policyIp = typeof policy === 'string' ? '' : policy.ip
-                          const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
-                          const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
-                          const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
-                          const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
-                          const http2 = typeof policy === 'string' ? null : policy.http2
-                          const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
-                          const sni = typeof policy === 'string' ? '' : policy.sni
-                          const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
-                          const hostname = allowHostsEntries[0]?.host || ''
-                          const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
-                          const certificateCn = clientCertificateDetails.cn || clientCertificateDetails.subject || '-'
-                          const certificateIssuer = clientCertificateDetails.issuer || '-'
-                          const certificateExpireDate = clientCertificateDetails.expire_date || clientCertificateDetails.valid_to || '-'
-                          const certificateDaysLeft = clientCertificateDetails.days_left ?? '-'
-                          const tlsV10V11 = [tlsV10, tlsV11].map((value) => (value === null ? '-' : String(value))).join(' / ')
-                          return (
-                          <article
-                            className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
-                            key={`${policy._deviceName}-${policyName}-${index}`}
-                            onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
-                          >
-                            <div className="policy-top-row">
-                              <div>
-                                <p className="policy-label">Server Policy</p>
-                                <p className="policy-name">{policyName}</p>
-                                <div className="policy-device-row">
-                                  <span className="policy-device-icon" aria-hidden="true">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
-                                      <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
-                                      <line x1="6" x2="6.01" y1="6" y2="6" />
-                                      <line x1="6" x2="6.01" y1="18" y2="18" />
-                                    </svg>
-                                  </span>
-                                  <span className="policy-device-label">Device</span>
-                                  <strong>{policy._deviceName || '-'}</strong>
-                                </div>
-                              </div>
-                              <div className="policy-status-wrap">
-                                <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatusLabel}</span>
-                                <span className={`policy-expand-icon ${expandedPolicyCard === `${policyName}-${index}` ? 'expanded' : ''}`} aria-hidden="true">
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="m6 9 6 6 6-6" />
-                                  </svg>
-                                </span>
-                              </div>
-                            </div>
-                            {expandedPolicyCard === `${policyName}-${index}` && (
-                              <section className="policy-summary" aria-label="Quick configuration summary">
-                                <div className="policy-summary-head">
-                                  <div>
-                                    <h4>Quick configuration summary</h4>
-                                    <p className="policy-summary-subtitle">Review endpoint, certificate, and network posture before opening the full page.</p>
-                                  </div>
-                                  <button type="button" className="policy-full-details-btn">
-                                    <span>Full Details</span>
-                                    <svg
-                                      className="policy-full-details-icon"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      aria-hidden="true"
-                                    >
-                                      <path d="M7 7h10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                      <path d="M7 17 17 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                  </button>
-                                </div>
-                                <div className="policy-summary-grid">
-                                  <article className="policy-summary-section">
-                                    <h5>Endpoint <span aria-hidden="true">✣</span></h5>
-                                    <p><span>IP</span><strong>{policyIp || '-'}</strong></p>
-                                    <p><span>SNI</span><strong>{sni || '-'}</strong></p>
-                                    <p><span>Hostname</span><strong>{hostname || '-'}</strong></p>
-                                    <p><span>Traffic Mirror</span><strong>{trafficMirror || '-'}</strong></p>
-                                  </article>
-                                  <article className="policy-summary-section">
-                                    <h5>Certificate <span aria-hidden="true">✣</span></h5>
-                                    <p><span>CN</span><strong>{certificateCn}</strong></p>
-                                    <p><span>Issuer</span><strong>{certificateIssuer}</strong></p>
-                                    <p><span>Expire Date</span><strong>{certificateExpireDate}</strong></p>
-                                    <p><span>Days Left</span><strong>{certificateDaysLeft}</strong></p>
-                                  </article>
-                                  <article className="policy-summary-section">
-                                    <h5>Network <span aria-hidden="true">✣</span></h5>
-                                    <p><span>TLSv1.3</span><strong>{tlsV13 === null ? '-' : String(tlsV13)}</strong></p>
-                                    <p><span>TLSv1.2</span><strong>{tlsV12 === null ? '-' : String(tlsV12)}</strong></p>
-                                    <p><span>TLSv1.0-1.1</span><strong>{tlsV10V11}</strong></p>
-                                    <p><span>HTTP/2</span><strong>{http2 === null ? '-' : String(http2)}</strong></p>
-                                  </article>
-                                </div>
-                              </section>
-                            )}
-                          </article>
-                          )
-                        })}
+                    <div className="waf-search-shell">
+                      <div className="waf-policy-search">
+                        <input
+                          type="text"
+                          value={wafSearch}
+                          onChange={(e) => setWafSearch(e.target.value)}
+                          placeholder="Search by policy name, IP, or hostname"
+                          aria-label="Search WAF policies"
+                        />
                       </div>
+                      <div className="waf-location-card">
+                        <span className="waf-location-label">Location</span>
+                        <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} aria-label="Filter by location">
+                          {locationOptions.map((location) => (
+                            <option key={location} value={location}>{location}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="waf-buttons">
+                        <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
+                        <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
+                      </div>
+                    </div>
+                    {loadingWaf && <p className="nav-desc">Loading...</p>}
+                    {wafError && <p className="error-box">{wafError}</p>}
+                    {!loadingWaf && !wafError && (
+                      <>
+                        {wafPolicies.length === 0 ? (
+                          <div className="waf-empty-state">
+                            <p className="nav-desc">No devices or server policies found.</p>
+                          </div>
+                        ) : filteredWafPolicies.length === 0 ? (
+                          <div className="waf-empty-state">
+                            <p className="nav-desc">No matches found for "{wafSearch}".</p>
+                          </div>
+                        ) : (
+                          <div className="waf-card-grid">
+                            {filteredWafPolicies.map((policy, index) => {
+                              const { label: policyStatusLabel, className: policyStatusClass } = getPolicyStatus(policy)
+                              const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
+                              const policyIp = typeof policy === 'string' ? '' : policy.ip
+                              const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
+                              const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
+                              const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
+                              const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
+                              const http2 = typeof policy === 'string' ? null : policy.http2
+                              const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
+                              const sni = typeof policy === 'string' ? '' : policy.sni
+                              const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
+                              const hostname = allowHostsEntries[0]?.host || ''
+                              const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
+                              const certificateCn = clientCertificateDetails.cn || clientCertificateDetails.subject || '-'
+                              const certificateIssuer = clientCertificateDetails.issuer || '-'
+                              const certificateExpireDate = clientCertificateDetails.expire_date || clientCertificateDetails.valid_to || '-'
+                              const certificateDaysLeft = clientCertificateDetails.days_left ?? '-'
+                              const tlsV10V11 = [tlsV10, tlsV11].map((value) => (value === null ? '-' : String(value))).join(' / ')
+                              return (
+                              <article
+                                className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
+                                key={`${policy._deviceName}-${policyName}-${index}`}
+                                onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
+                              >
+                                <div className="policy-top-row">
+                                  <div>
+                                    <p className="policy-label">Server Policy</p>
+                                    <p className="policy-name">{policyName}</p>
+                                    <div className="policy-device-row">
+                                      <span className="policy-device-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+                                          <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+                                          <line x1="6" x2="6.01" y1="6" y2="6" />
+                                          <line x1="6" x2="6.01" y1="18" y2="18" />
+                                        </svg>
+                                      </span>
+                                      <span className="policy-device-label">Device</span>
+                                      <strong>{policy._deviceName || '-'}</strong>
+                                    </div>
+                                  </div>
+                                  <div className="policy-status-wrap">
+                                    <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatusLabel}</span>
+                                    <span className={`policy-expand-icon ${expandedPolicyCard === `${policyName}-${index}` ? 'expanded' : ''}`} aria-hidden="true">
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="m6 9 6 6 6-6" />
+                                      </svg>
+                                    </span>
+                                  </div>
+                                </div>
+                                {expandedPolicyCard === `${policyName}-${index}` && (
+                                  <section className="policy-summary" aria-label="Quick configuration summary">
+                                    <div className="policy-summary-head">
+                                      <div>
+                                        <h4>Quick configuration summary</h4>
+                                        <p className="policy-summary-subtitle">Review endpoint, certificate, and network posture before opening the full page.</p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="policy-full-details-btn"
+                                        onClick={(event) => {
+                                          event.stopPropagation()
+                                          if (typeof policy === 'string') return
+                                          openPolicyTab(policy, index)
+                                        }}
+                                      >
+                                        <span>Full Details</span>
+                                        <svg
+                                          className="policy-full-details-icon"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          aria-hidden="true"
+                                        >
+                                          <path d="M7 7h10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                          <path d="M7 17 17 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                    <div className="policy-summary-grid">
+                                      <article className="policy-summary-section">
+                                        <h5>Endpoint <span aria-hidden="true">✣</span></h5>
+                                        <p><span>IP</span><strong>{policyIp || '-'}</strong></p>
+                                        <p><span>SNI</span><strong>{sni || '-'}</strong></p>
+                                        <p><span>Hostname</span><strong>{hostname || '-'}</strong></p>
+                                        <p><span>Traffic Mirror</span><strong>{trafficMirror || '-'}</strong></p>
+                                      </article>
+                                      <article className="policy-summary-section">
+                                        <h5>Certificate <span aria-hidden="true">✣</span></h5>
+                                        <p><span>CN</span><strong>{certificateCn}</strong></p>
+                                        <p><span>Issuer</span><strong>{certificateIssuer}</strong></p>
+                                        <p><span>Expire Date</span><strong>{certificateExpireDate}</strong></p>
+                                        <p><span>Days Left</span><strong>{certificateDaysLeft}</strong></p>
+                                      </article>
+                                      <article className="policy-summary-section">
+                                        <h5>Network <span aria-hidden="true">✣</span></h5>
+                                        <p><span>TLSv1.3</span><strong>{tlsV13 === null ? '-' : String(tlsV13)}</strong></p>
+                                        <p><span>TLSv1.2</span><strong>{tlsV12 === null ? '-' : String(tlsV12)}</strong></p>
+                                        <p><span>TLSv1.0-1.1</span><strong>{tlsV10V11}</strong></p>
+                                        <p><span>HTTP/2</span><strong>{http2 === null ? '-' : String(http2)}</strong></p>
+                                      </article>
+                                    </div>
+                                  </section>
+                                )}
+                              </article>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
+                ) : (
+                  <FullDetailsPage policy={activeWafTab?.policy} />
                 )}
               </section>
             )}
