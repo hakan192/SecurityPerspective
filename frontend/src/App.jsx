@@ -120,6 +120,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [wafError, setWafError] = useState('')
   const [selectedLocation, setSelectedLocation] = useState('All')
   const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
+  const [selectedPolicyDetails, setSelectedPolicyDetails] = useState(null)
   const [wafSearch, setWafSearch] = useState('')
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
@@ -223,6 +224,12 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (activeNav !== 'waf') {
+      setSelectedPolicyDetails(null)
+    }
+  }, [activeNav])
 
   const loadWafResponse = async () => {
     setLoadingWaf(true)
@@ -520,6 +527,44 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
                   </div>
                 </div>
+                {selectedPolicyDetails && (
+                  <section className="policy-details-shell" aria-label="Policy Details">
+                    <div className="policy-details-top">
+                      <button type="button" className="policy-back-btn" onClick={() => setSelectedPolicyDetails(null)}>
+                        ← Back
+                      </button>
+                      <span className={`policy-status-pill ${selectedPolicyDetails.statusClass}`}>{selectedPolicyDetails.statusLabel}</span>
+                    </div>
+                    <article className="policy-details-card">
+                      <p className="policy-details-kicker">Policy Details</p>
+                      <h3>{selectedPolicyDetails.policyName}</h3>
+                      <div className="policy-device-row">
+                        <span className="policy-device-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+                            <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+                            <line x1="6" x2="6.01" y1="6" y2="6" />
+                            <line x1="6" x2="6.01" y1="18" y2="18" />
+                          </svg>
+                        </span>
+                        <span className="policy-device-label">Device</span>
+                        <strong>{selectedPolicyDetails.deviceName}</strong>
+                      </div>
+                    </article>
+                    <article className="policy-control-card">
+                      <div className="policy-control-head">
+                        <div>
+                          <h4>Standard Protection</h4>
+                          <p>Core protective controls</p>
+                        </div>
+                      </div>
+                      <div className="policy-control-list">
+                        <div className="policy-control-item"><span>Signature</span><strong>Enabled</strong></div>
+                        <div className="policy-control-item"><span>HTTP RFC Control</span><strong>Enabled</strong></div>
+                      </div>
+                    </article>
+                  </section>
+                )}
                 {loadingWaf && <p className="nav-desc">Loading...</p>}
                 {wafError && <p className="error-box">{wafError}</p>}
                 {!loadingWaf && !wafError && (
@@ -588,7 +633,18 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                     <h4>Quick configuration summary</h4>
                                     <p className="policy-summary-subtitle">Review endpoint, certificate, and network posture before opening the full page.</p>
                                   </div>
-                                  <button type="button" className="policy-full-details-btn">
+                                  <button
+                                    type="button"
+                                    className="policy-full-details-btn"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setSelectedPolicyDetails({
+                                        policyName,
+                                        deviceName: policy._deviceName || '-',
+                                        ...getPolicyStatus(policy)
+                                      })
+                                    }}
+                                  >
                                     <span>Full Details</span>
                                     <svg
                                       className="policy-full-details-icon"
