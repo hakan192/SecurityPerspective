@@ -584,7 +584,10 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             {expandedPolicyCard === `${policyName}-${index}` && (
                               <section className="policy-summary" aria-label="Quick configuration summary">
                                 <div className="policy-summary-head">
-                                  <h4>Quick configuration summary</h4>
+                                  <div>
+                                    <h4>Quick configuration summary</h4>
+                                    <p className="policy-summary-subtitle">Review endpoint, certificate, and network posture before opening the full page.</p>
+                                  </div>
                                   <button type="button" className="policy-full-details-btn">
                                     <span>Full Details</span>
                                     <span aria-hidden="true">↗</span>
@@ -592,21 +595,21 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                 </div>
                                 <div className="policy-summary-grid">
                                   <article className="policy-summary-section">
-                                    <h5>Endpoint</h5>
+                                    <h5>Endpoint <span aria-hidden="true">✣</span></h5>
                                     <p><span>IP</span><strong>{policyIp || '-'}</strong></p>
                                     <p><span>SNI</span><strong>{sni || '-'}</strong></p>
                                     <p><span>Hostname</span><strong>{hostname || '-'}</strong></p>
                                     <p><span>Traffic Mirror</span><strong>{trafficMirror || '-'}</strong></p>
                                   </article>
                                   <article className="policy-summary-section">
-                                    <h5>Certificate</h5>
+                                    <h5>Certificate <span aria-hidden="true">✣</span></h5>
                                     <p><span>CN</span><strong>{certificateCn}</strong></p>
                                     <p><span>Issuer</span><strong>{certificateIssuer}</strong></p>
                                     <p><span>Expire Date</span><strong>{certificateExpireDate}</strong></p>
                                     <p><span>Days Left</span><strong>{certificateDaysLeft}</strong></p>
                                   </article>
                                   <article className="policy-summary-section">
-                                    <h5>Network</h5>
+                                    <h5>Network <span aria-hidden="true">✣</span></h5>
                                     <p><span>TLSv1.3</span><strong>{tlsV13 === null ? '-' : String(tlsV13)}</strong></p>
                                     <p><span>TLSv1.2</span><strong>{tlsV12 === null ? '-' : String(tlsV12)}</strong></p>
                                     <p><span>TLSv1.0-1.1</span><strong>{tlsV10V11}</strong></p>
