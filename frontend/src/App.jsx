@@ -112,37 +112,105 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
-  const details = [
-    ['Device', policy._deviceName || '-'],
-    ['Location', policy._deviceLocation || '-'],
-    ['Server Policy', policy.server_policy_name || '-'],
-    ['IP', policy.ip || '-'],
-    ['SNI', policy.sni || '-'],
-    ['Hostname', policy.allow_hosts_entries?.[0]?.host || '-'],
-    ['Traffic Mirror', policy['traffic-mirror'] ?? policy.traffic_mirror ?? '-'],
-    ['TLS v1.3', String(policy.tls_v13 ?? '-')],
-    ['TLS v1.2', String(policy.tls_v12 ?? '-')],
-    ['TLS v1.1', String(policy.tls_v11 ?? '-')],
-    ['TLS v1.0', String(policy.tls_v10 ?? '-')],
-    ['HTTP/2', String(policy.http2 ?? '-')]
+  const profile = policy.web_protection_profile_details || {}
+  const dosPolicy = profile.application_layer_dos_prevention_policy || {}
+  const thresholdPolicy = profile.bot_mitigate_policy_detail || {}
+  const protectionSections = [
+    {
+      title: 'Standart Protection',
+      items: [
+        ['WAF Profile', profile.name || profile.web_protection_profile_name || '-'],
+        ['Signature Rule', profile.signature_rule || '-'],
+        ['Hidden Fields', profile.hidden_fields_protection || '-']
+      ]
+    },
+    {
+      title: 'Bot Mitigation',
+      items: [
+        ['Policy', profile.bot_mitigate_policy || '-'],
+        ['Biometric Detection', thresholdPolicy.biometrics_based_detection || '-'],
+        ['Known Bots Source', thresholdPolicy.known_bots || '-']
+      ]
+    },
+    {
+      title: 'Advance Protection',
+      items: [
+        ['XML Validation', profile.xml_validation_policy || '-'],
+        ['JSON Validation', profile.json_validation_policy || '-'],
+        ['OpenAPI Validation', profile.openapi_validation_policy || '-']
+      ]
+    },
+    {
+      title: 'Application Dos Protection',
+      items: [
+        ['Policy', profile.application_layer_dos_prevention || '-'],
+        ['L4 DoS Prevention', dosPolicy.enable_layer4_dos_prevention || '-'],
+        ['HTTP Flood Rule', dosPolicy.http_request_flood_prevention_rule || '-']
+      ]
+    },
+    {
+      title: 'Threshold',
+      items: [
+        ['Threshold Policy', thresholdPolicy.threshold_based_detection || '-'],
+        ['Bot Confirmation', dosPolicy.bot_confirmation || '-'],
+        ['Bot Recognition', dosPolicy.bot_recognition || '-']
+      ]
+    },
+    {
+      title: 'IP Protection',
+      items: [
+        ['IP List Policy', profile.ip_list_policy || '-'],
+        ['IP Intelligence', profile.ip_intelligence || '-'],
+        ['Location Policy', profile.geo_block_list_policy || '-']
+      ]
+    },
+    {
+      title: 'Known-Bot',
+      items: [
+        ['Known Bots', thresholdPolicy.known_bots || '-'],
+        ['Threshold Mapping', thresholdPolicy.threshold_based_detection || '-'],
+        ['Mitigation Action', dosPolicy.layer4_access_limit_rule_policy?.action || '-']
+      ]
+    },
+    {
+      title: 'User Tracking',
+      items: [
+        ['Tracking Policy', profile.user_tracking_policy || '-'],
+        ['Cookie Security', profile.cookie_security_policy || '-'],
+        ['CSRF Protection', profile.csrf_protection || '-']
+      ]
+    },
+    {
+      title: 'Access',
+      items: [
+        ['Custom Access Policy', profile.custom_access_policy || '-'],
+        ['Allow Method Policy', profile.allow_method_policy || '-'],
+        ['Monitor Mode', policy['monitor-mode'] ?? policy.monitor_mode ?? '-']
+      ]
+    }
   ]
 
   return (
     <section className="full-details-page">
       <div className="full-details-head">
         <h3>{policy.server_policy_name || 'Policy Details'}</h3>
-        <p>Detailed view of selected policy configuration.</p>
+        <p>
+          {policy._deviceName || 'Unknown Device'} · {policy._deviceLocation || 'Unknown Location'} · {policy.ip || '-'}
+        </p>
       </div>
-      <table className="policy-table">
-        <tbody>
-          {details.map(([label, value]) => (
-            <tr key={label}>
-              <th>{label}</th>
-              <td>{value || '-'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="policy-protection-grid">
+        {protectionSections.map((section) => (
+          <article className="policy-protection-card" key={section.title}>
+            <h4>{section.title}</h4>
+            {section.items.map(([label, value]) => (
+              <p key={label}>
+                <span>{label}</span>
+                <strong>{value || '-'}</strong>
+              </p>
+            ))}
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
@@ -656,7 +724,12 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                               <article
                                 className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
                                 key={`${policy._deviceName}-${policyName}-${index}`}
-                                onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
+                                onClick={() => {
+                                  setExpandedPolicyCard(`${policyName}-${index}`)
+                                  if (typeof policy !== 'string') {
+                                    openPolicyTab(policy, index)
+                                  }
+                                }}
                               >
                                 <div className="policy-top-row">
                                   <div>
