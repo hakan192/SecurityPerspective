@@ -624,9 +624,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     {!loadingWaf && !wafError && (
                       <>
                         {wafPolicies.length === 0 ? (
-                          <p className="nav-desc">No devices or server policies found.</p>
+                          <div className="waf-empty-state">
+                            <p className="nav-desc">No devices or server policies found.</p>
+                          </div>
                         ) : filteredWafPolicies.length === 0 ? (
-                          <p className="nav-desc">No matches found for "{wafSearch}".</p>
+                          <div className="waf-empty-state">
+                            <p className="nav-desc">No matches found for "{wafSearch}".</p>
+                          </div>
                         ) : (
                           <div className="waf-card-grid">
                             {filteredWafPolicies.map((policy, index) => {
