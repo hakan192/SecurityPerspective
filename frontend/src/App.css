@@ -559,32 +559,6 @@ input,
   color: #cbd5e1;
 }
 
-.policy-meta {
-  margin: 0.45rem 0 0;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.8rem;
-  line-height: 1.35;
-  color: #475569;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 0.6rem;
-  background: rgba(241, 245, 249, 0.78);
-  display: none;
-}
-
-.dark .policy-meta {
-  border-color: rgba(148, 163, 184, 0.35);
-  background: rgba(30, 41, 59, 0.72);
-  color: #cbd5e1;
-}
-
-.policy-card.selected .policy-meta {
-  display: block;
-}
-
-.policy-card.selected .policy-meta:nth-of-type(3) {
-  margin-top: 0.75rem;
-}
-
 .policy-summary {
   margin-top: 0.85rem;
   border: 1px solid rgba(148, 163, 184, 0.3);

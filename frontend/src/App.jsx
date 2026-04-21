@@ -581,7 +581,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                 </span>
                               </div>
                             </div>
-                            <p className="policy-meta">IP: {policyIp || '-'}</p>
                             {expandedPolicyCard === `${policyName}-${index}` && (
                               <section className="policy-summary" aria-label="Quick configuration summary">
                                 <h4>Quick configuration summary</h4>
