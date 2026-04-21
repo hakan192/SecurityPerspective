@@ -393,10 +393,10 @@ input,
 
 .policy-card {
   border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 1.2rem;
-  padding: 1rem 1.1rem;
+  border-radius: 1.8rem;
+  padding: 1.2rem 1.35rem;
   text-align: left;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.84));
+  background: linear-gradient(145deg, rgba(245, 248, 250, 0.98), rgba(235, 240, 246, 0.9));
   color: inherit;
   min-height: 96px;
   width: 100%;
@@ -407,7 +407,7 @@ input,
 }
 
 .dark .policy-card {
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.7));
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(51, 65, 85, 0.74));
 }
 
 .policy-card:hover {
@@ -417,9 +417,9 @@ input,
 
 .policy-card.selected {
   min-height: 240px;
-  padding: 1rem 1.1rem;
+  padding: 1.2rem 1.35rem 1.3rem;
   border-color: rgba(16, 185, 129, 0.68);
-  box-shadow: 0 28px 52px rgba(16, 185, 129, 0.24);
+  box-shadow: 0 30px 54px rgba(15, 23, 42, 0.15);
 }
 
 .policy-label {
@@ -489,16 +489,12 @@ input,
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.25rem 0.3rem 0.25rem 0.35rem;
-  border-radius: 1rem;
-  border: 1px solid color-mix(in oklab, #cbd5e1 80%, transparent);
-  background: color-mix(in oklab, #ffffff 82%, transparent);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+  padding: 0;
 }
 
 .dark .policy-status-wrap {
-  border-color: color-mix(in oklab, #475569 70%, transparent);
-  background: color-mix(in oklab, #0f172a 75%, transparent);
+  background: transparent;
+  border-color: transparent;
 }
 
 .policy-status-pill {
@@ -530,8 +526,8 @@ input,
 }
 
 .policy-expand-icon {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.6rem;
+  height: 2.6rem;
   border-radius: 1rem;
   display: inline-grid;
   place-items: center;
@@ -559,30 +555,166 @@ input,
   color: #cbd5e1;
 }
 
-.policy-meta {
-  margin: 0.45rem 0 0;
-  padding: 0.45rem 0.6rem;
+.policy-summary {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(203, 213, 225, 0.7);
+  padding: 1rem 0 0;
+  background: transparent;
+}
+
+.dark .policy-summary {
+  border-color: rgba(71, 85, 105, 0.65);
+  background: transparent;
+}
+
+.policy-summary h4 {
+  margin: 0;
+  font-size: 1.04rem;
+  letter-spacing: 0.01em;
+  color: #1e293b;
+}
+
+.dark .policy-summary h4 {
+  color: #e2e8f0;
+}
+
+.policy-summary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.policy-summary-head h4 {
+  margin: 0;
+}
+
+.policy-full-details-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: linear-gradient(135deg, #020617, #0f172a);
+  color: #f8fafc;
   font-size: 0.8rem;
-  line-height: 1.35;
-  color: #475569;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 0.6rem;
-  background: rgba(241, 245, 249, 0.78);
-  display: none;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 0.62rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.24);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+  white-space: nowrap;
 }
 
-.dark .policy-meta {
-  border-color: rgba(148, 163, 184, 0.35);
-  background: rgba(30, 41, 59, 0.72);
-  color: #cbd5e1;
+.policy-full-details-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 23, 42, 0.2);
+  box-shadow: 0 14px 24px rgba(15, 23, 42, 0.28);
+  background: linear-gradient(135deg, #020617, #1e293b);
 }
 
-.policy-card.selected .policy-meta {
-  display: block;
+.policy-full-details-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
 }
 
-.policy-card.selected .policy-meta:nth-of-type(3) {
-  margin-top: 0.75rem;
+.policy-full-details-btn:focus-visible {
+  outline: 2px solid rgba(14, 165, 233, 0.65);
+  outline-offset: 2px;
+}
+
+.dark .policy-full-details-btn {
+  background: linear-gradient(135deg, #f8fafc, #dbeafe);
+  border-color: rgba(186, 230, 253, 0.46);
+  color: #0f172a;
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.35);
+}
+
+.dark .policy-full-details-btn:hover {
+  border-color: rgba(186, 230, 253, 0.75);
+  box-shadow: 0 14px 24px rgba(2, 6, 23, 0.44);
+}
+
+.policy-summary-subtitle {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.dark .policy-summary-subtitle {
+  color: #94a3b8;
+}
+
+.policy-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.policy-summary-section {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 1.55rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.dark .policy-summary-section {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(100, 116, 139, 0.6);
+}
+
+.policy-summary-section h5 {
+  margin: 0 0 0.7rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dark .policy-summary-section h5 {
+  color: #94a3b8;
+}
+
+.policy-summary-section p {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-top: 0;
+  border-radius: 0.95rem;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(203, 213, 225, 0.85);
+}
+
+.policy-summary-section p + p {
+  margin-top: 0.5rem;
+}
+
+.policy-summary-section span {
+  color: #64748b;
+}
+
+.policy-summary-section strong {
+  text-align: right;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.dark .policy-summary-section p {
+  background: rgba(51, 65, 85, 0.65);
+  border-color: rgba(100, 116, 139, 0.5);
+}
+
+.dark .policy-summary-section strong {
+  color: #e2e8f0;
 }
 
 .policy-host-list {
@@ -636,6 +768,15 @@ input,
   .waf-buttons {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .policy-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .policy-summary-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
