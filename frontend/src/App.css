@@ -291,6 +291,23 @@ input,
 .dark .hero-text { color: #cbd5e1; }
 .hero-text.muted { font-size: 1rem; }
 
+
+.automation-panel {
+  width: min(100%, 920px);
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.62);
+  padding: 1.1rem 1.2rem;
+}
+
+.dark .automation-panel {
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.automation-panel h2 {
+  margin: 0 0 0.55rem;
+}
+
 .search-bar { margin-top: 1.3rem; border-radius: 999px; border: 1px solid rgba(148,163,184,0.35); background: rgba(255,255,255,0.7); padding: 0.35rem; display: grid; gap: 0.45rem; grid-template-columns: 1fr auto; }
 .dark .search-bar { background: rgba(15,23,42,0.7); }
 .search-bar input { border: 0; background: transparent; }

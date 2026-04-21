@@ -20,6 +20,11 @@ const navItems = [
     id: 'overview',
     label: 'Executive Overview',
     description: 'Leadership-ready security posture summaries'
+  },
+  {
+    id: 'automation',
+    label: 'Automation',
+    description: 'Quick analysis for automated security operations'
   }
 ]
 
@@ -591,7 +596,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     ? 'WAF Configuration'
                     : activeNav === 'device-config'
                       ? 'Device Config'
-                      : 'Executive Overview'}
+                      : activeNav === 'automation'
+                        ? 'Automation'
+                        : 'Executive Overview'}
               </h1>
               {activeNav === 'waf' && <p className="waf-updated">Last updated: {new Date().toLocaleString()}</p>}
             </div>
@@ -820,6 +827,12 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             )}
 
             {activeNav === 'overview' && <div className="hero-text muted">This page will be designed next.</div>}
+            {activeNav === 'automation' && (
+              <section className="automation-panel">
+                <h2>Automation Analysis</h2>
+                <p className="nav-desc">Current automation coverage is moderate: scheduled policy collection is in place, but alert enrichment and auto-remediation should be expanded to reduce mean response time.</p>
+              </section>
+            )}
             {activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
