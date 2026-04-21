@@ -559,38 +559,96 @@ input,
   color: #cbd5e1;
 }
 
-.policy-meta {
-  margin: 0.45rem 0 0;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.8rem;
-  line-height: 1.35;
-  color: #475569;
+.policy-summary-wrap {
+  margin-top: 0.9rem;
+  padding: 0.95rem;
+  border-radius: 1rem;
   border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 0.6rem;
-  background: rgba(241, 245, 249, 0.78);
-  display: none;
+  background: rgba(241, 245, 249, 0.62);
 }
 
-.dark .policy-meta {
-  border-color: rgba(148, 163, 184, 0.35);
+.dark .policy-summary-wrap {
+  border-color: rgba(100, 116, 139, 0.5);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.policy-summary-header h3 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.policy-summary-header p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.dark .policy-summary-header p {
+  color: #94a3b8;
+}
+
+.policy-summary-grid {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.policy-summary-card {
+  border-radius: 0.95rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.78rem;
+}
+
+.dark .policy-summary-card {
+  background: rgba(15, 23, 42, 0.56);
+  border-color: rgba(71, 85, 105, 0.55);
+}
+
+.policy-summary-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.77rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.dark .policy-summary-title {
+  color: #94a3b8;
+}
+
+.policy-summary-row {
+  margin: 0.4rem 0 0;
+  padding: 0.46rem 0.55rem;
+  border-radius: 0.68rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(248, 250, 252, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.dark .policy-summary-row {
   background: rgba(30, 41, 59, 0.72);
-  color: #cbd5e1;
+  border-color: rgba(100, 116, 139, 0.4);
 }
 
-.policy-card.selected .policy-meta {
-  display: block;
+.policy-summary-row span {
+  color: #64748b;
 }
 
-.policy-card.selected .policy-meta:nth-of-type(3) {
-  margin-top: 0.75rem;
+.dark .policy-summary-row span {
+  color: #94a3b8;
 }
 
-.policy-host-list {
-  padding-left: 1.3rem;
-}
-
-.policy-host-list li + li {
-  margin-top: 0.35rem;
+.policy-summary-row strong {
+  font-size: 0.85rem;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .policy-table {
@@ -636,6 +694,10 @@ input,
   .waf-buttons {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .policy-summary-grid {
+    grid-template-columns: 1fr;
   }
 }
 
