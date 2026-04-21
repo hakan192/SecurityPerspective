@@ -429,10 +429,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return { label: 'Blocking', className: 'blocking' }
   }
 
+  const getPolicyTabId = (policy) => {
+    const policyName = policy?.server_policy_name || 'Policy Details'
+    const deviceName = policy?._deviceName || 'Unknown Device'
+    const policyIp = policy?.ip || 'no-ip'
+    return `${deviceName}::${policyName}::${policyIp}`
+  }
+
   const openPolicyTab = (policy, index) => {
     const policyName = policy?.server_policy_name || `Policy ${index + 1}`
-    const deviceName = policy?._deviceName || 'Unknown Device'
-    const tabId = `${deviceName}-${policyName}-${index}`
+    const tabId = getPolicyTabId(policy)
 
     setWafTabs((prev) => {
       if (prev.some((tab) => tab.id === tabId)) return prev
@@ -655,7 +661,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                               return (
                               <article
                                 className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
-                                key={`${policy._deviceName}-${policyName}-${index}`}
+                                key={typeof policy === 'string' ? `policy-${index}` : getPolicyTabId(policy)}
                                 onClick={() => setExpandedPolicyCard((prev) => (prev === `${policyName}-${index}` ? '' : `${policyName}-${index}`))}
                               >
                                 <div className="policy-top-row">
