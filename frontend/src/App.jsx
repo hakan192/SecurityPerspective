@@ -534,42 +534,21 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           const { label: policyStatusLabel, className: policyStatusClass } = getPolicyStatus(policy)
                           const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
                           const policyIp = typeof policy === 'string' ? '' : policy.ip
-                          const tls13CustomCipher = typeof policy === 'string' ? '' : policy.tls13_custom_cipher
                           const tlsV10 = typeof policy === 'string' ? null : policy.tls_v10
                           const tlsV11 = typeof policy === 'string' ? null : policy.tls_v11
                           const tlsV12 = typeof policy === 'string' ? null : policy.tls_v12
                           const tlsV13 = typeof policy === 'string' ? null : policy.tls_v13
                           const http2 = typeof policy === 'string' ? null : policy.http2
                           const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
-                          const monitorMode = typeof policy === 'string' ? '' : (policy['monitor-mode'] ?? policy.monitor_mode ?? '')
                           const sni = typeof policy === 'string' ? '' : policy.sni
-                          const sniCertificate = typeof policy === 'string' ? '' : (policy['sni-certificate'] ?? policy.sni_certificate ?? '')
-                          const sniEntries = typeof policy === 'string' ? [] : (policy.sni_entries || [])
-                          const clientCertificate = typeof policy === 'string' ? '' : (policy['client-certificate'] ?? policy.client_certificate ?? '')
-                          const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
-                          const allowHosts = typeof policy === 'string' ? '' : policy.allow_hosts
-                          const webProtectionProfileName = typeof policy === 'string' ? '' : policy.web_protection_profile_name
                           const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
-                          const webProtectionDetails = typeof policy === 'string' ? {} : (policy.web_protection_profile_details || {})
-                          const signatureRuleName = webProtectionDetails.signature_rule || ''
-                          const httpProtocolParameterRestrictionName = webProtectionDetails.http_protocol_parameter_restriction || ''
-                          const cookieSecurityPolicyName = webProtectionDetails.cookie_security_policy || ''
-                          const syntaxBasedAttackDetectionName = webProtectionDetails.syntax_based_attack_detection || ''
-                          const customAccessPolicyName = webProtectionDetails.custom_access_policy || ''
-                          const allowMethodPolicyName = webProtectionDetails.allow_method_policy || ''
-                          const ipListPolicyName = webProtectionDetails.ip_list_policy || ''
-                          const geoIpPolicyName = webProtectionDetails.geo_block_list_policy || ''
-                          const xmlValidationPolicyName = webProtectionDetails.xml_validation_policy || ''
-                          const jsonValidationPolicyName = webProtectionDetails.json_validation_policy || ''
-                          const applicationLayerDosPreventionPolicy = webProtectionDetails.application_layer_dos_prevention_policy || {}
-                          const applicationLayerDosPreventionName = applicationLayerDosPreventionPolicy.name || webProtectionDetails.application_layer_dos_prevention || ''
-                          const layer4AccessLimitRulePolicy = applicationLayerDosPreventionPolicy.layer4_access_limit_rule_policy || {}
-                          const tcpFloodPreventionPolicy = applicationLayerDosPreventionPolicy.tcp_flood_prevention_policy || {}
-                          const botMitigatePolicyDetail = applicationLayerDosPreventionPolicy.bot_mitigate_policy_detail || {}
-                          const botMitigatePolicyName = botMitigatePolicyDetail.name || webProtectionDetails.bot_mitigate_policy || ''
-                          const biometricBasedDetectionPolicyName = botMitigatePolicyDetail.biometrics_based_detection || ''
-                          const thresholdBasedDetectionPolicyName = botMitigatePolicyDetail.threshold_based_detection || ''
-                          const knownBotsPolicyName = botMitigatePolicyDetail.known_bots || ''
+                          const hostname = allowHostsEntries[0]?.host || ''
+                          const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
+                          const certificateCn = clientCertificateDetails.cn || clientCertificateDetails.subject || '-'
+                          const certificateIssuer = clientCertificateDetails.issuer || '-'
+                          const certificateExpireDate = clientCertificateDetails.expire_date || clientCertificateDetails.valid_to || '-'
+                          const certificateDaysLeft = clientCertificateDetails.days_left ?? '-'
+                          const tlsV10V11 = [tlsV10, tlsV11].map((value) => (value === null ? '-' : String(value))).join(' / ')
                           return (
                           <article
                             className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -603,71 +582,33 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                               </div>
                             </div>
                             <p className="policy-meta">IP: {policyIp || '-'}</p>
-                            <p className="policy-meta">TLS13 Custom Cipher: {tls13CustomCipher || '-'}</p>
-                            <p className="policy-meta">TLS v1.0: {tlsV10 === null ? '-' : String(tlsV10)}</p>
-                            <p className="policy-meta">TLS v1.1: {tlsV11 === null ? '-' : String(tlsV11)}</p>
-                            <p className="policy-meta">TLS v1.2: {tlsV12 === null ? '-' : String(tlsV12)}</p>
-                            <p className="policy-meta">TLS v1.3: {tlsV13 === null ? '-' : String(tlsV13)}</p>
-                            <p className="policy-meta">HTTP2: {http2 === null ? '-' : String(http2)}</p>
-                            <p className="policy-meta">Traffic Mirror: {trafficMirror || '-'}</p>
-                            <p className="policy-meta">Monitor Mode: {monitorMode || '-'}</p>
-                            <p className="policy-meta">SNI: {sni || '-'}</p>
-                            <p className="policy-meta">SNI Certificate: {sniCertificate || '-'}</p>
-                            <p className="policy-meta">SNI Entries: {sniEntries.length}</p>
-                            {sniEntries.length > 0 && (
-                              <ul className="policy-host-list policy-meta">
-                                {sniEntries.map((entry, entryIndex) => (
-                                  <li key={`${policy._deviceName}-${policyName}-${index}-sni-${entryIndex}`}>
-                                    {(entry.domain || '-') + ' | local-cert: ' + (entry.local_cert || '-')}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            <p className="policy-meta">Client Certificate: {clientCertificate || '-'}</p>
-                            <p className="policy-meta">Client Certificate Subject: {clientCertificateDetails.subject || '-'}</p>
-                            <p className="policy-meta">Client Certificate Issuer: {clientCertificateDetails.issuer || '-'}</p>
-                            <p className="policy-meta">Client Certificate Valid From: {clientCertificateDetails.valid_from || '-'}</p>
-                            <p className="policy-meta">Client Certificate Valid To: {clientCertificateDetails.valid_to || '-'}</p>
-                            <p className="policy-meta">Client Certificate Days Left: {clientCertificateDetails.days_left ?? '-'}</p>
-                            <p className="policy-meta">Client Certificate Serial Number: {clientCertificateDetails.serial_number || '-'}</p>
-                            <p className="policy-meta">Web Protection Profile: {webProtectionProfileName || '-'}</p>
-                            <p className="policy-meta">Custom Access Policy: {customAccessPolicyName || '-'}</p>
-                            <p className="policy-meta">Allow Method Policy: {allowMethodPolicyName || '-'}</p>
-                            <p className="policy-meta">IP List Policy: {ipListPolicyName || '-'}</p>
-                            <p className="policy-meta">Geo-IP Policy: {geoIpPolicyName || '-'}</p>
-                            <p className="policy-meta">XML Validation Policy: {xmlValidationPolicyName || '-'}</p>
-                            <p className="policy-meta">JSON Validation Policy: {jsonValidationPolicyName || '-'}</p>
-                            <p className="policy-meta">Bot Mitigate Policy: {botMitigatePolicyName || '-'}</p>
-                            <p className="policy-meta">Known Bot Policy: {knownBotsPolicyName || '-'}</p>
-                            <p className="policy-meta">Biometric Based Detection Policy: {biometricBasedDetectionPolicyName || '-'}</p>
-                            <p className="policy-meta">Threshold Based Detection Policy: {thresholdBasedDetectionPolicyName || '-'}</p>
-                            <p className="policy-meta">Application Layer DoS Prevention Policy: {applicationLayerDosPreventionName || '-'}</p>
-                            <p className="policy-meta">HTTP Request Flood Prevention Rule: {applicationLayerDosPreventionPolicy.http_request_flood_prevention_rule || '-'}</p>
-                            <p className="policy-meta">Access Limit in HTTP Session: {applicationLayerDosPreventionPolicy.access_limit_in_http_session || '-'}</p>
-                            <p className="policy-meta">HTTP Request Flood Action: {applicationLayerDosPreventionPolicy.action || '-'}</p>
-                            <p className="policy-meta">Bot Confirmation: {applicationLayerDosPreventionPolicy.bot_confirmation || '-'}</p>
-                            <p className="policy-meta">Bot Recognition: {applicationLayerDosPreventionPolicy.bot_recognition || '-'}</p>
-                            <p className="policy-meta">Enable Layer4 DoS Prevention: {applicationLayerDosPreventionPolicy.enable_layer4_dos_prevention || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Rule: {applicationLayerDosPreventionPolicy.layer4_access_limit_rule || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Standalone IP: {layer4AccessLimitRulePolicy.access_limit_standalone_ip || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Share IP: {layer4AccessLimitRulePolicy.access_limit_share_ip || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Bot Confirmation: {layer4AccessLimitRulePolicy.bot_confirmation || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Bot Recognition: {layer4AccessLimitRulePolicy.bot_recognition || '-'}</p>
-                            <p className="policy-meta">Layer4 Access Limit Action: {layer4AccessLimitRulePolicy.action || '-'}</p>
-                            <p className="policy-meta">Layer4 Connection Flood Check Rule: {applicationLayerDosPreventionPolicy.layer4_connection_flood_check_rule || '-'}</p>
-                            <p className="policy-meta">TCP Flood Prevention Threshold: {tcpFloodPreventionPolicy.layer4_connection_threshold || '-'}</p>
-                            <p className="policy-meta">TCP Flood Prevention Action: {tcpFloodPreventionPolicy.action || '-'}</p>
-                            <p className="policy-meta">Syntax Based Attack Detection: {syntaxBasedAttackDetectionName || '-'}</p>
-                            <p className="policy-meta">Cookie Security Policy: {cookieSecurityPolicyName || '-'}</p>
-                            <p className="policy-meta">HTTP Protocol Parameter Restriction: {httpProtocolParameterRestrictionName || '-'}</p>
-                            <p className="policy-meta">Signature Rule: {signatureRuleName || '-'}</p>
-                            <p className="policy-meta">Allow Hosts: {allowHosts || '-'}</p>
-                            {allowHostsEntries.length > 0 && (
-                              <ul className="policy-host-list policy-meta">
-                                {allowHostsEntries.map((entry, hostIndex) => (
-                                  <li key={`${policy._deviceName}-${policyName}-${index}-host-${hostIndex}`}>{entry.host || '-'}</li>
-                                ))}
-                              </ul>
+                            {expandedPolicyCard === `${policyName}-${index}` && (
+                              <section className="policy-summary" aria-label="Quick configuration summary">
+                                <h4>Quick configuration summary</h4>
+                                <div className="policy-summary-grid">
+                                  <article className="policy-summary-section">
+                                    <h5>Endpoint</h5>
+                                    <p><span>IP</span><strong>{policyIp || '-'}</strong></p>
+                                    <p><span>SNI</span><strong>{sni || '-'}</strong></p>
+                                    <p><span>Hostname</span><strong>{hostname || '-'}</strong></p>
+                                    <p><span>Traffic Mirror</span><strong>{trafficMirror || '-'}</strong></p>
+                                  </article>
+                                  <article className="policy-summary-section">
+                                    <h5>Certificate</h5>
+                                    <p><span>CN</span><strong>{certificateCn}</strong></p>
+                                    <p><span>Issuer</span><strong>{certificateIssuer}</strong></p>
+                                    <p><span>Expire Date</span><strong>{certificateExpireDate}</strong></p>
+                                    <p><span>Days Left</span><strong>{certificateDaysLeft}</strong></p>
+                                  </article>
+                                  <article className="policy-summary-section">
+                                    <h5>Network</h5>
+                                    <p><span>TLSv1.3</span><strong>{tlsV13 === null ? '-' : String(tlsV13)}</strong></p>
+                                    <p><span>TLSv1.2</span><strong>{tlsV12 === null ? '-' : String(tlsV12)}</strong></p>
+                                    <p><span>TLSv1.0-1.1</span><strong>{tlsV10V11}</strong></p>
+                                    <p><span>HTTP/2</span><strong>{http2 === null ? '-' : String(http2)}</strong></p>
+                                  </article>
+                                </div>
+                              </section>
                             )}
                           </article>
                           )
