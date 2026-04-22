@@ -34,8 +34,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file:
-      - .env.example
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/security_perspective
       REDIS_URL: redis://redis:6379/0
@@ -59,8 +57,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file:
-      - .env.example
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/security_perspective
       REDIS_URL: redis://redis:6379/0

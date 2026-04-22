@@ -14,7 +14,7 @@ Phase 1 foundation for a containerized security assessment platform:
 - Repository structure initialized for backend + frontend.
 - Dockerfiles for backend and frontend.
 - Docker Compose stack with PostgreSQL, Redis, FastAPI, Celery worker, React frontend, and Nginx gateway.
-- Environment configuration template (`.env.example`).
+- Environment variables are optional; sane defaults are built in for local startup.
 - Backend skeleton with health endpoints.
 - Existing FortiWeb snapshot, parsing, and maturity-scoring APIs retained as starter capability.
 
@@ -43,7 +43,8 @@ docker compose up --build
 
 ## Environment
 
-Copy values from `.env.example` and adjust for your environment.
+You can run the app without a predefined env file.  
+If needed, create a local `.env` to override defaults for your environment.
 
 ## Local admin login (Phase 1)
 
@@ -56,7 +57,7 @@ Copy values from `.env.example` and adjust for your environment.
 
 ## FortiWeb server-policy integration
 
-- WAF base URL default: `https://3.236.139.71:8443`
+- WAF base URL default: `https://3.236.139.71:443`
 - WAF endpoint: `/api/v2.0/cmdb/server-policy/policy`
 - Auth header used for FortiWeb calls: `Authorization: <FORTIWEB_TOKEN>` (raw value, no `Bearer` prefix)
 - Collect endpoint: `POST /fortiweb/server-policy/collect`
