@@ -38,6 +38,42 @@ const getPolicyStatusMeta = (policy) => {
   return { label: 'Blocking', className: 'blocking' }
 }
 
+const SIGNATURE_TABLE_FIELDS = [
+  'cross_site_scripting',
+  'cross_site_scripting_extended',
+  'sql_injection',
+  'sql_injection_extended',
+  'generic_attacks',
+  'generic_attacks_extended',
+  'known_exploits',
+  'trojans',
+  'information_disclosure',
+  'personally_identifiable_information'
+]
+
+const isEnabledValue = (value) => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value > 0
+  const normalized = String(value || '').trim().toLowerCase()
+  return ['enable', 'enabled', 'on', 'true', '1', 'yes'].includes(normalized)
+}
+
+const toEnabledDisabled = (value, options = {}) => {
+  if (isEnabledValue(value)) return 'enabled'
+  const normalized = String(value || '').trim().toLowerCase()
+  if (options.treatNamedPolicyAsEnabled && normalized && !['disable', 'disabled', 'off', 'false', '0', 'no', '-'].includes(normalized)) {
+    return 'enabled'
+  }
+  return 'disabled'
+}
+
+const getSignatureProtectionStatus = (profile) => {
+  const signatureTable = profile?.signature_table
+  if (!signatureTable || typeof signatureTable !== 'object') return 'disabled'
+  const enabledCount = SIGNATURE_TABLE_FIELDS.reduce((total, field) => total + (isEnabledValue(signatureTable[field]) ? 1 : 0), 0)
+  return enabledCount >= 2 ? 'enabled' : 'disabled'
+}
+
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
 
@@ -129,13 +165,16 @@ function FullDetailsPage({ policy }) {
   const profile = policy.web_protection_profile_details || {}
   const dosPolicy = profile.application_layer_dos_prevention_policy || {}
   const thresholdPolicy = profile.bot_mitigate_policy_detail || {}
+  const signatureProtectionStatus = getSignatureProtectionStatus(profile)
+  const httpRfcControlStatus = toEnabledDisabled(profile.http_protocol_parameter_restriction, { treatNamedPolicyAsEnabled: true })
+  const http2RfcControlStatus = toEnabledDisabled(policy.http2)
   const protectionSections = [
     {
       title: 'Standart Protection',
       items: [
-        ['WAF Profile', profile.name || profile.web_protection_profile_name || '-'],
-        ['Signature Rule', profile.signature_rule || '-'],
-        ['Hidden Fields', profile.hidden_fields_protection || '-']
+        ['Signature', signatureProtectionStatus],
+        ['HTTP RFC Control', httpRfcControlStatus],
+        ['HTTP/2 RFC Control', http2RfcControlStatus]
       ]
     },
     {
