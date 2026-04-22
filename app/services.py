@@ -134,8 +134,12 @@ SYNTAX_BASED_ATTACK_DETECTION_FIELDS = [
 def _build_device_base_url(device_ip: str) -> str:
     parsed = urlparse(settings.fortiweb_base_url)
     scheme = parsed.scheme or "https"
-    port = f":{parsed.port}" if parsed.port else ""
-    return f"{scheme}://{device_ip}{port}"
+    host = str(device_ip or "").strip()
+    if host.startswith("http://") or host.startswith("https://"):
+        host = urlparse(host).hostname or host
+    if ":" in host and host.count(":") == 1:
+        host = host.split(":", 1)[0]
+    return f"{scheme}://{host}:443"
 
 
 def _as_bool(value):
