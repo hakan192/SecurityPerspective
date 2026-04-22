@@ -20,10 +20,59 @@ const navItems = [
     id: 'overview',
     label: 'Executive Overview',
     description: 'Leadership-ready security posture summaries'
+  },
+  {
+    id: 'automation',
+    label: 'Automation',
+    description: 'Quick analysis for automated security operations'
   }
 ]
 
 const MAIN_WAF_TAB_ID = 'waf-main-tab'
+
+const getPolicyStatusMeta = (policy) => {
+  const ip = typeof policy === 'string' ? '' : (policy.ip || '').trim()
+  if (!ip) return { label: 'Not Protected', className: 'not-protected' }
+  const monitorMode = typeof policy === 'string' ? '' : String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
+  if (monitorMode === 'enable') return { label: 'Monitoring', className: 'monitoring' }
+  return { label: 'Blocking', className: 'blocking' }
+}
+
+const SIGNATURE_TABLE_FIELDS = [
+  'cross_site_scripting',
+  'cross_site_scripting_extended',
+  'sql_injection',
+  'sql_injection_extended',
+  'generic_attacks',
+  'generic_attacks_extended',
+  'known_exploits',
+  'trojans',
+  'information_disclosure',
+  'personally_identifiable_information'
+]
+
+const isEnabledValue = (value) => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value > 0
+  const normalized = String(value || '').trim().toLowerCase()
+  return ['enable', 'enabled', 'on', 'true', '1', 'yes'].includes(normalized)
+}
+
+const toEnabledDisabled = (value, options = {}) => {
+  if (isEnabledValue(value)) return 'enabled'
+  const normalized = String(value || '').trim().toLowerCase()
+  if (options.treatNamedPolicyAsEnabled && normalized && !['disable', 'disabled', 'off', 'false', '0', 'no', '-'].includes(normalized)) {
+    return 'enabled'
+  }
+  return 'disabled'
+}
+
+const getSignatureProtectionStatus = (profile) => {
+  const signatureTable = profile?.signature_table
+  if (!signatureTable || typeof signatureTable !== 'object') return 'disabled'
+  const enabledCount = SIGNATURE_TABLE_FIELDS.reduce((total, field) => total + (isEnabledValue(signatureTable[field]) ? 1 : 0), 0)
+  return enabledCount >= 2 ? 'enabled' : 'disabled'
+}
 
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
@@ -112,16 +161,20 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
+  const { label: policyStatusLabel, className: policyStatusClass } = getPolicyStatusMeta(policy)
   const profile = policy.web_protection_profile_details || {}
   const dosPolicy = profile.application_layer_dos_prevention_policy || {}
   const thresholdPolicy = profile.bot_mitigate_policy_detail || {}
+  const signatureProtectionStatus = getSignatureProtectionStatus(profile)
+  const httpRfcControlStatus = toEnabledDisabled(profile.http_protocol_parameter_restriction, { treatNamedPolicyAsEnabled: true })
+  const http2RfcControlStatus = toEnabledDisabled(policy.http2)
   const protectionSections = [
     {
       title: 'Standart Protection',
       items: [
-        ['WAF Profile', profile.name || profile.web_protection_profile_name || '-'],
-        ['Signature Rule', profile.signature_rule || '-'],
-        ['Hidden Fields', profile.hidden_fields_protection || '-']
+        ['Signature', signatureProtectionStatus],
+        ['HTTP RFC Control', httpRfcControlStatus],
+        ['HTTP/2 RFC Control', http2RfcControlStatus]
       ]
     },
     {
@@ -194,9 +247,21 @@ function FullDetailsPage({ policy }) {
     <section className="full-details-page">
       <div className="full-details-head">
         <h3>{policy.server_policy_name || 'Policy Details'}</h3>
-        <p>
-          {policy._deviceName || 'Unknown Device'} · {policy._deviceLocation || 'Unknown Location'} · {policy.ip || '-'}
-        </p>
+        <div className="full-details-meta-row">
+          <div className="policy-device-row">
+            <span className="policy-device-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+                <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+                <line x1="6" x2="6.01" y1="6" y2="6" />
+                <line x1="6" x2="6.01" y1="18" y2="18" />
+              </svg>
+            </span>
+            <span className="policy-device-label">Device</span>
+            <strong>{policy._deviceName || 'Unknown Device'}</strong>
+          </div>
+          <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatusLabel}</span>
+        </div>
       </div>
       <div className="policy-protection-grid">
         {protectionSections.map((section) => (
@@ -489,13 +554,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
   }
 
-  const getPolicyStatus = (policy) => {
-    const ip = typeof policy === 'string' ? '' : (policy.ip || '').trim()
-    if (!ip) return { label: 'Not Protected', className: 'not-protected' }
-    const monitorMode = typeof policy === 'string' ? '' : String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
-    if (monitorMode === 'enable') return { label: 'Monitoring', className: 'monitoring' }
-    return { label: 'Blocking', className: 'blocking' }
-  }
+  const getPolicyStatus = (policy) => getPolicyStatusMeta(policy)
 
   const openPolicyTab = (policy, index) => {
     const policyName = policy?.server_policy_name || `Policy ${index + 1}`
@@ -591,7 +650,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     ? 'WAF Configuration'
                     : activeNav === 'device-config'
                       ? 'Device Config'
-                      : 'Executive Overview'}
+                      : activeNav === 'automation'
+                        ? 'Automation'
+                        : 'Executive Overview'}
               </h1>
               {activeNav === 'waf' && <p className="waf-updated">Last updated: {new Date().toLocaleString()}</p>}
             </div>
@@ -820,6 +881,12 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             )}
 
             {activeNav === 'overview' && <div className="hero-text muted">This page will be designed next.</div>}
+            {activeNav === 'automation' && (
+              <section className="automation-panel">
+                <h2>Automation Analysis</h2>
+                <p className="nav-desc">Current automation coverage is moderate: scheduled policy collection is in place, but alert enrichment and auto-remediation should be expanded to reduce mean response time.</p>
+              </section>
+            )}
             {activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">

@@ -1,5 +1,5 @@
 :root {
-  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-family: "Nunito", "Avenir Next", "Avenir", "Segoe UI", "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 * {
@@ -290,6 +290,23 @@ input,
 .hero-text { font-size: 1.7rem; color: #475569; }
 .dark .hero-text { color: #cbd5e1; }
 .hero-text.muted { font-size: 1rem; }
+
+
+.automation-panel {
+  width: min(100%, 920px);
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.62);
+  padding: 1.1rem 1.2rem;
+}
+
+.dark .automation-panel {
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.automation-panel h2 {
+  margin: 0 0 0.55rem;
+}
 
 .search-bar { margin-top: 1.3rem; border-radius: 999px; border: 1px solid rgba(148,163,184,0.35); background: rgba(255,255,255,0.7); padding: 0.35rem; display: grid; gap: 0.45rem; grid-template-columns: 1fr auto; }
 .dark .search-bar { background: rgba(15,23,42,0.7); }
@@ -802,13 +819,13 @@ input,
   margin: 0;
 }
 
-.full-details-head p {
-  margin: 0.4rem 0 1rem;
-  color: #64748b;
-}
-
-.dark .full-details-head p {
-  color: #94a3b8;
+.full-details-meta-row {
+  margin: 0.55rem 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .policy-protection-grid {

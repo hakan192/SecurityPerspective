@@ -56,7 +56,7 @@ Copy values from `.env.example` and adjust for your environment.
 
 ## FortiWeb server-policy integration
 
-- WAF base URL default: `https://3.236.139.71:8443`
+- WAF base URL default: `https://3.236.139.71:443`
 - WAF endpoint: `/api/v2.0/cmdb/server-policy/policy`
 - Auth header used for FortiWeb calls: `Authorization: <FORTIWEB_TOKEN>` (raw value, no `Bearer` prefix)
 - Collect endpoint: `POST /fortiweb/server-policy/collect`
