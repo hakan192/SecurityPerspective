@@ -1672,7 +1672,9 @@ def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
         "sni_certificate": _normalize_optional_text(result.get("sni-certificate") or result.get("sni_certificate")),
         "client_certificate": _normalize_optional_text(result.get("client-certificate") or result.get("client_certificate")),
         "certificate_name": _normalize_optional_text(result.get("certificate_name") or result.get("certificate")),
-        "sni_certificate_name": _normalize_optional_text(result.get("sni_certificate_name") or result.get("sni_name")),
+        "sni_certificate_name": _normalize_optional_text(
+            result.get("sni_certificate_name") or result.get("sni_name") or result.get("sni-certificate") or result.get("sni_certificate")
+        ),
         "intermediate_certificate_group_name": _normalize_optional_text(
             result.get("intermediate_certificate_group_name")
             or result.get("intermediate-group")
@@ -1786,6 +1788,17 @@ def _extract_certificate_sni_member_rows(payload: dict, sni_name: str) -> list[d
 
 
 def _upsert_certificate_sni_member_rows(db: Session, device_id: int, sni_name: str, rows: list[dict]):
+    db.execute(
+        text(
+            """
+            INSERT INTO certificate_sni (device_id, sni_name)
+            VALUES (:device_id, :sni_name)
+            ON CONFLICT (device_id, sni_name) DO NOTHING
+            """
+        ),
+        {"device_id": device_id, "sni_name": sni_name},
+    )
+
     db.execute(
         text(
             """

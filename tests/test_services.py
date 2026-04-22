@@ -46,6 +46,7 @@ def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate()
 
     assert row["sni"] == "enable"
     assert row["sni_certificate"] == "sni-cert-01"
+    assert row["sni_certificate_name"] == "sni-cert-01"
     assert row["client_certificate"] == "client-cert-01"
 
 
