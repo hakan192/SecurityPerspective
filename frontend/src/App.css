@@ -819,13 +819,13 @@ input,
   margin: 0;
 }
 
-.full-details-head p {
-  margin: 0.4rem 0 1rem;
-  color: #64748b;
-}
-
-.dark .full-details-head p {
-  color: #94a3b8;
+.full-details-meta-row {
+  margin: 0.55rem 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .policy-protection-grid {
