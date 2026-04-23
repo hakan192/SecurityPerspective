@@ -1,4 +1,10 @@
-from app.services import _extract_certificate_local_row, _extract_certificate_sni_member_rows, _extract_policy_rows, _extract_server_pool_row
+from app.services import (
+    _build_device_base_url,
+    _extract_certificate_local_row,
+    _extract_certificate_sni_member_rows,
+    _extract_policy_rows,
+    _extract_server_pool_row,
+)
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
@@ -40,6 +46,7 @@ def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate()
 
     assert row["sni"] == "enable"
     assert row["sni_certificate"] == "sni-cert-01"
+    assert row["sni_certificate_name"] == "sni-cert-01"
     assert row["client_certificate"] == "client-cert-01"
 
 
@@ -114,3 +121,11 @@ def test_extract_certificate_sni_member_rows_parses_each_result_entry():
     assert rows[1]["seq"] == 2
     assert rows[1]["domain"] == "webforms.example.com"
     assert rows[1]["local_cert"] == "cert-b"
+
+
+def test_build_device_base_url_uses_configured_https_port(monkeypatch):
+    monkeypatch.setattr("app.services.settings.fortiweb_base_url", "https://3.236.139.71:443")
+
+    url = _build_device_base_url("10.20.30.40")
+
+    assert url == "https://10.20.30.40:443"
