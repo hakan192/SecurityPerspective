@@ -118,8 +118,8 @@ function FullDetailsPage({ policy }) {
   if (!policy) return null
 
   const signatureStatus = policy?.web_protection_profile_details?.signature_set_status === 'enabled' ? 'Enabled' : 'Disabled'
-  const httpRfcStatus = policy?.web_protection_profile_details?.http_protocol_parameter_restriction ? 'Enabled' : 'Disabled'
-  const http2RfcControlStatus = policy?.http2 ? 'Enabled' : 'Disabled'
+  const httpRfcStatus = policy?.web_protection_profile_details?.http_rfc_status === 'enabled' ? 'Enabled' : 'Disabled'
+  const http2RfcControlStatus = policy?.web_protection_profile_details?.http2_rfc_status === 'enabled' ? 'Enabled' : 'Disabled'
   const standardProtectionFeatures = [
     { name: 'Signature', status: signatureStatus },
     { name: 'HTTP RFC', status: httpRfcStatus },
