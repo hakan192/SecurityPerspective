@@ -17,6 +17,11 @@ const navItems = [
     description: 'Policies, gaps, and remediation priorities'
   },
   {
+    id: 'automation',
+    label: 'Automation',
+    description: 'Security automation controls and quick actions'
+  },
+  {
     id: 'overview',
     label: 'Executive Overview',
     description: 'Leadership-ready security posture summaries'
@@ -163,6 +168,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [wafSearch, setWafSearch] = useState('')
   const [wafTabs, setWafTabs] = useState([{ id: MAIN_WAF_TAB_ID, title: 'WAF Configuration', type: 'main' }])
   const [activeWafTabId, setActiveWafTabId] = useState(MAIN_WAF_TAB_ID)
+  const [expandedAutomationCard, setExpandedAutomationCard] = useState('')
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
@@ -527,6 +533,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                   ? 'Search'
                   : activeNav === 'waf'
                     ? 'WAF Configuration'
+                    : activeNav === 'automation'
+                      ? 'Automation'
                     : activeNav === 'device-config'
                       ? 'Device Config'
                       : 'Executive Overview'}
@@ -752,6 +760,53 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                 ) : (
                   <FullDetailsPage policy={activeWafTab?.policy} />
                 )}
+              </section>
+            )}
+
+            {activeNav === 'automation' && (
+              <section className="waf-panel modern-waf">
+                <div className="waf-card-grid">
+                  {[
+                    {
+                      id: 'server-policy-disable',
+                      title: 'Server Policy Disable',
+                      definition: 'Disables configured server policy enforcement and bypasses the policy chain for matching traffic.'
+                    },
+                    {
+                      id: 'recaptcha-disable',
+                      title: 'Recaptcha Disable',
+                      definition: 'Turns off CAPTCHA challenge checks, allowing requests to pass without Recaptcha validation.'
+                    }
+                  ].map((card) => (
+                    <article
+                      key={card.id}
+                      className={`policy-card ${expandedAutomationCard === card.id ? 'selected' : ''}`}
+                      onClick={() => setExpandedAutomationCard((prev) => (prev === card.id ? '' : card.id))}
+                    >
+                      <div className="policy-top-row">
+                        <div>
+                          <p className="policy-label">Automation</p>
+                          <p className="policy-name">{card.title}</p>
+                        </div>
+                        <div className="policy-status-wrap">
+                          <span className={`policy-expand-icon ${expandedAutomationCard === card.id ? 'expanded' : ''}`} aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </span>
+                        </div>
+                      </div>
+                      {expandedAutomationCard === card.id && (
+                        <section className="policy-summary automation-definition" aria-label={`${card.title} definition`}>
+                          <div className="policy-summary-head">
+                            <h4>Definition</h4>
+                          </div>
+                          <p>{card.definition}</p>
+                        </section>
+                      )}
+                    </article>
+                  ))}
+                </div>
               </section>
             )}
 
