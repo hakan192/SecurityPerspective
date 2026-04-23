@@ -467,7 +467,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       <div className="ambient-layer" />
       <div className={`dashboard-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <aside className={`sidebar ${sidebarOpen ? 'is-open' : 'is-closed'}`}>
-          <div>
+          <div className="sidebar-top">
             <button onClick={() => setActiveNav('home')} className="home-link">
               <div className="brand-logo-shell">
                 <SecurityPerspectiveLogo />
@@ -620,10 +620,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           ))}
                         </select>
                       </div>
-                      <div className="waf-buttons">
-                        <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
-                        <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
-                      </div>
+                      <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
                     </div>
                     {loadingWaf && <p className="nav-desc">Loading...</p>}
                     {wafError && <p className="error-box">{wafError}</p>}
@@ -767,7 +764,10 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     <h2 className="device-title">Manage FortiWeb Devices</h2>
                     <p className="device-subtitle">Add, review, filter, and remove devices connected to your WAF configuration platform.</p>
                   </div>
-                  <button type="button" className="add-device-btn" onClick={() => setAddDeviceModalOpen(true)}>+ Add Device</button>
+                  <div className="device-topbar-actions">
+                    <button type="button" className="add-device-btn" onClick={() => setAddDeviceModalOpen(true)}>+ Add Device</button>
+                    <button type="button" className="add-device-btn" onClick={collectWafResponse} disabled={loadingWaf}>{loadingWaf ? 'Collecting...' : 'Collect From WAF'}</button>
+                  </div>
                 </div>
 
                 <div className="device-stats-grid">
