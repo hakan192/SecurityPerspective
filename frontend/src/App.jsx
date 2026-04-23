@@ -571,7 +571,10 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               <form className="search-wrap" onSubmit={submitSearch}>
                 <div className="hero-text">How can I help you? :)</div>
                 <div className="search-bar">
-                  <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Search..." />
+                  <div className="search-input-with-icon">
+                    <span className="search-icon" aria-hidden="true">⌕</span>
+                    <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Search..." />
+                  </div>
                   <button type="submit">Search</button>
                 </div>
                 {searchResult && <p className="search-result">{searchResult}</p>}
@@ -612,13 +615,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                   <>
                     <div className="waf-search-shell">
                       <div className="waf-policy-search">
-                        <input
-                          type="text"
-                          value={wafSearch}
-                          onChange={(e) => setWafSearch(e.target.value)}
-                          placeholder="Search by policy name, IP, or hostname"
-                          aria-label="Search WAF policies"
-                        />
+                        <div className="search-input-with-icon">
+                          <span className="search-icon" aria-hidden="true">⌕</span>
+                          <input
+                            type="text"
+                            value={wafSearch}
+                            onChange={(e) => setWafSearch(e.target.value)}
+                            placeholder="Search by policy name, IP, or hostname"
+                            aria-label="Search WAF policies"
+                          />
+                        </div>
                       </div>
                       <div className="waf-location-card">
                         <span className="waf-location-label">Location</span>

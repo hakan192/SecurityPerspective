@@ -174,7 +174,7 @@ input,
 
 .home-link { background: transparent; border: 0; cursor: pointer; padding: 0; text-align: left; color: inherit; }
 
-.nav-list { margin-top: 1.2rem; display: grid; gap: 0.75rem; }
+.nav-list { margin-top: 4rem; display: grid; gap: 0.75rem; }
 
 .nav-item { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; padding: 1rem; border-radius: 1rem; border: 1px solid rgba(148,163,184,0.38); background: rgba(255,255,255,0.58); cursor: pointer; }
 .dark .nav-item { background: rgba(30,41,59,0.45); }
@@ -295,6 +295,18 @@ input,
 .dark .search-bar { background: rgba(15,23,42,0.7); }
 .search-bar input { border: 0; background: transparent; }
 .search-bar button { border-radius: 999px; padding-inline: 1.15rem; }
+.search-input-with-icon { position: relative; width: 100%; display: flex; align-items: center; }
+.search-icon {
+  position: absolute;
+  left: 0.78rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+.dark .search-icon { color: #94a3b8; }
+.search-input-with-icon input { width: 100%; padding-left: 2.2rem; }
 
 .waf-panel { width: min(100%, 1240px); border-radius: 1rem; border: 1px solid rgba(148,163,184,0.35); background: rgba(255,255,255,0.62); padding: 1rem; }
 .dark .waf-panel { background: rgba(15,23,42,0.65); }
@@ -376,7 +388,7 @@ input,
   width: 100%;
   border-radius: 0.85rem;
   border: 1px solid rgba(100, 116, 139, 0.5);
-  padding: 0.7rem 0.85rem;
+  padding: 0.7rem 0.85rem 0.7rem 2.2rem;
   background: rgba(255, 255, 255, 0.82);
 }
 
