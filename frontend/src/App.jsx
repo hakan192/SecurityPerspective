@@ -467,7 +467,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       <div className="ambient-layer" />
       <div className={`dashboard-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <aside className={`sidebar ${sidebarOpen ? 'is-open' : 'is-closed'}`}>
-          <div>
+          <div className="sidebar-top">
             <button onClick={() => setActiveNav('home')} className="home-link">
               <div className="brand-logo-shell">
                 <SecurityPerspectiveLogo />
