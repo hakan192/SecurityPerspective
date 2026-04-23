@@ -167,3 +167,21 @@ def test_calculate_http_protocol_parameter_restriction_statuses_returns_disabled
     assert statuses["http2_rfc_enabled_count"] == 1
     assert statuses["http_rfc_status"] == "disabled"
     assert statuses["http2_rfc_status"] == "disabled"
+
+
+def test_calculate_http_protocol_parameter_restriction_statuses_skips_http2_when_not_applicable():
+    row = {
+        "device_id": 1,
+        "name": "hpr-c",
+        "max_http_header_length_check": "enable",
+        "illegal_http_version_check": "enable",
+        "http2_max_requests_check": "enable",
+        "h2_rst_stream_check": "enable",
+    }
+
+    statuses = _calculate_http_protocol_parameter_restriction_statuses(row, evaluate_http2=False)
+
+    assert statuses["http_rfc_enabled_count"] == 2
+    assert statuses["http2_rfc_enabled_count"] == 0
+    assert statuses["http_rfc_status"] == "enabled"
+    assert statuses["http2_rfc_status"] == "disabled"

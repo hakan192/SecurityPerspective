@@ -196,7 +196,7 @@ def _is_http_protocol_check_enabled(value) -> bool:
     return normalized == "enable"
 
 
-def _calculate_http_protocol_parameter_restriction_statuses(http_protocol_row: dict | None) -> dict:
+def _calculate_http_protocol_parameter_restriction_statuses(http_protocol_row: dict | None, evaluate_http2: bool = True) -> dict:
     if not isinstance(http_protocol_row, dict):
         return {
             "http_rfc_enabled_count": 0,
@@ -213,6 +213,8 @@ def _calculate_http_protocol_parameter_restriction_statuses(http_protocol_row: d
         if not _is_http_protocol_check_enabled(field_value):
             continue
         if field_name.startswith(("h2", "http2")):
+            if not evaluate_http2:
+                continue
             http2_rfc_enabled_count += 1
         else:
             http_rfc_enabled_count += 1
@@ -3039,7 +3041,8 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         if row["server_policy_name"]:
             http_protocol_statuses = _calculate_http_protocol_parameter_restriction_statuses(
-                http_protocol_by_name.get((device_id, row["http_protocol_parameter_restriction"]))
+                http_protocol_by_name.get((device_id, row["http_protocol_parameter_restriction"])),
+                evaluate_http2=_as_enable_disable(row["http2"]) == "enable",
             )
             signature_selection_count = sum(
                 1
