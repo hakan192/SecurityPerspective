@@ -117,7 +117,14 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
-  const standardProtectionFeatures = ['Signature', 'HTTP RFC', 'HTTP/2 RFC control']
+  const signatureStatus = policy?.web_protection_profile_details?.signature_set_status === 'enabled' ? 'Enabled' : 'Disabled'
+  const httpRfcStatus = policy?.web_protection_profile_details?.http_protocol_parameter_restriction ? 'Enabled' : 'Disabled'
+  const http2RfcControlStatus = policy?.http2 ? 'Enabled' : 'Disabled'
+  const standardProtectionFeatures = [
+    { name: 'Signature', status: signatureStatus },
+    { name: 'HTTP RFC', status: httpRfcStatus },
+    { name: 'HTTP/2 RFC control', status: http2RfcControlStatus }
+  ]
 
   return (
     <section className="full-details-page">
@@ -132,8 +139,9 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="policy-feature-grid">
             {standardProtectionFeatures.map((feature) => (
-              <div key={feature} className="policy-feature-card">
-                <span>{feature}</span>
+              <div key={feature.name} className="policy-feature-card">
+                <span>{feature.name}</span>
+                <strong className={`policy-feature-status ${feature.status.toLowerCase()}`}>{feature.status}</strong>
               </div>
             ))}
           </div>
