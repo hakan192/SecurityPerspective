@@ -55,8 +55,7 @@ input {
 .home-link,
 .topbar,
 .topbar-right,
-.waf-header-row,
-.waf-buttons {
+.waf-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -185,7 +184,7 @@ input,
 
 .settings-box {
   width: 100%;
-  margin-top: 0;
+  margin-top: auto;
   border-radius: 0.9rem;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.5);
@@ -851,10 +850,6 @@ input,
     max-width: none;
   }
 
-  .waf-buttons {
-    width: 100%;
-    justify-content: flex-start;
-  }
 
   .policy-summary-grid {
     grid-template-columns: 1fr;

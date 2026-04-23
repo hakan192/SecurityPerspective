@@ -620,10 +620,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           ))}
                         </select>
                       </div>
-                      <div className="waf-buttons">
-                        <button type="button" className="menu-action" onClick={collectWafResponse} disabled={loadingWaf}>Collect from WAF</button>
-                        <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
-                      </div>
+                      <button type="button" className="theme-btn" onClick={loadWafResponse} disabled={loadingWaf}>Refresh</button>
                     </div>
                     {loadingWaf && <p className="nav-desc">Loading...</p>}
                     {wafError && <p className="error-box">{wafError}</p>}
