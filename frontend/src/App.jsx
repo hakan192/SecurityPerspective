@@ -117,20 +117,7 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
-  const details = [
-    ['Device', policy._deviceName || '-'],
-    ['Location', policy._deviceLocation || '-'],
-    ['Server Policy', policy.server_policy_name || '-'],
-    ['IP', policy.ip || '-'],
-    ['SNI', policy.sni || '-'],
-    ['Hostname', policy.allow_hosts_entries?.[0]?.host || '-'],
-    ['Traffic Mirror', policy['traffic-mirror'] ?? policy.traffic_mirror ?? '-'],
-    ['TLS v1.3', String(policy.tls_v13 ?? '-')],
-    ['TLS v1.2', String(policy.tls_v12 ?? '-')],
-    ['TLS v1.1', String(policy.tls_v11 ?? '-')],
-    ['TLS v1.0', String(policy.tls_v10 ?? '-')],
-    ['HTTP/2', String(policy.http2 ?? '-')]
-  ]
+  const standardProtectionFeatures = ['Signature', 'HTTP RFC', 'HTTP/2 RFC control']
 
   return (
     <section className="full-details-page">
@@ -138,16 +125,20 @@ function FullDetailsPage({ policy }) {
         <h3>{policy.server_policy_name || 'Policy Details'}</h3>
         <p>Detailed view of selected policy configuration.</p>
       </div>
-      <table className="policy-table">
-        <tbody>
-          {details.map(([label, value]) => (
-            <tr key={label}>
-              <th>{label}</th>
-              <td>{value || '-'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="policy-detail-sections">
+        <article className="policy-detail-section">
+          <header className="policy-detail-section-head">
+            <h4>Standart Protection</h4>
+          </header>
+          <div className="policy-feature-grid">
+            {standardProtectionFeatures.map((feature) => (
+              <div key={feature} className="policy-feature-card">
+                <span>{feature}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
     </section>
   )
 }
