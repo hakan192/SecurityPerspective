@@ -174,7 +174,7 @@ input,
 
 .home-link { background: transparent; border: 0; cursor: pointer; padding: 0; text-align: left; color: inherit; }
 
-.nav-list { margin-top: 1.2rem; display: grid; gap: 0.75rem; }
+.nav-list { margin-top: 2.6rem; display: grid; gap: 0.75rem; }
 
 .nav-item { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; padding: 1rem; border-radius: 1rem; border: 1px solid rgba(148,163,184,0.38); background: rgba(255,255,255,0.58); cursor: pointer; }
 .dark .nav-item { background: rgba(30,41,59,0.45); }
