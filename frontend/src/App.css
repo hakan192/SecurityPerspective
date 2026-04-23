@@ -579,6 +579,23 @@ input,
   background: transparent;
 }
 
+.automation-definition p {
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border-radius: 0.95rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(203, 213, 225, 0.85);
+}
+
+.dark .automation-definition p {
+  color: #e2e8f0;
+  background: rgba(51, 65, 85, 0.65);
+  border-color: rgba(100, 116, 139, 0.5);
+}
+
 .policy-summary h4 {
   margin: 0;
   font-size: 1.04rem;
