@@ -861,7 +861,9 @@ input,
 }
 
 .full-details-head .policy-status-pill {
-  margin-top: 0;
+  margin-top: 0.45rem;
+  font-size: 0.86rem;
+  padding: 0.45rem 0.9rem;
 }
 
 .full-details-head p {
