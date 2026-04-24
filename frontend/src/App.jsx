@@ -30,6 +30,57 @@ const navItems = [
 
 const MAIN_WAF_TAB_ID = 'waf-main-tab'
 
+function ShieldCheckIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+function ShieldAlertIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
+  )
+}
+
+function ShieldXIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z" />
+      <path d="m9 9 6 6" />
+      <path d="m15 9-6 6" />
+    </svg>
+  )
+}
+
+function DeviceStackIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect width="20" height="8" x="2" y="3" rx="2" />
+      <rect width="20" height="8" x="2" y="13" rx="2" />
+      <path d="M6 7h.01" />
+      <path d="M6 17h.01" />
+    </svg>
+  )
+}
+
+function getPolicyStatusVisual(status) {
+  const normalized = String(status ?? '').trim().toLowerCase()
+  if (normalized === 'blocking') {
+    return { Icon: ShieldCheckIcon, toneClass: 'blocking' }
+  }
+  if (normalized === 'monitoring') {
+    return { Icon: ShieldAlertIcon, toneClass: 'monitoring' }
+  }
+  return { Icon: ShieldXIcon, toneClass: 'not-protected' }
+}
+
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
 
@@ -119,6 +170,7 @@ function FullDetailsPage({ policy }) {
 
   const policyIp = (policy.ip || '').trim()
   const monitorMode = String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
+  const deviceName = policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
   const policyStatus = !policyIp ? 'Not Protected' : monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
   const policyStatusClass = policyStatus.toLowerCase().replace(/\s+/g, '-')
 
@@ -135,6 +187,16 @@ function FullDetailsPage({ policy }) {
     if (['false', '0', 'no', 'off', 'disable', 'disabled'].includes(normalized)) return 'Disabled'
     return 'Unknown'
   }
+
+  const getStatusSymbol = (status) => {
+    const normalized = String(status ?? '').trim().toLowerCase()
+    if (normalized === 'enabled' || normalized === 'blocking') return '✅'
+    if (normalized === 'monitoring') return '👁️'
+    if (normalized === 'disabled' || normalized === 'not protected') return '⚠️'
+    return 'ℹ️'
+  }
+
+  const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus)
 
   const standardProtectionFeatures = [
     {
@@ -183,22 +245,39 @@ function FullDetailsPage({ policy }) {
   return (
     <section className="full-details-page">
       <div className="full-details-head">
-        <h3>{policy.server_policy_name || 'Policy Details'}</h3>
-        <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatus}</span>
+        <div className="full-details-title-block">
+          <p className="full-details-eyebrow">Server Policy</p>
+          <h3>{policy.server_policy_name || 'Policy Details'}</h3>
+        </div>
+        <span className={`policy-status-pill ${policyStatusClass} status-pill-modern ${policyStatusTone}`}>
+          <span className="policy-status-dot" aria-hidden="true" />
+          <PolicyStatusIcon className="policy-status-icon" />
+          <span className="policy-status-text">{policyStatus}</span>
+        </span>
+        <div className="full-details-device-wrap">
+          <span className="policy-status-pill status-pill-modern full-details-device-pill">
+            <span className="policy-status-dot" aria-hidden="true" />
+            <DeviceStackIcon className="policy-status-icon" />
+            <span className="policy-status-text">Device: {deviceName}</span>
+          </span>
+        </div>
         <p>Detailed view of selected policy configuration.</p>
       </div>
 
       <div className="details-sections">
         <section className="details-section">
           <header className="details-section-head">
-            <h4>Standart Protection</h4>
+            <h4>Standard Protection</h4>
           </header>
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
                 <div className="details-feature-head">
                   <p>{feature.name}</p>
-                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>{feature.status}</span>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
+                    <span>{feature.status}</span>
+                  </span>
                 </div>
                 <strong>{feature.value}</strong>
               </article>
@@ -727,6 +806,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                               const certificateExpireDate = clientCertificateDetails.expire_date || clientCertificateDetails.valid_to || '-'
                               const certificateDaysLeft = clientCertificateDetails.days_left ?? '-'
                               const tlsV10V11 = [tlsV10, tlsV11].map((value) => (value === null ? '-' : String(value))).join(' / ')
+                              const { Icon: CardPolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatusLabel)
                               return (
                               <article
                                 className={`policy-card ${expandedPolicyCard === `${policyName}-${index}` ? 'selected' : ''}`}
@@ -751,7 +831,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                     </div>
                                   </div>
                                   <div className="policy-status-wrap">
-                                    <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatusLabel}</span>
+                                    <span className={`policy-status-pill ${policyStatusClass} status-pill-modern ${policyStatusTone}`}>
+                                      <span className="policy-status-dot" aria-hidden="true" />
+                                      <CardPolicyStatusIcon className="policy-status-icon" />
+                                      <span className="policy-status-text">{policyStatusLabel}</span>
+                                    </span>
                                     <span className={`policy-expand-icon ${expandedPolicyCard === `${policyName}-${index}` ? 'expanded' : ''}`} aria-hidden="true">
                                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="m6 9 6 6 6-6" />
