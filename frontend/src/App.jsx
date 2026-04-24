@@ -183,15 +183,33 @@ function FullDetailsPage({ policy }) {
   return (
     <section className="full-details-page">
       <div className="full-details-head">
-        <h3>{policy.server_policy_name || 'Policy Details'}</h3>
+        <div className="full-details-title-block">
+          <p className="full-details-eyebrow">Server Policy</p>
+          <h3>{policy.server_policy_name || 'Policy Details'}</h3>
+        </div>
         <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatus}</span>
         <p>Detailed view of selected policy configuration.</p>
+      </div>
+
+      <div className="full-details-meta-grid">
+        <article className="full-details-meta-card">
+          <p>Protection Mode</p>
+          <strong>{policyStatus}</strong>
+        </article>
+        <article className="full-details-meta-card">
+          <p>Policy IP</p>
+          <strong>{policyIp || 'Not configured'}</strong>
+        </article>
+        <article className="full-details-meta-card">
+          <p>Monitor Mode</p>
+          <strong>{monitorMode === 'enable' ? 'Enabled' : 'Disabled'}</strong>
+        </article>
       </div>
 
       <div className="details-sections">
         <section className="details-section">
           <header className="details-section-head">
-            <h4>Standart Protection</h4>
+            <h4>Standard Protection</h4>
           </header>
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
