@@ -59,6 +59,17 @@ function ShieldXIcon({ className = '', size = 14 }) {
   )
 }
 
+function DeviceStackIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect width="20" height="8" x="2" y="3" rx="2" />
+      <rect width="20" height="8" x="2" y="13" rx="2" />
+      <path d="M6 7h.01" />
+      <path d="M6 17h.01" />
+    </svg>
+  )
+}
+
 function getPolicyStatusVisual(status) {
   const normalized = String(status ?? '').trim().toLowerCase()
   if (normalized === 'blocking') {
@@ -159,6 +170,7 @@ function FullDetailsPage({ policy }) {
 
   const policyIp = (policy.ip || '').trim()
   const monitorMode = String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
+  const deviceName = policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
   const policyStatus = !policyIp ? 'Not Protected' : monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
   const policyStatusClass = policyStatus.toLowerCase().replace(/\s+/g, '-')
 
@@ -242,26 +254,14 @@ function FullDetailsPage({ policy }) {
           <PolicyStatusIcon className="policy-status-icon" />
           <span className="policy-status-text">{policyStatus}</span>
         </span>
+        <div className="full-details-device-wrap">
+          <span className="policy-status-pill status-pill-modern full-details-device-pill">
+            <span className="policy-status-dot" aria-hidden="true" />
+            <DeviceStackIcon className="policy-status-icon" />
+            <span className="policy-status-text">Device: {deviceName}</span>
+          </span>
+        </div>
         <p>Detailed view of selected policy configuration.</p>
-      </div>
-
-      <div className="full-details-meta-grid">
-        <article className="full-details-meta-card">
-          <p>Protection Mode</p>
-          <strong>
-            {getStatusSymbol(policyStatus)} {policyStatus}
-          </strong>
-        </article>
-        <article className="full-details-meta-card">
-          <p>Policy IP</p>
-          <strong>{policyIp || 'Not configured'}</strong>
-        </article>
-        <article className="full-details-meta-card">
-          <p>Monitor Mode</p>
-          <strong>
-            {getStatusSymbol(monitorMode === 'enable' ? 'Enabled' : 'Disabled')} {monitorMode === 'enable' ? 'Enabled' : 'Disabled'}
-          </strong>
-        </article>
       </div>
 
       <div className="details-sections">

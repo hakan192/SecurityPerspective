@@ -904,6 +904,24 @@ input,
   color: #b91c1c;
 }
 
+.full-details-device-wrap {
+  flex-basis: 100%;
+}
+
+.full-details-device-pill {
+  font-size: 0.78rem;
+  padding: 0.34rem 0.65rem;
+  color: #0f766e;
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+
+.dark .full-details-device-pill {
+  color: #5eead4;
+  background: rgba(19, 78, 74, 0.35);
+  border-color: rgba(45, 212, 191, 0.45);
+}
+
 .full-details-head p {
   flex-basis: 100%;
   margin: 0.4rem 0 1rem;
@@ -912,42 +930,6 @@ input,
 
 .dark .full-details-head p {
   color: #94a3b8;
-}
-
-.full-details-meta-grid {
-  margin: 0.25rem 0 1rem;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.65rem;
-}
-
-.full-details-meta-card {
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 0.85rem;
-  padding: 0.7rem 0.8rem;
-  background: rgba(255, 255, 255, 0.74);
-}
-
-.dark .full-details-meta-card {
-  background: rgba(15, 23, 42, 0.56);
-}
-
-.full-details-meta-card p {
-  margin: 0;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #64748b;
-}
-
-.dark .full-details-meta-card p {
-  color: #94a3b8;
-}
-
-.full-details-meta-card strong {
-  display: block;
-  margin-top: 0.35rem;
-  font-size: 1rem;
 }
 
 .details-sections {
@@ -1074,11 +1056,6 @@ input,
   .details-feature-grid {
     grid-template-columns: 1fr;
   }
-
-  .full-details-meta-grid {
-    grid-template-columns: 1fr;
-  }
-
 
   .policy-summary-grid {
     grid-template-columns: 1fr;
