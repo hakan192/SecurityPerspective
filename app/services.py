@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from urllib.parse import urlparse
 from urllib.parse import quote
@@ -184,6 +185,30 @@ def _normalize_optional_date(value):
         return datetime.fromisoformat(text_value.replace("Z", "+00:00")).date().isoformat()
     except ValueError:
         return None
+
+
+def _format_allow_method_value(value):
+    raw_value = _normalize_optional_text(value)
+    if not raw_value:
+        return {"raw": None, "methods": [], "display": None}
+
+    tokens = re.split(r"[\s,;|/]+", raw_value)
+    methods = []
+    seen = set()
+    for token in tokens:
+        normalized = token.strip().strip("[](){}\"'").upper()
+        if not normalized:
+            continue
+        if normalized not in seen:
+            seen.add(normalized)
+            methods.append(normalized)
+
+    if not methods:
+        return {"raw": raw_value, "methods": [], "display": raw_value}
+    if len(methods) == 1 and methods[0] in {"ALL", "ANY", "*"}:
+        return {"raw": raw_value, "methods": methods, "display": "All methods"}
+
+    return {"raw": raw_value, "methods": methods, "display": ", ".join(methods)}
 
 
 def _extract_by_aliases(item: dict, aliases: list[str]):
@@ -2897,6 +2922,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 l4alr.action AS layer4_access_limit_action,
                 tcp.layer4_connection_threshold,
                 tcp.action AS tcp_flood_prevention_action,
+                amp.allow_method AS allow_method_value,
                 bmp.name AS bot_mitigate_policy_name,
                 bmp.biometrics_based_detection,
                 bmp.threshold_based_detection,
@@ -2952,6 +2978,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN tcp_flood_prevention tcp
                 ON tcp.device_id = aldp.device_id
                 AND tcp.name = aldp.layer4_connection_flood_check_rule
+            LEFT JOIN "allow-method-policy" amp
+                ON amp.device_id = wpp.device_id
+                AND amp.allow_method_policy_name = wpp.allow_method_policy
             LEFT JOIN "bot-mitigate-policy" bmp
                 ON bmp.device_id = wpp.device_id
                 AND bmp.name = wpp.bot_mitigate_policy
@@ -3114,6 +3143,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "error": "",
             }
         if row["server_policy_name"]:
+            allow_method_info = _format_allow_method_value(row.get("allow_method_value"))
             signature_set_status = _build_signature_set_status(row)
             http_rfc_control_status = _build_http_rfc_control_status(row)
             http2_rfc_control_status = _build_http2_rfc_control_status(row)
@@ -3170,6 +3200,9 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "http2_rfc_selected_count": http2_rfc_control_status["selected_count"],
                     "signature": signature_set_status["status"],
                     "signature_selected_count": signature_set_status["selected_count"],
+                    "allow_method": allow_method_info["display"],
+                    "allow_method_raw": allow_method_info["raw"],
+                    "allow_method_list": allow_method_info["methods"],
                     "syntax_based_attack_detection_details": {
                         "xss_html_tag_based_status": row["xss_html_tag_based_status"],
                         "xss_html_attribute_based_status": row["xss_html_attribute_based_status"],
@@ -3212,6 +3245,9 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "file_upload_policy": row["file_upload_policy"],
                         "webshell_detection_policy": row["webshell_detection_policy"],
                         "allow_method_policy": row["allow_method_policy"],
+                        "allow_method": allow_method_info["display"],
+                        "allow_method_raw": allow_method_info["raw"],
+                        "allow_method_list": allow_method_info["methods"],
                         "bot_mitigate_policy": row["bot_mitigate_policy"],
                         "xml_validation_policy": row["xml_validation_policy"],
                         "json_validation_policy": row["json_validation_policy"],
