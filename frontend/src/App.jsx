@@ -389,18 +389,26 @@ function FullDetailsPage({ policy }) {
       name: 'Allow method',
       status: normalizePresenceStatus(
         policy.allow_method ??
+          policy.allow_method_display ??
           policy.allowMethod ??
           policy['allow-method'] ??
           policy.web_protection_profile_details?.allow_method ??
+          policy.web_protection_profile_details?.allow_method_display ??
           policy.web_protection_profile_details?.allowMethod ??
           policy.web_protection_profile_details?.['allow-method']
       ),
       details: {
         method:
           policy.allow_method ??
+          policy.allow_method_display ??
           policy.allowMethod ??
           policy['allow-method'] ??
+          (Array.isArray(policy.allow_method_list) ? policy.allow_method_list.join(', ') : null) ??
           policy.web_protection_profile_details?.allow_method ??
+          policy.web_protection_profile_details?.allow_method_display ??
+          (Array.isArray(policy.web_protection_profile_details?.allow_method_list)
+            ? policy.web_protection_profile_details.allow_method_list.join(', ')
+            : null) ??
           policy.web_protection_profile_details?.allowMethod ??
           policy.web_protection_profile_details?.['allow-method'] ??
           '-'

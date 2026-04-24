@@ -6,6 +6,7 @@ from app.services import (
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
     _extract_server_pool_row,
+    _format_allow_method_value,
 )
 
 
@@ -197,3 +198,18 @@ def test_build_http_rfc_control_status_disabled_when_only_http2_controls_enabled
 
     assert status["selected_count"] == 0
     assert status["status"] == "disabled"
+
+
+def test_format_allow_method_value_formats_methods_for_ui():
+    parsed = _format_allow_method_value("get, post put")
+
+    assert parsed["raw"] == "get, post put"
+    assert parsed["methods"] == ["GET", "POST", "PUT"]
+    assert parsed["display"] == "GET, POST, PUT"
+
+
+def test_format_allow_method_value_handles_all_methods_keyword():
+    parsed = _format_allow_method_value("all")
+
+    assert parsed["methods"] == ["ALL"]
+    assert parsed["display"] == "All methods"
