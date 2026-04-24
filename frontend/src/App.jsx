@@ -168,6 +168,8 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
+  const [customAccessExpanded, setCustomAccessExpanded] = useState(false)
+
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
     const rawPayload = rule.raw_json_custom_rule
@@ -349,7 +351,7 @@ function FullDetailsPage({ policy }) {
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
-                <div className="details-feature-head">
+                <div>
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
                     <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
@@ -369,8 +371,24 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid details-feature-grid-stacked">
             {advancedProtectionFeatures.map((feature) => (
-              <article key={feature.name} className="details-feature-card">
-                <div className="details-feature-head">
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'Custom Access Rules' ? 'details-feature-card-clickable' : ''}`}
+                onClick={feature.name === 'Custom Access Rules' ? () => setCustomAccessExpanded((current) => !current) : undefined}
+                role={feature.name === 'Custom Access Rules' ? 'button' : undefined}
+                tabIndex={feature.name === 'Custom Access Rules' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'Custom Access Rules'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setCustomAccessExpanded((current) => !current)
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <div>
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
                     <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
@@ -378,14 +396,17 @@ function FullDetailsPage({ policy }) {
                   </span>
                 </div>
                 <strong>{feature.value}</strong>
-                {feature.name === 'Custom Access Rules' && feature.customAccessRules?.length > 0 ? (
+                {feature.name === 'Custom Access Rules' ? (
+                  <span className="details-sub-list-meta">{customAccessExpanded ? 'Click to collapse' : 'Click to expand all rules'}</span>
+                ) : null}
+                {feature.name === 'Custom Access Rules' && customAccessExpanded && feature.customAccessRules?.length > 0 ? (
                   <ul className="details-sub-list">
                     {feature.customAccessRules.map((rule) => (
                       <li key={rule.name}>
-                        <span className="details-sub-list-title">{rule.name}</span>
-                        <span>Action: {rule.action}</span>
-                        <span>Bot confirmation: {rule.botConfirmation}</span>
-                        <span>Bot recognition: {rule.botRecognition}</span>
+                        <strong>{rule.name}</strong>
+                        <span><strong>Action:</strong> <strong>{rule.action}</strong></span>
+                        <span><strong>Bot confirmation:</strong> <strong>{rule.botConfirmation}</strong></span>
+                        <span><strong>Bot recognition:</strong> <strong>{rule.botRecognition}</strong></span>
                         <span className="details-sub-list-meta">Raw JSON custom rule</span>
                         <pre className="details-sub-list-json">{rule.rawJsonCustomRuleText}</pre>
                       </li>

@@ -989,13 +989,6 @@ input,
   color: #94a3b8;
 }
 
-.details-feature-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
 .details-feature-status {
   display: inline-flex;
   align-items: center;
@@ -1067,10 +1060,6 @@ input,
   color: #cbd5e1;
 }
 
-.details-sub-list-title {
-  font-weight: 700;
-}
-
 .details-sub-list-meta {
   color: #64748b;
 }
@@ -1096,6 +1085,10 @@ input,
 .dark .details-sub-list-json {
   background: rgba(15, 23, 42, 0.48);
   color: #e2e8f0;
+}
+
+.details-feature-card-clickable {
+  cursor: pointer;
 }
 
 @media (max-width: 900px) {
