@@ -197,6 +197,29 @@ function FullDetailsPage({ policy }) {
   }
 
   const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus)
+  const syntaxBasedDetectionStatusFields = [
+    'xss_html_tag_based_status',
+    'xss_html_attribute_based_status',
+    'xss_javascript_function_based_status',
+    'xss_javascript_variable_based_status',
+    'sql_stacked_queries_status',
+    'sql_embeded_queries_status',
+    'sql_condition_based_status',
+    'sql_arithmetic_operation_status',
+    'sql_line_comments_status',
+    'sql_function_based_status'
+  ]
+
+  const syntaxBasedDetectionDetails =
+    policy.syntax_based_attack_detection_details ??
+    policy.web_protection_profile_details?.syntax_based_attack_detection_details ??
+    {}
+
+  const syntaxEnabledCount = syntaxBasedDetectionStatusFields.reduce((enabledCount, fieldName) => {
+    const normalizedValue = String(syntaxBasedDetectionDetails[fieldName] ?? '').trim().toLowerCase()
+    return enabledCount + (['enable', 'enabled', 'on', 'true', '1', 'yes'].includes(normalizedValue) ? 1 : 0)
+  }, 0)
+  const syntaxBasedDetectionStatus = syntaxEnabledCount >= 2 ? 'Enabled' : 'Disabled'
 
   const standardProtectionFeatures = [
     {
@@ -242,6 +265,20 @@ function FullDetailsPage({ policy }) {
     }
   ]
 
+
+  const advancedProtectionFeatures = [
+    {
+      name: 'Syntax Based Detection',
+      value: `${syntaxEnabledCount}/10 enabled`,
+      status: syntaxBasedDetectionStatus
+    },
+    {
+      name: 'Custom Access Rules',
+      value: 'Not Configured',
+      status: 'Unknown'
+    }
+  ]
+
   return (
     <section className="full-details-page">
       <div className="full-details-head">
@@ -271,6 +308,27 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-feature-head">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                <strong>{feature.value}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Advance Protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {advancedProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
                 <div className="details-feature-head">
                   <p>{feature.name}</p>
