@@ -117,19 +117,62 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
-  const details = [
-    ['Device', policy._deviceName || '-'],
-    ['Location', policy._deviceLocation || '-'],
-    ['Server Policy', policy.server_policy_name || '-'],
-    ['IP', policy.ip || '-'],
-    ['SNI', policy.sni || '-'],
-    ['Hostname', policy.allow_hosts_entries?.[0]?.host || '-'],
-    ['Traffic Mirror', policy['traffic-mirror'] ?? policy.traffic_mirror ?? '-'],
-    ['TLS v1.3', String(policy.tls_v13 ?? '-')],
-    ['TLS v1.2', String(policy.tls_v12 ?? '-')],
-    ['TLS v1.1', String(policy.tls_v11 ?? '-')],
-    ['TLS v1.0', String(policy.tls_v10 ?? '-')],
-    ['HTTP/2', String(policy.http2 ?? '-')]
+  const normalizeFeatureValue = (value) => {
+    if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled'
+    if (typeof value === 'number') return value === 1 ? 'Enabled' : value === 0 ? 'Disabled' : String(value)
+    if (value === null || typeof value === 'undefined' || value === '') return '-'
+    return String(value)
+  }
+
+  const normalizeFeatureStatus = (value) => {
+    const normalized = String(value ?? '').trim().toLowerCase()
+    if (['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(normalized)) return 'Enabled'
+    if (['false', '0', 'no', 'off', 'disable', 'disabled'].includes(normalized)) return 'Disabled'
+    return 'Unknown'
+  }
+
+  const standardProtectionFeatures = [
+    {
+      name: 'Signature',
+      value:
+        typeof policy.signature_selected_count === 'number'
+          ? `${policy.signature_selected_count}/10 selected`
+          : normalizeFeatureValue(policy.signature_selected_count ?? '-'),
+      status: normalizeFeatureStatus(
+        policy.signature ??
+          policy.web_protection_profile_details?.signature_set_status ??
+          policy.signature_protection ??
+          policy['signature-protection']
+      )
+    },
+    {
+      name: 'HTTP RFC',
+      value: normalizeFeatureValue(
+        policy.http_rfc ??
+          policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
+          policy.httpRfc ??
+          policy['http-rfc']
+      ),
+      status: normalizeFeatureStatus(
+        policy.http_rfc ??
+          policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
+          policy.httpRfc ??
+          policy['http-rfc']
+      )
+    },
+    {
+      name: 'HTTP/2 RFC control',
+      value: normalizeFeatureValue(
+        policy.http2_rfc_control ??
+          policy.http2RfcControl ??
+          policy['http2-rfc-control']
+      ),
+      status: normalizeFeatureStatus(
+        policy.http2_rfc_control ??
+          policy.http2RfcControl ??
+          policy['http2-rfc-control']
+      )
+    }
   ]
 
   return (
@@ -138,16 +181,25 @@ function FullDetailsPage({ policy }) {
         <h3>{policy.server_policy_name || 'Policy Details'}</h3>
         <p>Detailed view of selected policy configuration.</p>
       </div>
-      <table className="policy-table">
-        <tbody>
-          {details.map(([label, value]) => (
-            <tr key={label}>
-              <th>{label}</th>
-              <td>{value || '-'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      <div className="details-sections">
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Standart Protection</h4>
+          </header>
+          <div className="details-feature-grid">
+            {standardProtectionFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-feature-head">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>{feature.status}</span>
+                </div>
+                <strong>{feature.value}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
     </section>
   )
 }
