@@ -169,6 +169,7 @@ function FullDetailsPage({ policy }) {
   if (!policy) return null
 
   const [customAccessExpanded, setCustomAccessExpanded] = useState(false)
+  const [httpFloodExpanded, setHttpFloodExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -212,6 +213,8 @@ function FullDetailsPage({ policy }) {
     if (['false', '0', 'no', 'off', 'disable', 'disabled'].includes(normalized)) return 'Disabled'
     return 'Unknown'
   }
+  const normalizePresenceStatus = (value) =>
+    String(value ?? '').trim() ? 'Enabled' : 'Unknown'
 
   const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus)
   const syntaxBasedDetectionStatusFields = [
@@ -245,6 +248,10 @@ function FullDetailsPage({ policy }) {
     .map(parseCustomAccessRule)
     .filter(Boolean)
   const customAccessRuleStatus = customAccessRules.length > 0 ? 'Enabled' : 'Unknown'
+  const applicationLayerDosPolicy =
+    policy.application_layer_dos_prevention_policy ??
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy ??
+    {}
 
   const standardProtectionFeatures = [
     {
@@ -285,6 +292,41 @@ function FullDetailsPage({ policy }) {
       name: 'Custom Access Rules',
       status: customAccessRuleStatus,
       customAccessRules
+    }
+  ]
+  const applicationDosProtectionFeatures = [
+    {
+      name: 'HTTP Flood Prevention',
+      status: normalizePresenceStatus(
+        applicationLayerDosPolicy.http_request_flood_prevention_rule ??
+          policy.http_flood_prevention ??
+          policy.web_protection_profile_details?.http_flood_prevention ??
+          policy['http-flood-prevention']
+      ),
+      details: {
+        accessLimitInHttpSession: applicationLayerDosPolicy.access_limit_in_http_session ?? '-',
+        action: applicationLayerDosPolicy.action ?? '-',
+        botConfirmation: applicationLayerDosPolicy.bot_confirmation ?? '-',
+        botRecognition: applicationLayerDosPolicy.bot_recognition ?? '-'
+      }
+    },
+    {
+      name: 'HTTP Access Limit',
+      status: normalizePresenceStatus(
+        applicationLayerDosPolicy.layer4_access_limit_rule ??
+          policy.http_access_limit ??
+          policy.web_protection_profile_details?.http_access_limit ??
+          policy['http-access-limit']
+      )
+    },
+    {
+      name: 'TCP Flood Prevention',
+      status: normalizePresenceStatus(
+        applicationLayerDosPolicy.layer4_connection_flood_check_rule ??
+          policy.tcp_flood_prevention ??
+          policy.web_protection_profile_details?.tcp_flood_prevention ??
+          policy['tcp-flood-prevention']
+      )
     }
   ]
 
@@ -372,6 +414,64 @@ function FullDetailsPage({ policy }) {
                       </li>
                     ))}
                   </ul>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Application Dos protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {applicationDosProtectionFeatures.map((feature) => (
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'HTTP Flood Prevention' ? 'details-feature-card-clickable' : ''}`}
+                onClick={feature.name === 'HTTP Flood Prevention' ? () => setHttpFloodExpanded((current) => !current) : undefined}
+                role={feature.name === 'HTTP Flood Prevention' ? 'button' : undefined}
+                tabIndex={feature.name === 'HTTP Flood Prevention' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'HTTP Flood Prevention'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setHttpFloodExpanded((current) => !current)
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                {feature.name === 'HTTP Flood Prevention' && httpFloodExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Access limit in HTTP session</th>
+                          <td>{feature.details.accessLimitInHttpSession}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Action</th>
+                          <td>{feature.details.action}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot confirmation</th>
+                          <td>{feature.details.botConfirmation}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot recognition</th>
+                          <td>{feature.details.botRecognition}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 ) : null}
               </article>
             ))}
