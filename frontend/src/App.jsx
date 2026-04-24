@@ -429,7 +429,23 @@ function FullDetailsPage({ policy }) {
           policy.web_protection_profile_details?.['ip-list']
       ),
       details: {
-        value:
+        type:
+          policy.ip_list_type ??
+          policy.ipListType ??
+          policy['ip-list-type'] ??
+          policy.web_protection_profile_details?.ip_list_type ??
+          policy.web_protection_profile_details?.ipListType ??
+          policy.web_protection_profile_details?.['ip-list-type'] ??
+          '-',
+        groupType:
+          policy.ip_list_group_type ??
+          policy.ipListGroupType ??
+          policy['ip-list-group-type'] ??
+          policy.web_protection_profile_details?.ip_list_group_type ??
+          policy.web_protection_profile_details?.ipListGroupType ??
+          policy.web_protection_profile_details?.['ip-list-group-type'] ??
+          '-',
+        ip:
           policy.ip_list ??
           policy.ipList ??
           policy['ip-list'] ??
@@ -440,6 +456,30 @@ function FullDetailsPage({ policy }) {
             ? policy.web_protection_profile_details.ip_list_entries.join(', ')
             : null) ??
           policy.web_protection_profile_details?.['ip-list'] ??
+          '-',
+        ipGroup:
+          policy.ip_group ??
+          policy.ipGroup ??
+          policy['ip-group'] ??
+          (Array.isArray(policy.ip_group_list) ? policy.ip_group_list.join(', ') : null) ??
+          policy.web_protection_profile_details?.ip_group ??
+          policy.web_protection_profile_details?.ipGroup ??
+          (Array.isArray(policy.web_protection_profile_details?.ip_group_list)
+            ? policy.web_protection_profile_details.ip_group_list.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['ip-group'] ??
+          '-',
+        ipExternal:
+          policy.ip_external ??
+          policy.ipExternal ??
+          policy['ip-external'] ??
+          (Array.isArray(policy.ip_external_list) ? policy.ip_external_list.join(', ') : null) ??
+          policy.web_protection_profile_details?.ip_external ??
+          policy.web_protection_profile_details?.ipExternal ??
+          (Array.isArray(policy.web_protection_profile_details?.ip_external_list)
+            ? policy.web_protection_profile_details.ip_external_list.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['ip-external'] ??
           '-'
       }
     },
@@ -766,8 +806,24 @@ function FullDetailsPage({ policy }) {
                     <table className="details-sub-table">
                       <tbody>
                         <tr>
-                          <th scope="row">Value</th>
-                          <td>{feature.details.value}</td>
+                          <th scope="row">Type</th>
+                          <td>{feature.details.type}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Group type</th>
+                          <td>{feature.details.groupType}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">IP</th>
+                          <td>{feature.details.ip}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">IP group</th>
+                          <td>{feature.details.ipGroup}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">IP external</th>
+                          <td>{feature.details.ipExternal}</td>
                         </tr>
                       </tbody>
                     </table>
