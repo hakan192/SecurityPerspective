@@ -168,32 +168,49 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
+  const [customAccessExpanded, setCustomAccessExpanded] = useState(false)
+
+  const parseCustomAccessRule = (rule) => {
+    if (!rule || typeof rule !== 'object') return null
+    const rawPayload = rule.raw_json_custom_rule
+    let parsedRawPayload = rawPayload
+    if (typeof rawPayload === 'string') {
+      try {
+        parsedRawPayload = JSON.parse(rawPayload)
+      } catch {
+        parsedRawPayload = {}
+      }
+    }
+    if (!parsedRawPayload || typeof parsedRawPayload !== 'object') {
+      parsedRawPayload = {}
+    }
+    const rawResult =
+      parsedRawPayload?.results?.[0] ??
+      parsedRawPayload?.result?.[0] ??
+      parsedRawPayload?.results ??
+      parsedRawPayload?.result ??
+      {}
+    return {
+      name: rule.name || '-',
+      action: rule.action || rawResult.action || '-',
+      botConfirmation: rule.bot_confirmation || rawResult['bot-confirmation'] || rawResult.bot_confirmation || '-',
+      botRecognition: rule.bot_recognition || rawResult['bot-recognition'] || rawResult.bot_recognition || '-',
+      rawJsonCustomRule: parsedRawPayload,
+      rawJsonCustomRuleText: JSON.stringify(parsedRawPayload, null, 2)
+    }
+  }
+
   const policyIp = (policy.ip || '').trim()
   const monitorMode = String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
   const deviceName = policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
   const policyStatus = !policyIp ? 'Not Protected' : monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
   const policyStatusClass = policyStatus.toLowerCase().replace(/\s+/g, '-')
 
-  const normalizeFeatureValue = (value) => {
-    if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled'
-    if (typeof value === 'number') return value === 1 ? 'Enabled' : value === 0 ? 'Disabled' : String(value)
-    if (value === null || typeof value === 'undefined' || value === '') return '-'
-    return String(value)
-  }
-
   const normalizeFeatureStatus = (value) => {
     const normalized = String(value ?? '').trim().toLowerCase()
     if (['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(normalized)) return 'Enabled'
     if (['false', '0', 'no', 'off', 'disable', 'disabled'].includes(normalized)) return 'Disabled'
     return 'Unknown'
-  }
-
-  const getStatusSymbol = (status) => {
-    const normalized = String(status ?? '').trim().toLowerCase()
-    if (normalized === 'enabled' || normalized === 'blocking') return '✅'
-    if (normalized === 'monitoring') return '👁️'
-    if (normalized === 'disabled' || normalized === 'not protected') return '⚠️'
-    return 'ℹ️'
   }
 
   const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus)
@@ -220,14 +237,18 @@ function FullDetailsPage({ policy }) {
     return enabledCount + (['enable', 'enabled', 'on', 'true', '1', 'yes'].includes(normalizedValue) ? 1 : 0)
   }, 0)
   const syntaxBasedDetectionStatus = syntaxEnabledCount >= 2 ? 'Enabled' : 'Disabled'
+  const customAccessRules = (
+    policy.custom_access_rules ??
+    policy.web_protection_profile_details?.custom_access_rules ??
+    []
+  )
+    .map(parseCustomAccessRule)
+    .filter(Boolean)
+  const customAccessRuleStatus = customAccessRules.length > 0 ? 'Enabled' : 'Unknown'
 
   const standardProtectionFeatures = [
     {
       name: 'Signature',
-      value:
-        typeof policy.signature_selected_count === 'number'
-          ? `${policy.signature_selected_count}/10 selected`
-          : normalizeFeatureValue(policy.signature_selected_count ?? '-'),
       status: normalizeFeatureStatus(
         policy.signature ??
           policy.web_protection_profile_details?.signature_set_status ??
@@ -237,12 +258,6 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'HTTP RFC',
-      value: normalizeFeatureValue(
-        policy.http_rfc ??
-          policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
-          policy.httpRfc ??
-          policy['http-rfc']
-      ),
       status: normalizeFeatureStatus(
         policy.http_rfc ??
           policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
@@ -252,11 +267,6 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'HTTP/2 RFC control',
-      value: normalizeFeatureValue(
-        policy.http2_rfc_control ??
-          policy.http2RfcControl ??
-          policy['http2-rfc-control']
-      ),
       status: normalizeFeatureStatus(
         policy.http2_rfc_control ??
           policy.http2RfcControl ??
@@ -269,13 +279,12 @@ function FullDetailsPage({ policy }) {
   const advancedProtectionFeatures = [
     {
       name: 'Syntax Based Detection',
-      value: `${syntaxEnabledCount}/10 enabled`,
       status: syntaxBasedDetectionStatus
     },
     {
       name: 'Custom Access Rules',
-      value: 'Not Configured',
-      status: 'Unknown'
+      status: customAccessRuleStatus,
+      customAccessRules
     }
   ]
 
@@ -309,14 +318,12 @@ function FullDetailsPage({ policy }) {
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
-                <div className="details-feature-head">
+                <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
-                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
                     <span>{feature.status}</span>
                   </span>
                 </div>
-                <strong>{feature.value}</strong>
               </article>
             ))}
           </div>
@@ -329,15 +336,43 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid details-feature-grid-stacked">
             {advancedProtectionFeatures.map((feature) => (
-              <article key={feature.name} className="details-feature-card">
-                <div className="details-feature-head">
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'Custom Access Rules' ? 'details-feature-card-clickable' : ''}`}
+                onClick={feature.name === 'Custom Access Rules' ? () => setCustomAccessExpanded((current) => !current) : undefined}
+                role={feature.name === 'Custom Access Rules' ? 'button' : undefined}
+                tabIndex={feature.name === 'Custom Access Rules' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'Custom Access Rules'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setCustomAccessExpanded((current) => !current)
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
-                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
                     <span>{feature.status}</span>
                   </span>
                 </div>
-                <strong>{feature.value}</strong>
+                {feature.name === 'Custom Access Rules' && customAccessExpanded && feature.customAccessRules?.length > 0 ? (
+                  <ul className="details-sub-list">
+                    {feature.customAccessRules.map((rule) => (
+                      <li key={rule.name}>
+                        <strong>{rule.name}</strong>
+                        <span><strong>Action:</strong> <strong>{rule.action}</strong></span>
+                        <span><strong>Bot confirmation:</strong> <strong>{rule.botConfirmation}</strong></span>
+                        <span><strong>Bot recognition:</strong> <strong>{rule.botRecognition}</strong></span>
+                        <span className="details-sub-list-meta">Raw JSON custom rule</span>
+                        <pre className="details-sub-list-json">{rule.rawJsonCustomRuleText}</pre>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </article>
             ))}
           </div>

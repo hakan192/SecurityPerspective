@@ -3062,6 +3062,46 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
+    custom_access_policy_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                custom_access_policy_name,
+                rule_names
+            FROM "custom-access-policy"
+            """
+        )
+    ).mappings().all()
+    custom_access_policy_rules_by_name = {}
+    for row in custom_access_policy_rows:
+        key = (row["device_id"], row["custom_access_policy_name"])
+        custom_access_policy_rules_by_name[key] = row.get("rule_names") or []
+
+    custom_access_rule_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                name,
+                action,
+                "bot-confirmation" AS bot_confirmation,
+                "bot-recognition" AS bot_recognition,
+                raw_json_custom_rule
+            FROM "custom-access-rule"
+            """
+        )
+    ).mappings().all()
+    custom_access_rules_by_name = {}
+    for row in custom_access_rule_rows:
+        custom_access_rules_by_name[(row["device_id"], row["name"])] = {
+            "name": row["name"],
+            "action": row["action"],
+            "bot_confirmation": row["bot_confirmation"],
+            "bot_recognition": row["bot_recognition"],
+            "raw_json_custom_rule": row["raw_json_custom_rule"],
+        }
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3077,6 +3117,22 @@ def load_server_policies_from_db(db: Session) -> dict:
             signature_set_status = _build_signature_set_status(row)
             http_rfc_control_status = _build_http_rfc_control_status(row)
             http2_rfc_control_status = _build_http2_rfc_control_status(row)
+            custom_access_policy_name = row["custom_access_policy"]
+            custom_access_rule_names = custom_access_policy_rules_by_name.get((device_id, custom_access_policy_name), [])
+            custom_access_rule_details = []
+            for rule_name in custom_access_rule_names:
+                custom_access_rule_details.append(
+                    custom_access_rules_by_name.get(
+                        (device_id, rule_name),
+                        {
+                            "name": rule_name,
+                            "action": "",
+                            "bot_confirmation": "",
+                            "bot_recognition": "",
+                            "raw_json_custom_rule": {},
+                        },
+                    )
+                )
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],
@@ -3148,6 +3204,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "http_protocol_parameter_restriction": row["http_protocol_parameter_restriction"],
                         "cookie_security_policy": row["cookie_security_policy"],
                         "custom_access_policy": row["custom_access_policy"],
+                        "custom_access_rules": custom_access_rule_details,
                         "csrf_protection": row["csrf_protection"],
                         "syntax_based_attack_detection": row["syntax_based_attack_detection"],
                         "parameter_validation_rule": row["parameter_validation_rule"],
