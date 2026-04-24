@@ -196,6 +196,13 @@ def _is_http_protocol_check_enabled(value) -> bool:
     return normalized == "enable"
 
 
+def _is_http_protocol_action_enabled(value) -> bool:
+    normalized = _normalize_optional_text(value)
+    if not normalized:
+        return False
+    return normalized.strip().lower() not in {"disable", "disabled", "none", "0", "false", "off", "no"}
+
+
 def _calculate_http_protocol_parameter_restriction_statuses(http_protocol_row: dict | None, evaluate_http2: bool = True) -> dict:
     if not isinstance(http_protocol_row, dict):
         return {
@@ -208,15 +215,21 @@ def _calculate_http_protocol_parameter_restriction_statuses(http_protocol_row: d
     http_rfc_enabled_count = 0
     http2_rfc_enabled_count = 0
     for field_name, field_value in http_protocol_row.items():
-        if field_name in {"device_id", "name", "raw_json", "created_at", "updated_at"} or field_name.endswith("_action"):
-            continue
-        if not _is_http_protocol_check_enabled(field_value):
+        if field_name in {"device_id", "name", "raw_json", "created_at", "updated_at"}:
             continue
         if field_name.startswith(("h2", "http2")):
             if not evaluate_http2:
                 continue
+            if field_name.endswith("_action"):
+                continue
+            if not _is_http_protocol_check_enabled(field_value):
+                continue
             http2_rfc_enabled_count += 1
         else:
+            if not field_name.endswith("_action"):
+                continue
+            if not _is_http_protocol_action_enabled(field_value):
+                continue
             http_rfc_enabled_count += 1
 
     return {

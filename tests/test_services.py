@@ -136,8 +136,8 @@ def test_calculate_http_protocol_parameter_restriction_statuses_uses_http_and_ht
     row = {
         "device_id": 1,
         "name": "hpr-a",
-        "max_http_header_length_check": "enable",
-        "illegal_http_version_check": "enable",
+        "max_http_header_length_check_action": "alert_deny",
+        "illegal_http_version_check_action": "alert",
         "http2_max_requests_check": "enable",
         "h2_rst_stream_check": "enable",
         "http2_max_requests_check_action": "alert_deny",
@@ -156,7 +156,8 @@ def test_calculate_http_protocol_parameter_restriction_statuses_returns_disabled
     row = {
         "device_id": 1,
         "name": "hpr-b",
-        "max_http_header_length_check": "enable",
+        "max_http_header_length_check_action": "alert",
+        "illegal_http_version_check_action": "none",
         "http2_max_requests_check": "disable",
         "h2_rst_stream_check": "enable",
     }
@@ -173,8 +174,8 @@ def test_calculate_http_protocol_parameter_restriction_statuses_skips_http2_when
     row = {
         "device_id": 1,
         "name": "hpr-c",
-        "max_http_header_length_check": "enable",
-        "illegal_http_version_check": "enable",
+        "max_http_header_length_check_action": "alert_deny",
+        "illegal_http_version_check_action": "alert",
         "http2_max_requests_check": "enable",
         "h2_rst_stream_check": "enable",
     }
