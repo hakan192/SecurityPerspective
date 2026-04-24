@@ -171,6 +171,7 @@ function FullDetailsPage({ policy }) {
   const [customAccessExpanded, setCustomAccessExpanded] = useState(false)
   const [httpFloodExpanded, setHttpFloodExpanded] = useState(false)
   const [httpAccessLimitExpanded, setHttpAccessLimitExpanded] = useState(false)
+  const [tcpFloodExpanded, setTcpFloodExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -257,6 +258,11 @@ function FullDetailsPage({ policy }) {
     applicationLayerDosPolicy.layer4_access_limit_rule_policy ??
     applicationLayerDosPolicy['/layer4-access-limit-rule'] ??
     applicationLayerDosPolicy['layer4-access-limit-rule'] ??
+    {}
+  const layer4ConnectionFloodCheckRulePolicy =
+    applicationLayerDosPolicy.layer4_connection_flood_check_rule_policy ??
+    applicationLayerDosPolicy['/layer4-connection-flood-check-rule'] ??
+    applicationLayerDosPolicy['layer4-connection-flood-check-rule'] ??
     {}
 
   const standardProtectionFeatures = [
@@ -361,7 +367,20 @@ function FullDetailsPage({ policy }) {
           policy.tcp_flood_prevention ??
           policy.web_protection_profile_details?.tcp_flood_prevention ??
           policy['tcp-flood-prevention']
-      )
+      ),
+      details: {
+        layer4ConnectionThreshold:
+          layer4ConnectionFloodCheckRulePolicy.layer4_connection_threshold ??
+          layer4ConnectionFloodCheckRulePolicy['layer4-connection-threshold'] ??
+          applicationLayerDosPolicy.layer4_connection_threshold ??
+          applicationLayerDosPolicy['layer4-connection-threshold'] ??
+          '-',
+        action:
+          layer4ConnectionFloodCheckRulePolicy.action ??
+          applicationLayerDosPolicy.layer4_connection_flood_check_action ??
+          applicationLayerDosPolicy.action ??
+          '-'
+      }
     }
   ]
 
@@ -463,23 +482,27 @@ function FullDetailsPage({ policy }) {
             {applicationDosProtectionFeatures.map((feature) => (
               <article
                 key={feature.name}
-                className={`details-feature-card ${feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' ? 'details-feature-card-clickable' : ''}`}
+                className={`details-feature-card ${feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' || feature.name === 'TCP Flood Prevention' ? 'details-feature-card-clickable' : ''}`}
                 onClick={
                   feature.name === 'HTTP Flood Prevention'
                     ? () => setHttpFloodExpanded((current) => !current)
                     : feature.name === 'HTTP Access Limit'
                       ? () => setHttpAccessLimitExpanded((current) => !current)
+                      : feature.name === 'TCP Flood Prevention'
+                        ? () => setTcpFloodExpanded((current) => !current)
                       : undefined
                 }
-                role={feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' ? 'button' : undefined}
-                tabIndex={feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' ? 0 : undefined}
+                role={feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' || feature.name === 'TCP Flood Prevention' ? 'button' : undefined}
+                tabIndex={feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' || feature.name === 'TCP Flood Prevention' ? 0 : undefined}
                 onKeyDown={
-                  feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit'
+                  feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' || feature.name === 'TCP Flood Prevention'
                     ? (event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
                           if (feature.name === 'HTTP Flood Prevention') {
                             setHttpFloodExpanded((current) => !current)
+                          } else if (feature.name === 'TCP Flood Prevention') {
+                            setTcpFloodExpanded((current) => !current)
                           } else {
                             setHttpAccessLimitExpanded((current) => !current)
                           }
@@ -541,6 +564,22 @@ function FullDetailsPage({ policy }) {
                         <tr>
                           <th scope="row">Bot recognition</th>
                           <td>{feature.details.botRecognition}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {feature.name === 'TCP Flood Prevention' && tcpFloodExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Layer4 connection threshold</th>
+                          <td>{feature.details.layer4ConnectionThreshold}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Action</th>
+                          <td>{feature.details.action}</td>
                         </tr>
                       </tbody>
                     </table>
