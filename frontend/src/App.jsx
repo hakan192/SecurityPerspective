@@ -494,7 +494,15 @@ function FullDetailsPage({ policy }) {
           policy.web_protection_profile_details?.['geo-location']
       ),
       details: {
-        value:
+        action:
+          policy.geo_location_action ??
+          policy.geoLocationAction ??
+          policy['geo-location-action'] ??
+          policy.web_protection_profile_details?.geo_location_action ??
+          policy.web_protection_profile_details?.geoLocationAction ??
+          policy.web_protection_profile_details?.['geo-location-action'] ??
+          '-',
+        countryName:
           policy.geo_location ??
           policy.geoLocation ??
           policy['geo-location'] ??
@@ -505,6 +513,14 @@ function FullDetailsPage({ policy }) {
             ? policy.web_protection_profile_details.geo_location_list.join(', ')
             : null) ??
           policy.web_protection_profile_details?.['geo-location'] ??
+          '-',
+        blockPeriod:
+          policy.geo_location_block_period ??
+          policy.geoLocationBlockPeriod ??
+          policy['geo-location-block-period'] ??
+          policy.web_protection_profile_details?.geo_location_block_period ??
+          policy.web_protection_profile_details?.geoLocationBlockPeriod ??
+          policy.web_protection_profile_details?.['geo-location-block-period'] ??
           '-'
       }
     }
@@ -834,8 +850,16 @@ function FullDetailsPage({ policy }) {
                     <table className="details-sub-table">
                       <tbody>
                         <tr>
-                          <th scope="row">Value</th>
-                          <td>{feature.details.value}</td>
+                          <th scope="row">Action</th>
+                          <td>{feature.details.action}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Country name</th>
+                          <td>{feature.details.countryName}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Block period</th>
+                          <td>{feature.details.blockPeriod}</td>
                         </tr>
                       </tbody>
                     </table>
