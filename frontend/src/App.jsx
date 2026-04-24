@@ -168,6 +168,29 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
+  const parseCustomAccessRule = (rule) => {
+    if (!rule || typeof rule !== 'object') return null
+    const rawPayload = rule.raw_json_custom_rule
+    let parsedRawPayload = rawPayload
+    if (typeof rawPayload === 'string') {
+      try {
+        parsedRawPayload = JSON.parse(rawPayload)
+      } catch {
+        parsedRawPayload = {}
+      }
+    }
+    if (!parsedRawPayload || typeof parsedRawPayload !== 'object') {
+      parsedRawPayload = {}
+    }
+    return {
+      name: rule.name || '-',
+      action: rule.action || '-',
+      botConfirmation: rule.bot_confirmation || '-',
+      botRecognition: rule.bot_recognition || '-',
+      rawJsonCustomRule: parsedRawPayload
+    }
+  }
+
   const policyIp = (policy.ip || '').trim()
   const monitorMode = String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
   const deviceName = policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
@@ -220,6 +243,15 @@ function FullDetailsPage({ policy }) {
     return enabledCount + (['enable', 'enabled', 'on', 'true', '1', 'yes'].includes(normalizedValue) ? 1 : 0)
   }, 0)
   const syntaxBasedDetectionStatus = syntaxEnabledCount >= 2 ? 'Enabled' : 'Disabled'
+  const customAccessRules = (
+    policy.custom_access_rules ??
+    policy.web_protection_profile_details?.custom_access_rules ??
+    []
+  )
+    .map(parseCustomAccessRule)
+    .filter(Boolean)
+  const customAccessRuleStatus = customAccessRules.length > 0 ? 'Enabled' : 'Unknown'
+  const customAccessRuleValue = customAccessRules.length > 0 ? `${customAccessRules.length} configured` : 'Not Configured'
 
   const standardProtectionFeatures = [
     {
@@ -274,8 +306,9 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'Custom Access Rules',
-      value: 'Not Configured',
-      status: 'Unknown'
+      value: customAccessRuleValue,
+      status: customAccessRuleStatus,
+      customAccessRules
     }
   ]
 
@@ -338,6 +371,19 @@ function FullDetailsPage({ policy }) {
                   </span>
                 </div>
                 <strong>{feature.value}</strong>
+                {feature.name === 'Custom Access Rules' && feature.customAccessRules?.length > 0 ? (
+                  <ul className="details-sub-list">
+                    {feature.customAccessRules.map((rule) => (
+                      <li key={rule.name}>
+                        <span className="details-sub-list-title">{rule.name}</span>
+                        <span>Action: {rule.action}</span>
+                        <span>Bot confirmation: {rule.botConfirmation}</span>
+                        <span>Bot recognition: {rule.botRecognition}</span>
+                        <span className="details-sub-list-meta">Raw keys: {Object.keys(rule.rawJsonCustomRule).join(', ') || '-'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </article>
             ))}
           </div>

@@ -1049,6 +1049,36 @@ input,
   font-size: 1.07rem;
 }
 
+.details-sub-list {
+  margin: 0.65rem 0 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.details-sub-list li {
+  display: grid;
+  gap: 0.12rem;
+  font-size: 0.76rem;
+  color: #334155;
+}
+
+.dark .details-sub-list li {
+  color: #cbd5e1;
+}
+
+.details-sub-list-title {
+  font-weight: 700;
+}
+
+.details-sub-list-meta {
+  color: #64748b;
+}
+
+.dark .details-sub-list-meta {
+  color: #94a3b8;
+}
+
 @media (max-width: 900px) {
   .waf-search-shell {
     grid-template-columns: 1fr;
