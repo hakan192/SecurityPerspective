@@ -242,6 +242,91 @@ function FullDetailsPage({ policy }) {
     }
   ]
 
+  const syntaxBasedAttackDetectionRaw =
+    policy.syntax_based_attack_detection_details ??
+    policy.syntaxBasedAttackDetectionDetails ??
+    policy['syntax-based-attack-detection-details'] ??
+    policy.syntax_based_attack_detection ??
+    policy.syntaxBasedAttackDetection ??
+    policy['syntax-based-attack-detection'] ??
+    policy.web_protection_profile_details?.syntax_based_attack_detection_details ??
+    policy.web_protection_profile_details?.syntaxBasedAttackDetectionDetails ??
+    policy.web_protection_profile_details?.['syntax-based-attack-detection-details'] ??
+    policy.web_protection_profile_details?.syntax_based_attack_detection ??
+    policy.web_protection_profile_details?.syntaxBasedAttackDetection ??
+    policy.web_protection_profile_details?.['syntax-based-attack-detection'] ??
+    null
+
+  const parseJsonSafely = (value) => {
+    if (typeof value !== 'string') return value
+    const trimmedValue = value.trim()
+    if (!trimmedValue) return null
+    try {
+      return JSON.parse(trimmedValue)
+    } catch {
+      return value
+    }
+  }
+
+  const syntaxBasedAttackDetectionParsed = parseJsonSafely(syntaxBasedAttackDetectionRaw)
+  const syntaxBasedDetectionProfileName = String(
+    policy.syntax_based_attack_detection ??
+      policy.syntaxBasedAttackDetection ??
+      policy['syntax-based-attack-detection'] ??
+      ''
+  )
+    .trim()
+    .toLowerCase()
+
+  const syntaxBasedAttackDetection = Array.isArray(syntaxBasedAttackDetectionParsed)
+    ? syntaxBasedAttackDetectionParsed.find((entry) => String(entry?.name ?? '').trim().toLowerCase() === syntaxBasedDetectionProfileName) ??
+      syntaxBasedAttackDetectionParsed[0] ??
+      {}
+    : typeof syntaxBasedAttackDetectionParsed === 'object' && syntaxBasedAttackDetectionParsed !== null
+      ? syntaxBasedAttackDetectionParsed
+      : {}
+
+  const syntaxBasedDetectionAttributes = [
+    'xss_html_tag_based_status',
+    'xss_html_attribute_based_status',
+    'xss_javascript_function_based_status',
+    'xss_javascript_variable_based_status',
+    'sql_stacked_queries_status',
+    'sql_embeded_queries_status',
+    'sql_condition_based_status',
+    'sql_arithmetic_operation_status',
+    'sql_line_comments_status',
+    'sql_function_based_status'
+  ]
+
+  const syntaxBasedDetectionEnabledCount = syntaxBasedDetectionAttributes.reduce((count, attribute) => {
+    const value = String(syntaxBasedAttackDetection?.[attribute] ?? '').trim().toLowerCase()
+    return ['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(value) ? count + 1 : count
+  }, 0)
+
+  const syntaxBasedDetectionStatus = syntaxBasedDetectionEnabledCount >= 2 ? 'Enabled' : 'Disabled'
+
+  const advanceProtectionFeatures = [
+    {
+      name: 'Syntax Based Detection',
+      value: syntaxBasedDetectionStatus,
+      status: syntaxBasedDetectionStatus
+    },
+    {
+      name: 'Custom Access Rules',
+      value: normalizeFeatureValue(
+        policy.custom_access_rules ??
+          policy.customAccessRules ??
+          policy['custom-access-rules']
+      ),
+      status: normalizeFeatureStatus(
+        policy.custom_access_rules ??
+          policy.customAccessRules ??
+          policy['custom-access-rules']
+      )
+    }
+  ]
+
   return (
     <section className="full-details-page">
       <div className="full-details-head">
@@ -271,6 +356,25 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-feature-head">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                <strong>{feature.value}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Advance Protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {advanceProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
                 <div className="details-feature-head">
                   <p>{feature.name}</p>
