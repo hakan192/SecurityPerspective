@@ -170,6 +170,7 @@ function FullDetailsPage({ policy }) {
 
   const [customAccessExpanded, setCustomAccessExpanded] = useState(false)
   const [httpFloodExpanded, setHttpFloodExpanded] = useState(false)
+  const [httpAccessLimitExpanded, setHttpAccessLimitExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -317,7 +318,20 @@ function FullDetailsPage({ policy }) {
           policy.http_access_limit ??
           policy.web_protection_profile_details?.http_access_limit ??
           policy['http-access-limit']
-      )
+      ),
+      details: {
+        accessLimitStandaloneIp:
+          applicationLayerDosPolicy.access_limit_standalone_ip ??
+          applicationLayerDosPolicy['access-limit-standalone-ip'] ??
+          '-',
+        accessLimitShareIp:
+          applicationLayerDosPolicy.access_limit_share_ip ??
+          applicationLayerDosPolicy['access-limit-share-ip'] ??
+          '-',
+        action: applicationLayerDosPolicy.action ?? '-',
+        botConfirmation: applicationLayerDosPolicy.bot_confirmation ?? '-',
+        botRecognition: applicationLayerDosPolicy.bot_recognition ?? '-'
+      }
     },
     {
       name: 'TCP Flood Prevention',
@@ -428,16 +442,26 @@ function FullDetailsPage({ policy }) {
             {applicationDosProtectionFeatures.map((feature) => (
               <article
                 key={feature.name}
-                className={`details-feature-card ${feature.name === 'HTTP Flood Prevention' ? 'details-feature-card-clickable' : ''}`}
-                onClick={feature.name === 'HTTP Flood Prevention' ? () => setHttpFloodExpanded((current) => !current) : undefined}
-                role={feature.name === 'HTTP Flood Prevention' ? 'button' : undefined}
-                tabIndex={feature.name === 'HTTP Flood Prevention' ? 0 : undefined}
-                onKeyDown={
+                className={`details-feature-card ${feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' ? 'details-feature-card-clickable' : ''}`}
+                onClick={
                   feature.name === 'HTTP Flood Prevention'
+                    ? () => setHttpFloodExpanded((current) => !current)
+                    : feature.name === 'HTTP Access Limit'
+                      ? () => setHttpAccessLimitExpanded((current) => !current)
+                      : undefined
+                }
+                role={feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' ? 'button' : undefined}
+                tabIndex={feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'HTTP Flood Prevention' || feature.name === 'HTTP Access Limit'
                     ? (event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
-                          setHttpFloodExpanded((current) => !current)
+                          if (feature.name === 'HTTP Flood Prevention') {
+                            setHttpFloodExpanded((current) => !current)
+                          } else {
+                            setHttpAccessLimitExpanded((current) => !current)
+                          }
                         }
                       }
                     : undefined
@@ -456,6 +480,34 @@ function FullDetailsPage({ policy }) {
                         <tr>
                           <th scope="row">Access limit in HTTP session</th>
                           <td>{feature.details.accessLimitInHttpSession}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Action</th>
+                          <td>{feature.details.action}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot confirmation</th>
+                          <td>{feature.details.botConfirmation}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot recognition</th>
+                          <td>{feature.details.botRecognition}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {feature.name === 'HTTP Access Limit' && httpAccessLimitExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Access limit standalone IP</th>
+                          <td>{feature.details.accessLimitStandaloneIp}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Access limit share IP</th>
+                          <td>{feature.details.accessLimitShareIp}</td>
                         </tr>
                         <tr>
                           <th scope="row">Action</th>
