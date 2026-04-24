@@ -117,6 +117,11 @@ function LoginCard({ onLogin, darkMode, onToggleTheme }) {
 function FullDetailsPage({ policy }) {
   if (!policy) return null
 
+  const policyIp = (policy.ip || '').trim()
+  const monitorMode = String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
+  const policyStatus = !policyIp ? 'Not Protected' : monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
+  const policyStatusClass = policyStatus.toLowerCase().replace(/\s+/g, '-')
+
   const normalizeFeatureValue = (value) => {
     if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled'
     if (typeof value === 'number') return value === 1 ? 'Enabled' : value === 0 ? 'Disabled' : String(value)
@@ -179,6 +184,7 @@ function FullDetailsPage({ policy }) {
     <section className="full-details-page">
       <div className="full-details-head">
         <h3>{policy.server_policy_name || 'Policy Details'}</h3>
+        <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatus}</span>
         <p>Detailed view of selected policy configuration.</p>
       </div>
 

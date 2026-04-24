@@ -827,11 +827,24 @@ input,
   background: rgba(15, 23, 42, 0.65);
 }
 
+.full-details-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem 0.75rem;
+}
+
 .full-details-head h3 {
   margin: 0;
+  margin-right: auto;
+}
+
+.full-details-head .policy-status-pill {
+  margin-top: 0;
 }
 
 .full-details-head p {
+  flex-basis: 100%;
   margin: 0.4rem 0 1rem;
   color: #64748b;
 }
