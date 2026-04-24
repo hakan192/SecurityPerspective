@@ -136,6 +136,14 @@ function FullDetailsPage({ policy }) {
     return 'Unknown'
   }
 
+  const getStatusSymbol = (status) => {
+    const normalized = String(status ?? '').trim().toLowerCase()
+    if (normalized === 'enabled' || normalized === 'blocking') return '✅'
+    if (normalized === 'monitoring') return '👁️'
+    if (normalized === 'disabled' || normalized === 'not protected') return '⚠️'
+    return 'ℹ️'
+  }
+
   const standardProtectionFeatures = [
     {
       name: 'Signature',
@@ -187,14 +195,19 @@ function FullDetailsPage({ policy }) {
           <p className="full-details-eyebrow">Server Policy</p>
           <h3>{policy.server_policy_name || 'Policy Details'}</h3>
         </div>
-        <span className={`policy-status-pill ${policyStatusClass}`}>{policyStatus}</span>
+        <span className={`policy-status-pill ${policyStatusClass}`}>
+          <span aria-hidden="true">{getStatusSymbol(policyStatus)}</span>
+          <span>{policyStatus}</span>
+        </span>
         <p>Detailed view of selected policy configuration.</p>
       </div>
 
       <div className="full-details-meta-grid">
         <article className="full-details-meta-card">
           <p>Protection Mode</p>
-          <strong>{policyStatus}</strong>
+          <strong>
+            {getStatusSymbol(policyStatus)} {policyStatus}
+          </strong>
         </article>
         <article className="full-details-meta-card">
           <p>Policy IP</p>
@@ -202,7 +215,9 @@ function FullDetailsPage({ policy }) {
         </article>
         <article className="full-details-meta-card">
           <p>Monitor Mode</p>
-          <strong>{monitorMode === 'enable' ? 'Enabled' : 'Disabled'}</strong>
+          <strong>
+            {getStatusSymbol(monitorMode === 'enable' ? 'Enabled' : 'Disabled')} {monitorMode === 'enable' ? 'Enabled' : 'Disabled'}
+          </strong>
         </article>
       </div>
 
@@ -216,7 +231,10 @@ function FullDetailsPage({ policy }) {
               <article key={feature.name} className="details-feature-card">
                 <div className="details-feature-head">
                   <p>{feature.name}</p>
-                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>{feature.status}</span>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
+                    <span>{feature.status}</span>
+                  </span>
                 </div>
                 <strong>{feature.value}</strong>
               </article>
