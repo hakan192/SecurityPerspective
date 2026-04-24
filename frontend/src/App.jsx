@@ -287,6 +287,32 @@ function FullDetailsPage({ policy }) {
       customAccessRules
     }
   ]
+  const applicationDosProtectionFeatures = [
+    {
+      name: 'HTTP Flood Prevention',
+      status: normalizeFeatureStatus(
+        policy.http_flood_prevention ??
+          policy.web_protection_profile_details?.http_flood_prevention ??
+          policy['http-flood-prevention']
+      )
+    },
+    {
+      name: 'HTTP Access Limit',
+      status: normalizeFeatureStatus(
+        policy.http_access_limit ??
+          policy.web_protection_profile_details?.http_access_limit ??
+          policy['http-access-limit']
+      )
+    },
+    {
+      name: 'TCP Flood Prevention',
+      status: normalizeFeatureStatus(
+        policy.tcp_flood_prevention ??
+          policy.web_protection_profile_details?.tcp_flood_prevention ??
+          policy['tcp-flood-prevention']
+      )
+    }
+  ]
 
   return (
     <section className="full-details-page">
@@ -373,6 +399,24 @@ function FullDetailsPage({ policy }) {
                     ))}
                   </ul>
                 ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Application Dos protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {applicationDosProtectionFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
               </article>
             ))}
           </div>
