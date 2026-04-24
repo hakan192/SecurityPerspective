@@ -242,19 +242,40 @@ function FullDetailsPage({ policy }) {
     }
   ]
 
+  const syntaxBasedAttackDetection =
+    policy.syntax_based_attack_detection ??
+    policy.syntaxBasedAttackDetection ??
+    policy['syntax-based-attack-detection'] ??
+    policy.web_protection_profile_details?.syntax_based_attack_detection ??
+    policy.web_protection_profile_details?.syntaxBasedAttackDetection ??
+    policy.web_protection_profile_details?.['syntax-based-attack-detection'] ??
+    {}
+
+  const syntaxBasedDetectionAttributes = [
+    'xss_html_tag_based_status',
+    'xss_html_attribute_based_status',
+    'xss_javascript_function_based_status',
+    'xss_javascript_variable_based_status',
+    'sql_stacked_queries_status',
+    'sql_embeded_queries_status',
+    'sql_condition_based_status',
+    'sql_arithmetic_operation_status',
+    'sql_line_comments_status',
+    'sql_function_based_status'
+  ]
+
+  const syntaxBasedDetectionEnabledCount = syntaxBasedDetectionAttributes.reduce((count, attribute) => {
+    const value = String(syntaxBasedAttackDetection?.[attribute] ?? '').trim().toLowerCase()
+    return ['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(value) ? count + 1 : count
+  }, 0)
+
+  const syntaxBasedDetectionStatus = syntaxBasedDetectionEnabledCount >= 2 ? 'Enabled' : 'Disabled'
+
   const advanceProtectionFeatures = [
     {
       name: 'Syntax Based Detection',
-      value: normalizeFeatureValue(
-        policy.syntax_based_detection ??
-          policy.syntaxBasedDetection ??
-          policy['syntax-based-detection']
-      ),
-      status: normalizeFeatureStatus(
-        policy.syntax_based_detection ??
-          policy.syntaxBasedDetection ??
-          policy['syntax-based-detection']
-      )
+      value: syntaxBasedDetectionStatus,
+      status: syntaxBasedDetectionStatus
     },
     {
       name: 'Custom Access Rules',
