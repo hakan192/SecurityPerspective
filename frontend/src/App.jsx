@@ -260,6 +260,7 @@ function FullDetailsPage({ policy }) {
     applicationLayerDosPolicy['layer4-access-limit-rule'] ??
     {}
   const layer4ConnectionFloodCheckRulePolicy =
+    applicationLayerDosPolicy.tcp_flood_prevention_policy ??
     applicationLayerDosPolicy.layer4_connection_flood_check_rule_policy ??
     applicationLayerDosPolicy['/layer4-connection-flood-check-rule'] ??
     applicationLayerDosPolicy['layer4-connection-flood-check-rule'] ??
@@ -378,7 +379,6 @@ function FullDetailsPage({ policy }) {
         action:
           layer4ConnectionFloodCheckRulePolicy.action ??
           applicationLayerDosPolicy.layer4_connection_flood_check_action ??
-          applicationLayerDosPolicy.action ??
           '-'
       }
     }

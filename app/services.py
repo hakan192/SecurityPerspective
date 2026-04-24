@@ -3261,6 +3261,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                                 "layer4_connection_threshold": row["layer4_connection_threshold"],
                                 "action": row["tcp_flood_prevention_action"],
                             },
+                            "layer4_connection_flood_check_rule_policy": {
+                                "name": row["layer4_connection_flood_check_rule"],
+                                "layer4_connection_threshold": row["layer4_connection_threshold"],
+                                "action": row["tcp_flood_prevention_action"],
+                            },
                             "bot_mitigate_policy_detail": {
                                 "name": row["bot_mitigate_policy_name"],
                                 "biometrics_based_detection": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
