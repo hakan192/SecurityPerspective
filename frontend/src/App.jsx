@@ -242,6 +242,20 @@ function FullDetailsPage({ policy }) {
     }
   ]
 
+
+  const advancedProtectionFeatures = [
+    {
+      name: 'Syntax Based Detection',
+      value: 'Not Configured',
+      status: 'Unknown'
+    },
+    {
+      name: 'Custom Access Rules',
+      value: 'Not Configured',
+      status: 'Unknown'
+    }
+  ]
+
   return (
     <section className="full-details-page">
       <div className="full-details-head">
@@ -271,6 +285,27 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-feature-head">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                <strong>{feature.value}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Advance Protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {advancedProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
                 <div className="details-feature-head">
                   <p>{feature.name}</p>

@@ -961,6 +961,11 @@ input,
   gap: 0.65rem;
 }
 
+
+.details-feature-grid-stacked {
+  grid-template-columns: 1fr;
+}
+
 .details-feature-card {
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 0.8rem;
