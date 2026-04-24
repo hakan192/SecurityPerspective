@@ -172,6 +172,7 @@ function FullDetailsPage({ policy }) {
   const [httpFloodExpanded, setHttpFloodExpanded] = useState(false)
   const [httpAccessLimitExpanded, setHttpAccessLimitExpanded] = useState(false)
   const [tcpFloodExpanded, setTcpFloodExpanded] = useState(false)
+  const [allowMethodExpanded, setAllowMethodExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -619,23 +620,41 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid details-feature-grid-stacked">
             {accessFeatures.map((feature) => (
-              <article key={feature.name} className="details-feature-card">
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'Allow method' ? 'details-feature-card-clickable' : ''}`}
+                onClick={feature.name === 'Allow method' ? () => setAllowMethodExpanded((current) => !current) : undefined}
+                role={feature.name === 'Allow method' ? 'button' : undefined}
+                tabIndex={feature.name === 'Allow method' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'Allow method'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setAllowMethodExpanded((current) => !current)
+                        }
+                      }
+                    : undefined
+                }
+              >
                 <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
                     <span>{feature.status}</span>
                   </span>
                 </div>
-                <div className="details-sub-table-wrap">
-                  <table className="details-sub-table">
-                    <tbody>
-                      <tr>
-                        <th scope="row">Method</th>
-                        <td>{feature.details.method}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                {feature.name === 'Allow method' && allowMethodExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Method</th>
+                          <td>{feature.details.method}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
