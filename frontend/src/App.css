@@ -871,7 +871,7 @@ input,
   border-width: 1px;
 }
 
-.full-details-head .full-details-status-pill {
+.status-pill-modern {
   border-radius: 999px;
   background: #ecfdf3;
   border-color: #86efac;
@@ -879,7 +879,7 @@ input,
   gap: 0.38rem;
 }
 
-.full-details-head .full-details-status-pill .policy-status-dot {
+.status-pill-modern .policy-status-dot {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 999px;
@@ -887,18 +887,18 @@ input,
   box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 20%, transparent);
 }
 
-.full-details-head .full-details-status-pill .policy-status-icon {
+.status-pill-modern .policy-status-icon {
   width: 0.88rem;
   height: 0.88rem;
 }
 
-.full-details-head .full-details-status-pill.monitoring {
+.status-pill-modern.monitoring {
   background: #fff7ed;
   border-color: #fdba74;
   color: #c2410c;
 }
 
-.full-details-head .full-details-status-pill.not-protected {
+.status-pill-modern.not-protected {
   background: #fef2f2;
   border-color: #fca5a5;
   color: #b91c1c;
