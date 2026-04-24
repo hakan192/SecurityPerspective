@@ -3119,11 +3119,20 @@ def load_server_policies_from_db(db: Session) -> dict:
             http2_rfc_control_status = _build_http2_rfc_control_status(row)
             custom_access_policy_name = row["custom_access_policy"]
             custom_access_rule_names = custom_access_policy_rules_by_name.get((device_id, custom_access_policy_name), [])
-            custom_access_rule_details = [
-                custom_access_rules_by_name[(device_id, rule_name)]
-                for rule_name in custom_access_rule_names
-                if (device_id, rule_name) in custom_access_rules_by_name
-            ]
+            custom_access_rule_details = []
+            for rule_name in custom_access_rule_names:
+                custom_access_rule_details.append(
+                    custom_access_rules_by_name.get(
+                        (device_id, rule_name),
+                        {
+                            "name": rule_name,
+                            "action": "",
+                            "bot_confirmation": "",
+                            "bot_recognition": "",
+                            "raw_json_custom_rule": {},
+                        },
+                    )
+                )
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],

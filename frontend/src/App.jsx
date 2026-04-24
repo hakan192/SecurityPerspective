@@ -182,12 +182,19 @@ function FullDetailsPage({ policy }) {
     if (!parsedRawPayload || typeof parsedRawPayload !== 'object') {
       parsedRawPayload = {}
     }
+    const rawResult =
+      parsedRawPayload?.results?.[0] ??
+      parsedRawPayload?.result?.[0] ??
+      parsedRawPayload?.results ??
+      parsedRawPayload?.result ??
+      {}
     return {
       name: rule.name || '-',
-      action: rule.action || '-',
-      botConfirmation: rule.bot_confirmation || '-',
-      botRecognition: rule.bot_recognition || '-',
-      rawJsonCustomRule: parsedRawPayload
+      action: rule.action || rawResult.action || '-',
+      botConfirmation: rule.bot_confirmation || rawResult['bot-confirmation'] || rawResult.bot_confirmation || '-',
+      botRecognition: rule.bot_recognition || rawResult['bot-recognition'] || rawResult.bot_recognition || '-',
+      rawJsonCustomRule: parsedRawPayload,
+      rawJsonCustomRuleText: JSON.stringify(parsedRawPayload, null, 2)
     }
   }
 
@@ -379,7 +386,8 @@ function FullDetailsPage({ policy }) {
                         <span>Action: {rule.action}</span>
                         <span>Bot confirmation: {rule.botConfirmation}</span>
                         <span>Bot recognition: {rule.botRecognition}</span>
-                        <span className="details-sub-list-meta">Raw keys: {Object.keys(rule.rawJsonCustomRule).join(', ') || '-'}</span>
+                        <span className="details-sub-list-meta">Raw JSON custom rule</span>
+                        <pre className="details-sub-list-json">{rule.rawJsonCustomRuleText}</pre>
                       </li>
                     ))}
                   </ul>
