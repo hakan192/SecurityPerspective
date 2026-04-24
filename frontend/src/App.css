@@ -989,6 +989,13 @@ input,
   color: #94a3b8;
 }
 
+.details-article-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .details-feature-status {
   display: inline-flex;
   align-items: center;
@@ -1034,12 +1041,6 @@ input,
 .dark .details-feature-status.unknown {
   color: #cbd5e1;
   background: rgba(71, 85, 105, 0.4);
-}
-
-.details-feature-card strong {
-  display: block;
-  margin-top: 0.4rem;
-  font-size: 1.07rem;
 }
 
 .details-sub-list {

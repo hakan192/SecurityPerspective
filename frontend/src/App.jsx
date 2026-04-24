@@ -206,13 +206,6 @@ function FullDetailsPage({ policy }) {
   const policyStatus = !policyIp ? 'Not Protected' : monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
   const policyStatusClass = policyStatus.toLowerCase().replace(/\s+/g, '-')
 
-  const normalizeFeatureValue = (value) => {
-    if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled'
-    if (typeof value === 'number') return value === 1 ? 'Enabled' : value === 0 ? 'Disabled' : String(value)
-    if (value === null || typeof value === 'undefined' || value === '') return '-'
-    return String(value)
-  }
-
   const normalizeFeatureStatus = (value) => {
     const normalized = String(value ?? '').trim().toLowerCase()
     if (['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(normalized)) return 'Enabled'
@@ -260,15 +253,10 @@ function FullDetailsPage({ policy }) {
     .map(parseCustomAccessRule)
     .filter(Boolean)
   const customAccessRuleStatus = customAccessRules.length > 0 ? 'Enabled' : 'Unknown'
-  const customAccessRuleValue = customAccessRules.length > 0 ? `${customAccessRules.length} configured` : 'Not Configured'
 
   const standardProtectionFeatures = [
     {
       name: 'Signature',
-      value:
-        typeof policy.signature_selected_count === 'number'
-          ? `${policy.signature_selected_count}/10 selected`
-          : normalizeFeatureValue(policy.signature_selected_count ?? '-'),
       status: normalizeFeatureStatus(
         policy.signature ??
           policy.web_protection_profile_details?.signature_set_status ??
@@ -278,12 +266,6 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'HTTP RFC',
-      value: normalizeFeatureValue(
-        policy.http_rfc ??
-          policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
-          policy.httpRfc ??
-          policy['http-rfc']
-      ),
       status: normalizeFeatureStatus(
         policy.http_rfc ??
           policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
@@ -293,11 +275,6 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'HTTP/2 RFC control',
-      value: normalizeFeatureValue(
-        policy.http2_rfc_control ??
-          policy.http2RfcControl ??
-          policy['http2-rfc-control']
-      ),
       status: normalizeFeatureStatus(
         policy.http2_rfc_control ??
           policy.http2RfcControl ??
@@ -310,12 +287,10 @@ function FullDetailsPage({ policy }) {
   const advancedProtectionFeatures = [
     {
       name: 'Syntax Based Detection',
-      value: `${syntaxEnabledCount}/10 enabled`,
       status: syntaxBasedDetectionStatus
     },
     {
       name: 'Custom Access Rules',
-      value: customAccessRuleValue,
       status: customAccessRuleStatus,
       customAccessRules
     }
@@ -351,14 +326,13 @@ function FullDetailsPage({ policy }) {
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
-                <div>
+                <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
                     <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
                     <span>{feature.status}</span>
                   </span>
                 </div>
-                <strong>{feature.value}</strong>
               </article>
             ))}
           </div>
@@ -388,14 +362,13 @@ function FullDetailsPage({ policy }) {
                     : undefined
                 }
               >
-                <div>
+                <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
                     <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
                     <span>{feature.status}</span>
                   </span>
                 </div>
-                <strong>{feature.value}</strong>
                 {feature.name === 'Custom Access Rules' ? (
                   <span className="details-sub-list-meta">{customAccessExpanded ? 'Click to collapse' : 'Click to expand all rules'}</span>
                 ) : null}
