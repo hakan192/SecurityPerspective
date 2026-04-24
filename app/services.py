@@ -1536,6 +1536,13 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
     return rows
 
 
+HTTP2_RFC_CONTROL_FIELDS = [
+    field
+    for field in HTTP_PROTOCOL_PARAMETER_RESTRICTION_FIELDS
+    if (field.startswith("h2") or field.startswith("http2")) and not field.endswith("_action")
+]
+
+
 SIGNATURE_SELECTION_FIELDS = [
     "cross_site_scripting",
     "cross_site_scripting_extended",
@@ -1561,6 +1568,15 @@ def _build_signature_set_status(row: dict) -> dict:
     return {
         "selected_count": selected_count,
         "status": "enabled" if is_enabled else "disabled",
+    }
+
+
+def _build_http2_rfc_control_status(row: dict) -> dict:
+    selected_count = sum(1 for field in HTTP2_RFC_CONTROL_FIELDS if _is_signature_attribute_selected(row.get(field)))
+    is_enabled = selected_count >= 2
+    return {
+        "selected_count": selected_count,
+        "status": "enabled" if is_enabled else "disable",
     }
 
 
@@ -2831,6 +2847,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sig.trojans,
                 sig.information_disclosure,
                 sig.personally_identifiable_information,
+                hpr.http2_max_requests_check,
+                hpr.h2_rst_stream_check,
                 aldp.http_request_flood_prevention_rule,
                 aldp.enable_layer4_dos_prevention,
                 aldp.layer4_access_limit_rule,
@@ -2883,6 +2901,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN signature sig
                 ON sig.device_id = wpp.device_id
                 AND sig.signature_set_name = wpp.signature_rule
+            LEFT JOIN http_protocol_parameter_restriction hpr
+                ON hpr.device_id = wpp.device_id
+                AND hpr.name = wpp.http_protocol_parameter_restriction
             LEFT JOIN "application-layer-dos-prevention" aldp
                 ON aldp.device_id = wpp.device_id
                 AND aldp.name = wpp.application_layer_dos_prevention
@@ -3018,6 +3039,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         if row["server_policy_name"]:
             signature_set_status = _build_signature_set_status(row)
+            http2_rfc_control_status = _build_http2_rfc_control_status(row)
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],
@@ -3049,6 +3071,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "tls_v12": row["tls_v12"],
                     "tls_v13": row["tls_v13"],
                     "http2": row["http2"],
+                    "http2_rfc_control": http2_rfc_control_status["status"],
+                    "http2_rfc_selected_count": http2_rfc_control_status["selected_count"],
                     "signature": signature_set_status["status"],
                     "signature_selected_count": signature_set_status["selected_count"],
                     "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["allow_hosts"]), []),
@@ -3056,6 +3080,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "signature_rule": row["signature_rule"],
                         "signature_set_status": signature_set_status["status"],
                         "signature_selected_count": signature_set_status["selected_count"],
+                        "http2_rfc_control": http2_rfc_control_status["status"],
+                        "http2_rfc_selected_count": http2_rfc_control_status["selected_count"],
                         "cross_site_scripting": row["cross_site_scripting"],
                         "cross_site_scripting_extended": row["cross_site_scripting_extended"],
                         "sql_injection": row["sql_injection"],

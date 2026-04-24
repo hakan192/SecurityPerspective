@@ -1,5 +1,6 @@
 from app.services import (
     _build_device_base_url,
+    _build_http2_rfc_control_status,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
@@ -129,3 +130,27 @@ def test_build_device_base_url_uses_configured_https_port(monkeypatch):
     url = _build_device_base_url("10.20.30.40")
 
     assert url == "https://10.20.30.40:443"
+
+
+def test_build_http2_rfc_control_status_enabled_when_two_h2_controls_enabled():
+    row = {
+        "http2_max_requests_check": "enable",
+        "h2_rst_stream_check": "enabled",
+    }
+
+    status = _build_http2_rfc_control_status(row)
+
+    assert status["selected_count"] == 2
+    assert status["status"] == "enabled"
+
+
+def test_build_http2_rfc_control_status_disable_when_less_than_two_controls_enabled():
+    row = {
+        "http2_max_requests_check": "enable",
+        "h2_rst_stream_check": "disable",
+    }
+
+    status = _build_http2_rfc_control_status(row)
+
+    assert status["selected_count"] == 1
+    assert status["status"] == "disable"
