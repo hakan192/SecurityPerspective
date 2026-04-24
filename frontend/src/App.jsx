@@ -173,6 +173,8 @@ function FullDetailsPage({ policy }) {
   const [httpAccessLimitExpanded, setHttpAccessLimitExpanded] = useState(false)
   const [tcpFloodExpanded, setTcpFloodExpanded] = useState(false)
   const [allowMethodExpanded, setAllowMethodExpanded] = useState(false)
+  const [ipListExpanded, setIpListExpanded] = useState(false)
+  const [geoLocationExpanded, setGeoLocationExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -411,6 +413,58 @@ function FullDetailsPage({ policy }) {
             : null) ??
           policy.web_protection_profile_details?.allowMethod ??
           policy.web_protection_profile_details?.['allow-method'] ??
+          '-'
+      }
+    }
+  ]
+  const ipProtectionFeatures = [
+    {
+      name: 'IP List',
+      status: normalizePresenceStatus(
+        policy.ip_list ??
+          policy.ipList ??
+          policy['ip-list'] ??
+          policy.web_protection_profile_details?.ip_list ??
+          policy.web_protection_profile_details?.ipList ??
+          policy.web_protection_profile_details?.['ip-list']
+      ),
+      details: {
+        value:
+          policy.ip_list ??
+          policy.ipList ??
+          policy['ip-list'] ??
+          (Array.isArray(policy.ip_list_entries) ? policy.ip_list_entries.join(', ') : null) ??
+          policy.web_protection_profile_details?.ip_list ??
+          policy.web_protection_profile_details?.ipList ??
+          (Array.isArray(policy.web_protection_profile_details?.ip_list_entries)
+            ? policy.web_protection_profile_details.ip_list_entries.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['ip-list'] ??
+          '-'
+      }
+    },
+    {
+      name: 'Geo Location',
+      status: normalizePresenceStatus(
+        policy.geo_location ??
+          policy.geoLocation ??
+          policy['geo-location'] ??
+          policy.web_protection_profile_details?.geo_location ??
+          policy.web_protection_profile_details?.geoLocation ??
+          policy.web_protection_profile_details?.['geo-location']
+      ),
+      details: {
+        value:
+          policy.geo_location ??
+          policy.geoLocation ??
+          policy['geo-location'] ??
+          (Array.isArray(policy.geo_location_list) ? policy.geo_location_list.join(', ') : null) ??
+          policy.web_protection_profile_details?.geo_location ??
+          policy.web_protection_profile_details?.geoLocation ??
+          (Array.isArray(policy.web_protection_profile_details?.geo_location_list)
+            ? policy.web_protection_profile_details.geo_location_list.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['geo-location'] ??
           '-'
       }
     }
@@ -658,6 +712,74 @@ function FullDetailsPage({ policy }) {
                         <tr>
                           <th scope="row">Method</th>
                           <td>{feature.details.method}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>IP Protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {ipProtectionFeatures.map((feature) => (
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'IP List' || feature.name === 'Geo Location' ? 'details-feature-card-clickable' : ''}`}
+                onClick={
+                  feature.name === 'IP List'
+                    ? () => setIpListExpanded((current) => !current)
+                    : feature.name === 'Geo Location'
+                      ? () => setGeoLocationExpanded((current) => !current)
+                      : undefined
+                }
+                role={feature.name === 'IP List' || feature.name === 'Geo Location' ? 'button' : undefined}
+                tabIndex={feature.name === 'IP List' || feature.name === 'Geo Location' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'IP List' || feature.name === 'Geo Location'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          if (feature.name === 'IP List') {
+                            setIpListExpanded((current) => !current)
+                          } else {
+                            setGeoLocationExpanded((current) => !current)
+                          }
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                {feature.name === 'IP List' && ipListExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Value</th>
+                          <td>{feature.details.value}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {feature.name === 'Geo Location' && geoLocationExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Value</th>
+                          <td>{feature.details.value}</td>
                         </tr>
                       </tbody>
                     </table>
