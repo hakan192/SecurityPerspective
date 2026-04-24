@@ -1,5 +1,6 @@
 from app.services import (
     _build_device_base_url,
+    _calculate_http_protocol_parameter_restriction_statuses,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
@@ -129,3 +130,59 @@ def test_build_device_base_url_uses_configured_https_port(monkeypatch):
     url = _build_device_base_url("10.20.30.40")
 
     assert url == "https://10.20.30.40:443"
+
+
+def test_calculate_http_protocol_parameter_restriction_statuses_uses_http_and_http2_rules():
+    row = {
+        "device_id": 1,
+        "name": "hpr-a",
+        "max_http_header_length_check_action": "alert_deny",
+        "illegal_http_version_check_action": "alert",
+        "http2_max_requests_check": "enable",
+        "h2_rst_stream_check": "enable",
+        "http2_max_requests_check_action": "alert_deny",
+        "raw_json": {},
+    }
+
+    statuses = _calculate_http_protocol_parameter_restriction_statuses(row)
+
+    assert statuses["http_rfc_enabled_count"] == 2
+    assert statuses["http2_rfc_enabled_count"] == 2
+    assert statuses["http_rfc_status"] == "enabled"
+    assert statuses["http2_rfc_status"] == "enabled"
+
+
+def test_calculate_http_protocol_parameter_restriction_statuses_returns_disabled_below_threshold():
+    row = {
+        "device_id": 1,
+        "name": "hpr-b",
+        "max_http_header_length_check_action": "alert",
+        "illegal_http_version_check_action": "none",
+        "http2_max_requests_check": "disable",
+        "h2_rst_stream_check": "enable",
+    }
+
+    statuses = _calculate_http_protocol_parameter_restriction_statuses(row)
+
+    assert statuses["http_rfc_enabled_count"] == 1
+    assert statuses["http2_rfc_enabled_count"] == 1
+    assert statuses["http_rfc_status"] == "disabled"
+    assert statuses["http2_rfc_status"] == "disabled"
+
+
+def test_calculate_http_protocol_parameter_restriction_statuses_skips_http2_when_not_applicable():
+    row = {
+        "device_id": 1,
+        "name": "hpr-c",
+        "max_http_header_length_check_action": "alert_deny",
+        "illegal_http_version_check_action": "alert",
+        "http2_max_requests_check": "enable",
+        "h2_rst_stream_check": "enable",
+    }
+
+    statuses = _calculate_http_protocol_parameter_restriction_statuses(row, evaluate_http2=False)
+
+    assert statuses["http_rfc_enabled_count"] == 2
+    assert statuses["http2_rfc_enabled_count"] == 0
+    assert statuses["http_rfc_status"] == "enabled"
+    assert statuses["http2_rfc_status"] == "disabled"

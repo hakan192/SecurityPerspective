@@ -186,6 +186,60 @@ def _normalize_optional_date(value):
         return None
 
 
+def _is_signature_category_selected(value) -> bool:
+    normalized = _as_enable_disable(value)
+    return normalized == "enable"
+
+
+def _is_http_protocol_check_enabled(value) -> bool:
+    normalized = _as_enable_disable(value)
+    return normalized == "enable"
+
+
+def _is_http_protocol_action_enabled(value) -> bool:
+    normalized = _normalize_optional_text(value)
+    if not normalized:
+        return False
+    return normalized.strip().lower() not in {"disable", "disabled", "none", "0", "false", "off", "no"}
+
+
+def _calculate_http_protocol_parameter_restriction_statuses(http_protocol_row: dict | None, evaluate_http2: bool = True) -> dict:
+    if not isinstance(http_protocol_row, dict):
+        return {
+            "http_rfc_enabled_count": 0,
+            "http2_rfc_enabled_count": 0,
+            "http_rfc_status": "disabled",
+            "http2_rfc_status": "disabled",
+        }
+
+    http_rfc_enabled_count = 0
+    http2_rfc_enabled_count = 0
+    for field_name, field_value in http_protocol_row.items():
+        if field_name in {"device_id", "name", "raw_json", "created_at", "updated_at"}:
+            continue
+        if field_name.startswith(("h2", "http2")):
+            if not evaluate_http2:
+                continue
+            if field_name.endswith("_action"):
+                continue
+            if not _is_http_protocol_check_enabled(field_value):
+                continue
+            http2_rfc_enabled_count += 1
+        else:
+            if not field_name.endswith("_action"):
+                continue
+            if not _is_http_protocol_action_enabled(field_value):
+                continue
+            http_rfc_enabled_count += 1
+
+    return {
+        "http_rfc_enabled_count": http_rfc_enabled_count,
+        "http2_rfc_enabled_count": http2_rfc_enabled_count,
+        "http_rfc_status": "enabled" if http_rfc_enabled_count >= 2 else "disabled",
+        "http2_rfc_status": "enabled" if http2_rfc_enabled_count >= 2 else "disabled",
+    }
+
+
 def _extract_by_aliases(item: dict, aliases: list[str]):
     for alias in aliases:
         if alias in item:
@@ -2770,6 +2824,16 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sp.traffic_mirror,
                 sp.monitor_mode,
                 wpp.signature_rule,
+                sig.cross_site_scripting,
+                sig.cross_site_scripting_extended,
+                sig.sql_injection,
+                sig.sql_injection_extended,
+                sig.generic_attacks,
+                sig.generic_attacks_extended,
+                sig.known_exploits,
+                sig.trojans,
+                sig.information_disclosure,
+                sig.personally_identifiable_information,
                 wpp.http_protocol_parameter_restriction,
                 wpp.cookie_security_policy,
                 wpp.custom_access_policy,
@@ -2842,6 +2906,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
+            LEFT JOIN signature sig
+                ON sig.device_id = wpp.device_id
+                AND sig.signature_set_name = wpp.signature_rule
             LEFT JOIN "application-layer-dos-prevention" aldp
                 ON aldp.device_id = wpp.device_id
                 AND aldp.name = wpp.application_layer_dos_prevention
@@ -2964,6 +3031,16 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
+    http_protocol_rows = db.execute(
+        text(
+            """
+            SELECT *
+            FROM http_protocol_parameter_restriction
+            """
+        )
+    ).mappings().all()
+    http_protocol_by_name = {(row["device_id"], row["name"]): row for row in http_protocol_rows}
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -2976,6 +3053,27 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "error": "",
             }
         if row["server_policy_name"]:
+            http_protocol_statuses = _calculate_http_protocol_parameter_restriction_statuses(
+                http_protocol_by_name.get((device_id, row["http_protocol_parameter_restriction"])),
+                evaluate_http2=_as_enable_disable(row["http2"]) == "enable",
+            )
+            signature_selection_count = sum(
+                1
+                for value in [
+                    row["cross_site_scripting"],
+                    row["cross_site_scripting_extended"],
+                    row["sql_injection"],
+                    row["sql_injection_extended"],
+                    row["generic_attacks"],
+                    row["generic_attacks_extended"],
+                    row["known_exploits"],
+                    row["trojans"],
+                    row["information_disclosure"],
+                    row["personally_identifiable_information"],
+                ]
+                if _is_signature_category_selected(value)
+            )
+            signature_set_status = "enabled" if signature_selection_count >= 2 else "disabled"
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],
@@ -3010,6 +3108,12 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["allow_hosts"]), []),
                     "web_protection_profile_details": {
                         "signature_rule": row["signature_rule"],
+                        "signature_set_status": signature_set_status,
+                        "signature_selected_count": signature_selection_count,
+                        "http_rfc_status": http_protocol_statuses["http_rfc_status"],
+                        "http_rfc_enabled_count": http_protocol_statuses["http_rfc_enabled_count"],
+                        "http2_rfc_status": http_protocol_statuses["http2_rfc_status"],
+                        "http2_rfc_enabled_count": http_protocol_statuses["http2_rfc_enabled_count"],
                         "http_protocol_parameter_restriction": row["http_protocol_parameter_restriction"],
                         "cookie_security_policy": row["cookie_security_policy"],
                         "custom_access_policy": row["custom_access_policy"],
