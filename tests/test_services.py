@@ -1,5 +1,6 @@
 from app.services import (
     _build_device_base_url,
+    _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
@@ -168,4 +169,30 @@ def test_build_http2_rfc_control_status_disabled_when_server_pool_http2_disabled
     status = _build_http2_rfc_control_status(row)
 
     assert status["selected_count"] == 0
+    assert status["status"] == "disabled"
+
+
+def test_build_http_rfc_control_status_enabled_when_two_http_controls_enabled():
+    row = {
+        "max_http_header_length_check": "enable",
+        "illegal_http_version_check": "enabled",
+        "http2_max_requests_check": "enable",
+    }
+
+    status = _build_http_rfc_control_status(row)
+
+    assert status["selected_count"] == 2
+    assert status["status"] == "enabled"
+
+
+def test_build_http_rfc_control_status_disabled_when_less_than_two_http_controls_enabled():
+    row = {
+        "max_http_header_length_check": "disable",
+        "illegal_http_version_check": "enable",
+        "h2_rst_stream_check": "enabled",
+    }
+
+    status = _build_http_rfc_control_status(row)
+
+    assert status["selected_count"] == 1
     assert status["status"] == "disabled"
