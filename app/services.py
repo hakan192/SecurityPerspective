@@ -2841,6 +2841,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                 wpp.custom_access_policy,
                 wpp.csrf_protection,
                 wpp.syntax_based_attack_detection,
+                cap.rule_names AS custom_access_policy_rule_names,
+                cap.raw_json AS custom_access_policy_raw_json,
                 wpp.parameter_validation_rule,
                 wpp.hidden_fields_protection,
                 wpp.file_upload_policy,
@@ -2934,6 +2936,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN "syntax-based-attack-detection" sbad
                 ON sbad.device_id = wpp.device_id
                 AND sbad.name = wpp.syntax_based_attack_detection
+            LEFT JOIN "custom-access-policy" cap
+                ON cap.device_id = wpp.device_id
+                AND cap.custom_access_policy_name = wpp.custom_access_policy
             LEFT JOIN signature sig
                 ON sig.device_id = wpp.device_id
                 AND sig.signature_set_name = wpp.signature_rule
@@ -3148,6 +3153,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "http_protocol_parameter_restriction": row["http_protocol_parameter_restriction"],
                         "cookie_security_policy": row["cookie_security_policy"],
                         "custom_access_policy": row["custom_access_policy"],
+                        "custom_access_policy_details": {
+                            "name": row["custom_access_policy"],
+                            "rule_names": row["custom_access_policy_rule_names"] or [],
+                            "raw_json": row["custom_access_policy_raw_json"] or {},
+                        },
                         "csrf_protection": row["csrf_protection"],
                         "syntax_based_attack_detection": row["syntax_based_attack_detection"],
                         "parameter_validation_rule": row["parameter_validation_rule"],

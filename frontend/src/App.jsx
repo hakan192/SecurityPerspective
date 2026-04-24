@@ -274,10 +274,35 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'Custom Access Rules',
-      value: 'Not Configured',
-      status: 'Unknown'
+      value: policy.web_protection_profile_details?.custom_access_policy || 'Not Configured',
+      status: policy.web_protection_profile_details?.custom_access_policy ? 'Enabled' : 'Unknown'
     }
   ]
+
+  const customAccessPolicyDetails = policy.web_protection_profile_details?.custom_access_policy_details || {}
+  const customAccessPolicyRawJson = customAccessPolicyDetails.raw_json || {}
+  const customAccessPolicyRows = useMemo(() => {
+    const results = Array.isArray(customAccessPolicyRawJson?.results)
+      ? customAccessPolicyRawJson.results
+      : customAccessPolicyRawJson?.results && typeof customAccessPolicyRawJson.results === 'object'
+        ? [customAccessPolicyRawJson.results]
+        : []
+
+    return results.map((entry, index) => {
+      const record = entry && typeof entry === 'object' ? entry : {}
+      const rawId = record._id ?? record.id ?? `row-${index + 1}`
+      return {
+        key: String(rawId),
+        _id: rawId,
+        name: record.name || record['rule-name'] || record.rule_name || '-',
+        action: record.action || '-',
+        status: record.status || record.enable || record.mode || '-',
+        sourceAddress: record['srcaddr-list'] || record.srcaddr_list || record.srcaddr || '-',
+        destinationAddress: record['dstaddr-list'] || record.dstaddr_list || record.dstaddr || '-',
+        schedule: record.schedule || '-',
+      }
+    })
+  }, [customAccessPolicyRawJson])
 
   return (
     <section className="full-details-page">
@@ -340,6 +365,44 @@ function FullDetailsPage({ policy }) {
                 <strong>{feature.value}</strong>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Custom Access Policy</h4>
+          </header>
+          <div className="custom-access-table-wrap">
+            <table className="custom-access-table">
+              <thead>
+                <tr>
+                  <th>_id</th>
+                  <th>Name</th>
+                  <th>Action</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Destination</th>
+                  <th>Schedule</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customAccessPolicyRows.length ? customAccessPolicyRows.map((row) => (
+                  <tr key={row.key}>
+                    <td>{row._id}</td>
+                    <td>{row.name}</td>
+                    <td>{row.action}</td>
+                    <td>{row.status}</td>
+                    <td>{row.sourceAddress}</td>
+                    <td>{row.destinationAddress}</td>
+                    <td>{row.schedule}</td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={7}>No custom-access-policy raw_json found for this server policy.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
