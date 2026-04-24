@@ -171,6 +171,7 @@ function FullDetailsPage({ policy }) {
   const [customAccessExpanded, setCustomAccessExpanded] = useState(false)
   const [httpFloodExpanded, setHttpFloodExpanded] = useState(false)
   const [httpAccessLimitExpanded, setHttpAccessLimitExpanded] = useState(false)
+  const [layer4AccessLimitRows, setLayer4AccessLimitRows] = useState([])
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -207,6 +208,34 @@ function FullDetailsPage({ policy }) {
   const deviceName = policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
   const policyStatus = !policyIp ? 'Not Protected' : monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
   const policyStatusClass = policyStatus.toLowerCase().replace(/\s+/g, '-')
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadLayer4AccessLimitRules = async () => {
+      try {
+        const params = new URLSearchParams()
+        if (deviceName && deviceName !== 'Unknown Device') {
+          params.set('device_name', deviceName)
+        }
+        const response = await fetch(`${API_BASE}/layer4-access-limit-rule?${params.toString()}`)
+        if (!response.ok) return
+        const data = await response.json()
+        if (isMounted) {
+          setLayer4AccessLimitRows(Array.isArray(data?.payload) ? data.payload : [])
+        }
+      } catch {
+        if (isMounted) {
+          setLayer4AccessLimitRows([])
+        }
+      }
+    }
+
+    loadLayer4AccessLimitRules()
+    return () => {
+      isMounted = false
+    }
+  }, [deviceName])
 
   const normalizeFeatureStatus = (value) => {
     const normalized = String(value ?? '').trim().toLowerCase()
@@ -254,6 +283,17 @@ function FullDetailsPage({ policy }) {
     policy.web_protection_profile_details?.application_layer_dos_prevention_policy ??
     {}
   const layer4AccessLimitRule = applicationLayerDosPolicy.layer4_access_limit_rule ?? {}
+  const layer4AccessLimitRuleName =
+    layer4AccessLimitRule.name ??
+    layer4AccessLimitRule.rule_name ??
+    (typeof applicationLayerDosPolicy.layer4_access_limit_rule === 'string'
+      ? applicationLayerDosPolicy.layer4_access_limit_rule
+      : '')
+  const matchedLayer4AccessLimitRow =
+    layer4AccessLimitRows.find((row) => {
+      if (!layer4AccessLimitRuleName) return false
+      return String(row.name ?? '').trim() === String(layer4AccessLimitRuleName).trim()
+    }) ?? layer4AccessLimitRows[0] ?? {}
 
   const standardProtectionFeatures = [
     {
@@ -306,10 +346,11 @@ function FullDetailsPage({ policy }) {
           policy['http-flood-prevention']
       ),
       details: {
-        accessLimitInHttpSession: applicationLayerDosPolicy.access_limit_in_http_session ?? '-',
-        action: applicationLayerDosPolicy.action ?? '-',
-        botConfirmation: applicationLayerDosPolicy.bot_confirmation ?? '-',
-        botRecognition: applicationLayerDosPolicy.bot_recognition ?? '-'
+        accessLimitStandaloneIp: matchedLayer4AccessLimitRow.access_limit_standalone_ip ?? '-',
+        accessLimitShareIp: matchedLayer4AccessLimitRow.access_limit_share_ip ?? '-',
+        action: matchedLayer4AccessLimitRow.action ?? '-',
+        botConfirmation: matchedLayer4AccessLimitRow.bot_confirmation ?? '-',
+        botRecognition: matchedLayer4AccessLimitRow.bot_recognition ?? '-'
       }
     },
     {
@@ -478,8 +519,12 @@ function FullDetailsPage({ policy }) {
                     <table className="details-sub-table">
                       <tbody>
                         <tr>
-                          <th scope="row">Access limit in HTTP session</th>
-                          <td>{feature.details.accessLimitInHttpSession}</td>
+                          <th scope="row">Access limit standalone IP</th>
+                          <td>{feature.details.accessLimitStandaloneIp}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Access limit share IP</th>
+                          <td>{feature.details.accessLimitShareIp}</td>
                         </tr>
                         <tr>
                           <th scope="row">Action</th>
