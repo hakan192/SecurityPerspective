@@ -134,6 +134,7 @@ def test_build_device_base_url_uses_configured_https_port(monkeypatch):
 
 def test_build_http2_rfc_control_status_enabled_when_two_h2_controls_enabled():
     row = {
+        "http2": True,
         "http2_max_requests_check": "enable",
         "h2_rst_stream_check": "enabled",
     }
@@ -144,8 +145,9 @@ def test_build_http2_rfc_control_status_enabled_when_two_h2_controls_enabled():
     assert status["status"] == "enabled"
 
 
-def test_build_http2_rfc_control_status_disable_when_less_than_two_controls_enabled():
+def test_build_http2_rfc_control_status_disabled_when_less_than_two_controls_enabled():
     row = {
+        "http2": True,
         "http2_max_requests_check": "enable",
         "h2_rst_stream_check": "disable",
     }
@@ -153,4 +155,17 @@ def test_build_http2_rfc_control_status_disable_when_less_than_two_controls_enab
     status = _build_http2_rfc_control_status(row)
 
     assert status["selected_count"] == 1
-    assert status["status"] == "disable"
+    assert status["status"] == "disabled"
+
+
+def test_build_http2_rfc_control_status_disabled_when_server_pool_http2_disabled():
+    row = {
+        "http2": False,
+        "http2_max_requests_check": "enable",
+        "h2_rst_stream_check": "enable",
+    }
+
+    status = _build_http2_rfc_control_status(row)
+
+    assert status["selected_count"] == 0
+    assert status["status"] == "disabled"

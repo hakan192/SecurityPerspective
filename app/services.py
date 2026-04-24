@@ -1572,11 +1572,17 @@ def _build_signature_set_status(row: dict) -> dict:
 
 
 def _build_http2_rfc_control_status(row: dict) -> dict:
+    if not _as_bool(row.get("http2")):
+        return {
+            "selected_count": 0,
+            "status": "disabled",
+        }
+
     selected_count = sum(1 for field in HTTP2_RFC_CONTROL_FIELDS if _is_signature_attribute_selected(row.get(field)))
     is_enabled = selected_count >= 2
     return {
         "selected_count": selected_count,
-        "status": "enabled" if is_enabled else "disable",
+        "status": "enabled" if is_enabled else "disabled",
     }
 
 
