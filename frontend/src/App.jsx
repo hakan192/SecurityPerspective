@@ -253,6 +253,11 @@ function FullDetailsPage({ policy }) {
     policy.application_layer_dos_prevention_policy ??
     policy.web_protection_profile_details?.application_layer_dos_prevention_policy ??
     {}
+  const layer4AccessLimitRulePolicy =
+    applicationLayerDosPolicy.layer4_access_limit_rule_policy ??
+    applicationLayerDosPolicy['/layer4-access-limit-rule'] ??
+    applicationLayerDosPolicy['layer4-access-limit-rule'] ??
+    {}
 
   const standardProtectionFeatures = [
     {
@@ -321,16 +326,32 @@ function FullDetailsPage({ policy }) {
       ),
       details: {
         accessLimitStandaloneIp:
+          layer4AccessLimitRulePolicy.access_limit_standalone_ip ??
+          layer4AccessLimitRulePolicy['access-limit-standalone-ip'] ??
           applicationLayerDosPolicy.access_limit_standalone_ip ??
           applicationLayerDosPolicy['access-limit-standalone-ip'] ??
           '-',
         accessLimitShareIp:
+          layer4AccessLimitRulePolicy.access_limit_share_ip ??
+          layer4AccessLimitRulePolicy['access-limit-share-ip'] ??
           applicationLayerDosPolicy.access_limit_share_ip ??
           applicationLayerDosPolicy['access-limit-share-ip'] ??
           '-',
-        action: applicationLayerDosPolicy.action ?? '-',
-        botConfirmation: applicationLayerDosPolicy.bot_confirmation ?? '-',
-        botRecognition: applicationLayerDosPolicy.bot_recognition ?? '-'
+        action:
+          layer4AccessLimitRulePolicy.action ??
+          applicationLayerDosPolicy.layer4_access_limit_action ??
+          applicationLayerDosPolicy.action ??
+          '-',
+        botConfirmation:
+          layer4AccessLimitRulePolicy.bot_confirmation ??
+          applicationLayerDosPolicy.layer4_access_limit_bot_confirmation ??
+          applicationLayerDosPolicy.bot_confirmation ??
+          '-',
+        botRecognition:
+          layer4AccessLimitRulePolicy.bot_recognition ??
+          applicationLayerDosPolicy.layer4_access_limit_bot_recognition ??
+          applicationLayerDosPolicy.bot_recognition ??
+          '-'
       }
     },
     {
