@@ -457,14 +457,28 @@ function FullDetailsPage({ policy }) {
                   </span>
                 </div>
                 {feature.name === 'HTTP Flood Prevention' && httpFloodExpanded ? (
-                  <ul className="details-sub-list">
-                    <li>
-                      <span><strong>Access limit in HTTP session:</strong> <strong>{feature.details.accessLimitInHttpSession}</strong></span>
-                      <span><strong>Action:</strong> <strong>{feature.details.action}</strong></span>
-                      <span><strong>Bot confirmation:</strong> <strong>{feature.details.botConfirmation}</strong></span>
-                      <span><strong>Bot recognition:</strong> <strong>{feature.details.botRecognition}</strong></span>
-                    </li>
-                  </ul>
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Access limit in HTTP session</th>
+                          <td>{feature.details.accessLimitInHttpSession}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Action</th>
+                          <td>{feature.details.action}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot confirmation</th>
+                          <td>{feature.details.botConfirmation}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot recognition</th>
+                          <td>{feature.details.botRecognition}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 ) : null}
               </article>
             ))}

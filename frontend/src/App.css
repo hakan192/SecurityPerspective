@@ -1092,6 +1092,55 @@ input,
   cursor: pointer;
 }
 
+.details-sub-table-wrap {
+  margin-top: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.65rem;
+  background: rgba(248, 250, 252, 0.72);
+  overflow: hidden;
+}
+
+.dark .details-sub-table-wrap {
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.details-sub-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  color: #334155;
+}
+
+.dark .details-sub-table {
+  color: #cbd5e1;
+}
+
+.details-sub-table th,
+.details-sub-table td {
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.details-sub-table tr:first-child th,
+.details-sub-table tr:first-child td {
+  border-top: 0;
+}
+
+.details-sub-table th {
+  width: 62%;
+  font-weight: 600;
+  color: #475569;
+}
+
+.dark .details-sub-table th {
+  color: #94a3b8;
+}
+
+.details-sub-table td {
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .waf-search-shell {
     grid-template-columns: 1fr;
