@@ -1038,6 +1038,39 @@ def latest_fortiweb_server_policy(
     return {"payload": load_server_policies_from_db(db)}
 
 
+@app.get("/layer4-access-limit-rule")
+def list_layer4_access_limit_rule(
+    device_name: str | None = None,
+    name: str | None = None,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    query = """
+        SELECT
+            l4alr.device_id,
+            md.name AS device_name,
+            l4alr.name,
+            l4alr.access_limit_standalone_ip,
+            l4alr.access_limit_share_ip,
+            l4alr.action,
+            l4alr.bot_confirmation,
+            l4alr.bot_recognition
+        FROM "/layer4-access-limit-rule" l4alr
+        LEFT JOIN managed_devices md ON md.id = l4alr.device_id
+        WHERE (:device_name IS NULL OR md.name = :device_name)
+          AND (:name IS NULL OR l4alr.name = :name)
+        ORDER BY l4alr.updated_at DESC
+    """
+    rows = db.execute(
+        text(query),
+        {
+            "device_name": device_name,
+            "name": name,
+        },
+    ).mappings().all()
+    return {"payload": [dict(row) for row in rows]}
+
+
 @app.get("/devices", response_model=list[ManagedDeviceOut])
 def list_devices(
     db: Session = Depends(get_db),
