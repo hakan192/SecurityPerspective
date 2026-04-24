@@ -169,6 +169,7 @@ function FullDetailsPage({ policy }) {
   if (!policy) return null
 
   const [customAccessExpanded, setCustomAccessExpanded] = useState(false)
+  const [httpFloodExpanded, setHttpFloodExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -294,7 +295,29 @@ function FullDetailsPage({ policy }) {
         policy.http_flood_prevention ??
           policy.web_protection_profile_details?.http_flood_prevention ??
           policy['http-flood-prevention']
-      )
+      ),
+      details: {
+        accessLimitInHttpSession:
+          policy.http_flood_access_limit_in_http_session ??
+          policy.web_protection_profile_details?.http_flood_access_limit_in_http_session ??
+          policy['http-flood-access-limit-in-http-session'] ??
+          '-',
+        action:
+          policy.http_flood_action ??
+          policy.web_protection_profile_details?.http_flood_action ??
+          policy['http-flood-action'] ??
+          '-',
+        botConfirmation:
+          policy.http_flood_bot_confirmation ??
+          policy.web_protection_profile_details?.http_flood_bot_confirmation ??
+          policy['http-flood-bot-confirmation'] ??
+          '-',
+        botRecognition:
+          policy.http_flood_bot_recognition ??
+          policy.web_protection_profile_details?.http_flood_bot_recognition ??
+          policy['http-flood-bot-recognition'] ??
+          '-'
+      }
     },
     {
       name: 'HTTP Access Limit',
@@ -410,13 +433,39 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid details-feature-grid-stacked">
             {applicationDosProtectionFeatures.map((feature) => (
-              <article key={feature.name} className="details-feature-card">
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'HTTP Flood Prevention' ? 'details-feature-card-clickable' : ''}`}
+                onClick={feature.name === 'HTTP Flood Prevention' ? () => setHttpFloodExpanded((current) => !current) : undefined}
+                role={feature.name === 'HTTP Flood Prevention' ? 'button' : undefined}
+                tabIndex={feature.name === 'HTTP Flood Prevention' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'HTTP Flood Prevention'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setHttpFloodExpanded((current) => !current)
+                        }
+                      }
+                    : undefined
+                }
+              >
                 <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
                     <span>{feature.status}</span>
                   </span>
                 </div>
+                {feature.name === 'HTTP Flood Prevention' && httpFloodExpanded ? (
+                  <ul className="details-sub-list">
+                    <li>
+                      <span><strong>Access limit in HTTP session:</strong> <strong>{feature.details.accessLimitInHttpSession}</strong></span>
+                      <span><strong>Action:</strong> <strong>{feature.details.action}</strong></span>
+                      <span><strong>Bot confirmation:</strong> <strong>{feature.details.botConfirmation}</strong></span>
+                      <span><strong>Bot recognition:</strong> <strong>{feature.details.botRecognition}</strong></span>
+                    </li>
+                  </ul>
+                ) : null}
               </article>
             ))}
           </div>
