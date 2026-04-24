@@ -30,6 +30,35 @@ const navItems = [
 
 const MAIN_WAF_TAB_ID = 'waf-main-tab'
 
+function ShieldCheckIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+function ShieldAlertIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
+  )
+}
+
+function ShieldXIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z" />
+      <path d="m9 9 6 6" />
+      <path d="m15 9-6 6" />
+    </svg>
+  )
+}
+
 function SecurityPerspectiveLogo({ className = 'brand-logo' }) {
   const gradientId = useId()
 
@@ -144,6 +173,19 @@ function FullDetailsPage({ policy }) {
     return 'ℹ️'
   }
 
+  const getPolicyStatusVisual = (status) => {
+    const normalized = String(status ?? '').trim().toLowerCase()
+    if (normalized === 'blocking') {
+      return { Icon: ShieldCheckIcon, toneClass: 'blocking' }
+    }
+    if (normalized === 'monitoring') {
+      return { Icon: ShieldAlertIcon, toneClass: 'monitoring' }
+    }
+    return { Icon: ShieldXIcon, toneClass: 'not-protected' }
+  }
+
+  const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus)
+
   const standardProtectionFeatures = [
     {
       name: 'Signature',
@@ -195,9 +237,10 @@ function FullDetailsPage({ policy }) {
           <p className="full-details-eyebrow">Server Policy</p>
           <h3>{policy.server_policy_name || 'Policy Details'}</h3>
         </div>
-        <span className={`policy-status-pill ${policyStatusClass}`}>
-          <span aria-hidden="true">{getStatusSymbol(policyStatus)}</span>
-          <span>{policyStatus}</span>
+        <span className={`policy-status-pill ${policyStatusClass} full-details-status-pill ${policyStatusTone}`}>
+          <span className="policy-status-dot" aria-hidden="true" />
+          <PolicyStatusIcon className="policy-status-icon" />
+          <span className="policy-status-text">{policyStatus}</span>
         </span>
         <p>Detailed view of selected policy configuration.</p>
       </div>

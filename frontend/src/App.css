@@ -868,6 +868,40 @@ input,
   font-size: 0.95rem;
   padding: 0.42em 1em;
   line-height: 1;
+  border-width: 1px;
+}
+
+.full-details-head .full-details-status-pill {
+  border-radius: 999px;
+  background: #ecfdf3;
+  border-color: #86efac;
+  color: #15803d;
+  gap: 0.38rem;
+}
+
+.full-details-head .full-details-status-pill .policy-status-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.full-details-head .full-details-status-pill .policy-status-icon {
+  width: 0.88rem;
+  height: 0.88rem;
+}
+
+.full-details-head .full-details-status-pill.monitoring {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+
+.full-details-head .full-details-status-pill.not-protected {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
 }
 
 .full-details-head p {
