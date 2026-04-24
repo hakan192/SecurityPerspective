@@ -242,6 +242,35 @@ function FullDetailsPage({ policy }) {
     }
   ]
 
+  const advanceProtectionFeatures = [
+    {
+      name: 'Syntax Based Detection',
+      value: normalizeFeatureValue(
+        policy.syntax_based_detection ??
+          policy.syntaxBasedDetection ??
+          policy['syntax-based-detection']
+      ),
+      status: normalizeFeatureStatus(
+        policy.syntax_based_detection ??
+          policy.syntaxBasedDetection ??
+          policy['syntax-based-detection']
+      )
+    },
+    {
+      name: 'Custom Access Rules',
+      value: normalizeFeatureValue(
+        policy.custom_access_rules ??
+          policy.customAccessRules ??
+          policy['custom-access-rules']
+      ),
+      status: normalizeFeatureStatus(
+        policy.custom_access_rules ??
+          policy.customAccessRules ??
+          policy['custom-access-rules']
+      )
+    }
+  ]
+
   return (
     <section className="full-details-page">
       <div className="full-details-head">
@@ -271,6 +300,25 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-feature-head">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                <strong>{feature.value}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Advance Protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {advanceProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
                 <div className="details-feature-head">
                   <p>{feature.name}</p>
