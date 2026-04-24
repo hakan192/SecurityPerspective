@@ -840,35 +840,62 @@ input,
   color: #94a3b8;
 }
 
-.policy-table {
-  width: 100%;
-  border-collapse: collapse;
+.details-sections {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.details-section {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.9rem;
+  padding: 0.95rem;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.dark .details-section {
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.details-section-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.details-feature-grid {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.details-feature-card {
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 0.8rem;
-  overflow: hidden;
+  padding: 0.75rem;
+  background: rgba(248, 250, 252, 0.85);
 }
 
-.policy-table th,
-.policy-table td {
-  text-align: left;
-  padding: 0.7rem 0.85rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+.dark .details-feature-card {
+  background: rgba(30, 41, 59, 0.64);
 }
 
-.policy-table th {
-  font-size: 0.8rem;
+.details-feature-card p {
+  margin: 0;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #64748b;
-  background: rgba(148, 163, 184, 0.1);
 }
 
-.dark .policy-table th {
-  color: #cbd5e1;
+.dark .details-feature-card p {
+  color: #94a3b8;
 }
 
-.policy-table tbody tr:nth-child(even) {
-  background: rgba(148, 163, 184, 0.06);
+.details-feature-card strong {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 1rem;
 }
 
 @media (max-width: 900px) {
@@ -878,6 +905,10 @@ input,
 
   .waf-policy-search {
     max-width: none;
+  }
+
+  .details-feature-grid {
+    grid-template-columns: 1fr;
   }
 
 
