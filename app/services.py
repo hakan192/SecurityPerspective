@@ -1542,6 +1542,12 @@ HTTP2_RFC_CONTROL_FIELDS = [
     if (field.startswith("h2") or field.startswith("http2")) and not field.endswith("_action")
 ]
 
+HTTP_RFC_CONTROL_FIELDS = [
+    field
+    for field in HTTP_PROTOCOL_PARAMETER_RESTRICTION_FIELDS
+    if not (field.startswith("h2") or field.startswith("http2")) and not field.endswith("_action")
+]
+
 
 SIGNATURE_SELECTION_FIELDS = [
     "cross_site_scripting",
@@ -1580,6 +1586,15 @@ def _build_http2_rfc_control_status(row: dict) -> dict:
 
     selected_count = sum(1 for field in HTTP2_RFC_CONTROL_FIELDS if _is_signature_attribute_selected(row.get(field)))
     is_enabled = selected_count >= 2
+    return {
+        "selected_count": selected_count,
+        "status": "enabled" if is_enabled else "disabled",
+    }
+
+
+def _build_http_rfc_control_status(row: dict) -> dict:
+    selected_count = sum(1 for field in HTTP_RFC_CONTROL_FIELDS if _is_signature_attribute_selected(row.get(field)))
+    is_enabled = selected_count >= 1
     return {
         "selected_count": selected_count,
         "status": "enabled" if is_enabled else "disabled",
@@ -2806,9 +2821,10 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
 
 
 def load_server_policies_from_db(db: Session) -> dict:
+    http_rfc_columns_sql = ",\n                ".join(f"hpr.{field}" for field in HTTP_RFC_CONTROL_FIELDS)
     rows = db.execute(
         text(
-            """
+            f"""
             SELECT
                 d.id AS device_id,
                 d.name AS device_name,
@@ -2853,6 +2869,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sig.trojans,
                 sig.information_disclosure,
                 sig.personally_identifiable_information,
+                {http_rfc_columns_sql},
                 hpr.http2_max_requests_check,
                 hpr.h2_rst_stream_check,
                 aldp.http_request_flood_prevention_rule,
@@ -3045,6 +3062,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         if row["server_policy_name"]:
             signature_set_status = _build_signature_set_status(row)
+            http_rfc_control_status = _build_http_rfc_control_status(row)
             http2_rfc_control_status = _build_http2_rfc_control_status(row)
             by_device[device_id]["server_policies"].append(
                 {
@@ -3077,6 +3095,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "tls_v12": row["tls_v12"],
                     "tls_v13": row["tls_v13"],
                     "http2": row["http2"],
+                    "http_rfc": http_rfc_control_status["status"],
+                    "http_rfc_selected_count": http_rfc_control_status["selected_count"],
                     "http2_rfc_control": http2_rfc_control_status["status"],
                     "http2_rfc_selected_count": http2_rfc_control_status["selected_count"],
                     "signature": signature_set_status["status"],
@@ -3086,6 +3106,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "signature_rule": row["signature_rule"],
                         "signature_set_status": signature_set_status["status"],
                         "signature_selected_count": signature_set_status["selected_count"],
+                        "http_rfc": http_rfc_control_status["status"],
+                        "http_rfc_selected_count": http_rfc_control_status["selected_count"],
                         "http2_rfc_control": http2_rfc_control_status["status"],
                         "http2_rfc_selected_count": http2_rfc_control_status["selected_count"],
                         "cross_site_scripting": row["cross_site_scripting"],
