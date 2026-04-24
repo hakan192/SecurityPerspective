@@ -201,50 +201,6 @@ function FullDetailsPage({ policy }) {
     }
   }
 
-  const parseHttpRequestFloodPreventionRule = (rule) => {
-    if (!rule) return {}
-
-    let parsedRule = rule
-    if (typeof parsedRule === 'string') {
-      try {
-        parsedRule = JSON.parse(parsedRule)
-      } catch {
-        return {}
-      }
-    }
-
-    if (Array.isArray(parsedRule)) {
-      parsedRule = parsedRule[0] ?? {}
-    }
-
-    if (!parsedRule || typeof parsedRule !== 'object') return {}
-
-    const candidateRule =
-      parsedRule?.results?.[0] ??
-      parsedRule?.result?.[0] ??
-      parsedRule?.results ??
-      parsedRule?.result ??
-      parsedRule
-
-    if (!candidateRule || typeof candidateRule !== 'object') return {}
-
-    return {
-      accessLimitInHttpSession:
-        candidateRule.access_limit_in_http_session ??
-        candidateRule['access-limit-in-http-session'] ??
-        '-',
-      action: candidateRule.action ?? '-',
-      botConfirmation:
-        candidateRule.bot_confirmation ??
-        candidateRule['bot-confirmation'] ??
-        '-',
-      botRecognition:
-        candidateRule.bot_recognition ??
-        candidateRule['bot-recognition'] ??
-        '-'
-    }
-  }
-
   const policyIp = (policy.ip || '').trim()
   const monitorMode = String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
   const deviceName = policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
@@ -257,6 +213,8 @@ function FullDetailsPage({ policy }) {
     if (['false', '0', 'no', 'off', 'disable', 'disabled'].includes(normalized)) return 'Disabled'
     return 'Unknown'
   }
+  const normalizePresenceStatus = (value) =>
+    String(value ?? '').trim() ? 'Enabled' : 'Unknown'
 
   const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus)
   const syntaxBasedDetectionStatusFields = [
@@ -290,12 +248,10 @@ function FullDetailsPage({ policy }) {
     .map(parseCustomAccessRule)
     .filter(Boolean)
   const customAccessRuleStatus = customAccessRules.length > 0 ? 'Enabled' : 'Unknown'
-  const httpRequestFloodRule = parseHttpRequestFloodPreventionRule(
-    policy.http_request_flood_prevention_rule ??
-      policy['http-request-flood-prevention-rule'] ??
-      policy.web_protection_profile_details?.http_request_flood_prevention_rule ??
-      policy.web_protection_profile_details?.['http-request-flood-prevention-rule']
-  )
+  const applicationLayerDosPolicy =
+    policy.application_layer_dos_prevention_policy ??
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy ??
+    {}
 
   const standardProtectionFeatures = [
     {
@@ -341,30 +297,33 @@ function FullDetailsPage({ policy }) {
   const applicationDosProtectionFeatures = [
     {
       name: 'HTTP Flood Prevention',
-      status: normalizeFeatureStatus(
-        policy.http_flood_prevention ??
+      status: normalizePresenceStatus(
+        applicationLayerDosPolicy.http_request_flood_prevention_rule ??
+          policy.http_flood_prevention ??
           policy.web_protection_profile_details?.http_flood_prevention ??
           policy['http-flood-prevention']
       ),
       details: {
-        accessLimitInHttpSession: httpRequestFloodRule.accessLimitInHttpSession ?? '-',
-        action: httpRequestFloodRule.action ?? '-',
-        botConfirmation: httpRequestFloodRule.botConfirmation ?? '-',
-        botRecognition: httpRequestFloodRule.botRecognition ?? '-'
+        accessLimitInHttpSession: applicationLayerDosPolicy.access_limit_in_http_session ?? '-',
+        action: applicationLayerDosPolicy.action ?? '-',
+        botConfirmation: applicationLayerDosPolicy.bot_confirmation ?? '-',
+        botRecognition: applicationLayerDosPolicy.bot_recognition ?? '-'
       }
     },
     {
       name: 'HTTP Access Limit',
-      status: normalizeFeatureStatus(
-        policy.http_access_limit ??
+      status: normalizePresenceStatus(
+        applicationLayerDosPolicy.layer4_access_limit_rule ??
+          policy.http_access_limit ??
           policy.web_protection_profile_details?.http_access_limit ??
           policy['http-access-limit']
       )
     },
     {
       name: 'TCP Flood Prevention',
-      status: normalizeFeatureStatus(
-        policy.tcp_flood_prevention ??
+      status: normalizePresenceStatus(
+        applicationLayerDosPolicy.layer4_connection_flood_check_rule ??
+          policy.tcp_flood_prevention ??
           policy.web_protection_profile_details?.tcp_flood_prevention ??
           policy['tcp-flood-prevention']
       )
