@@ -383,6 +383,29 @@ function FullDetailsPage({ policy }) {
       }
     }
   ]
+  const accessFeatures = [
+    {
+      name: 'Allow method',
+      status: normalizePresenceStatus(
+        policy.allow_method ??
+          policy.allowMethod ??
+          policy['allow-method'] ??
+          policy.web_protection_profile_details?.allow_method ??
+          policy.web_protection_profile_details?.allowMethod ??
+          policy.web_protection_profile_details?.['allow-method']
+      ),
+      details: {
+        method:
+          policy.allow_method ??
+          policy.allowMethod ??
+          policy['allow-method'] ??
+          policy.web_protection_profile_details?.allow_method ??
+          policy.web_protection_profile_details?.allowMethod ??
+          policy.web_protection_profile_details?.['allow-method'] ??
+          '-'
+      }
+    }
+  ]
 
   return (
     <section className="full-details-page">
@@ -585,6 +608,34 @@ function FullDetailsPage({ policy }) {
                     </table>
                   </div>
                 ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Access</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {accessFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                <div className="details-sub-table-wrap">
+                  <table className="details-sub-table">
+                    <tbody>
+                      <tr>
+                        <th scope="row">Method</th>
+                        <td>{feature.details.method}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </article>
             ))}
           </div>
