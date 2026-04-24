@@ -201,6 +201,50 @@ function FullDetailsPage({ policy }) {
     }
   }
 
+  const parseHttpRequestFloodPreventionRule = (rule) => {
+    if (!rule) return {}
+
+    let parsedRule = rule
+    if (typeof parsedRule === 'string') {
+      try {
+        parsedRule = JSON.parse(parsedRule)
+      } catch {
+        return {}
+      }
+    }
+
+    if (Array.isArray(parsedRule)) {
+      parsedRule = parsedRule[0] ?? {}
+    }
+
+    if (!parsedRule || typeof parsedRule !== 'object') return {}
+
+    const candidateRule =
+      parsedRule?.results?.[0] ??
+      parsedRule?.result?.[0] ??
+      parsedRule?.results ??
+      parsedRule?.result ??
+      parsedRule
+
+    if (!candidateRule || typeof candidateRule !== 'object') return {}
+
+    return {
+      accessLimitInHttpSession:
+        candidateRule.access_limit_in_http_session ??
+        candidateRule['access-limit-in-http-session'] ??
+        '-',
+      action: candidateRule.action ?? '-',
+      botConfirmation:
+        candidateRule.bot_confirmation ??
+        candidateRule['bot-confirmation'] ??
+        '-',
+      botRecognition:
+        candidateRule.bot_recognition ??
+        candidateRule['bot-recognition'] ??
+        '-'
+    }
+  }
+
   const policyIp = (policy.ip || '').trim()
   const monitorMode = String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
   const deviceName = policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
@@ -246,6 +290,12 @@ function FullDetailsPage({ policy }) {
     .map(parseCustomAccessRule)
     .filter(Boolean)
   const customAccessRuleStatus = customAccessRules.length > 0 ? 'Enabled' : 'Unknown'
+  const httpRequestFloodRule = parseHttpRequestFloodPreventionRule(
+    policy.http_request_flood_prevention_rule ??
+      policy['http-request-flood-prevention-rule'] ??
+      policy.web_protection_profile_details?.http_request_flood_prevention_rule ??
+      policy.web_protection_profile_details?.['http-request-flood-prevention-rule']
+  )
 
   const standardProtectionFeatures = [
     {
@@ -297,26 +347,10 @@ function FullDetailsPage({ policy }) {
           policy['http-flood-prevention']
       ),
       details: {
-        accessLimitInHttpSession:
-          policy.http_flood_access_limit_in_http_session ??
-          policy.web_protection_profile_details?.http_flood_access_limit_in_http_session ??
-          policy['http-flood-access-limit-in-http-session'] ??
-          '-',
-        action:
-          policy.http_flood_action ??
-          policy.web_protection_profile_details?.http_flood_action ??
-          policy['http-flood-action'] ??
-          '-',
-        botConfirmation:
-          policy.http_flood_bot_confirmation ??
-          policy.web_protection_profile_details?.http_flood_bot_confirmation ??
-          policy['http-flood-bot-confirmation'] ??
-          '-',
-        botRecognition:
-          policy.http_flood_bot_recognition ??
-          policy.web_protection_profile_details?.http_flood_bot_recognition ??
-          policy['http-flood-bot-recognition'] ??
-          '-'
+        accessLimitInHttpSession: httpRequestFloodRule.accessLimitInHttpSession ?? '-',
+        action: httpRequestFloodRule.action ?? '-',
+        botConfirmation: httpRequestFloodRule.botConfirmation ?? '-',
+        botRecognition: httpRequestFloodRule.botRecognition ?? '-'
       }
     },
     {
