@@ -213,14 +213,6 @@ function FullDetailsPage({ policy }) {
     return 'Unknown'
   }
 
-  const getStatusSymbol = (status) => {
-    const normalized = String(status ?? '').trim().toLowerCase()
-    if (normalized === 'enabled' || normalized === 'blocking') return '✅'
-    if (normalized === 'monitoring') return '👁️'
-    if (normalized === 'disabled' || normalized === 'not protected') return '⚠️'
-    return 'ℹ️'
-  }
-
   const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus)
   const syntaxBasedDetectionStatusFields = [
     'xss_html_tag_based_status',
@@ -329,7 +321,6 @@ function FullDetailsPage({ policy }) {
                 <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
-                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
                     <span>{feature.status}</span>
                   </span>
                 </div>
@@ -365,13 +356,9 @@ function FullDetailsPage({ policy }) {
                 <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
-                    <span aria-hidden="true">{getStatusSymbol(feature.status)}</span>
                     <span>{feature.status}</span>
                   </span>
                 </div>
-                {feature.name === 'Custom Access Rules' ? (
-                  <span className="details-sub-list-meta">{customAccessExpanded ? 'Click to collapse' : 'Click to expand all rules'}</span>
-                ) : null}
                 {feature.name === 'Custom Access Rules' && customAccessExpanded && feature.customAccessRules?.length > 0 ? (
                   <ul className="details-sub-list">
                     {feature.customAccessRules.map((rule) => (
