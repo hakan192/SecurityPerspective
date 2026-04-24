@@ -214,14 +214,21 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'HTTP RFC',
-      value: normalizeFeatureValue(
-        policy.http_rfc ??
-          policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
-          policy.httpRfc ??
-          policy['http-rfc']
-      ),
+      value:
+        typeof policy.http_rfc_selected_count === 'number'
+          ? `${policy.http_rfc_selected_count} selected`
+          : normalizeFeatureValue(
+              policy.http_rfc_selected_count ??
+                policy.web_protection_profile_details?.http_rfc_selected_count ??
+                policy.http_rfc ??
+                policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
+                policy.httpRfc ??
+                policy['http-rfc']
+            ),
       status: normalizeFeatureStatus(
-        policy.http_rfc ??
+        policy.http_rfc_control ??
+          policy.web_protection_profile_details?.http_rfc_control ??
+          policy.http_rfc ??
           policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
           policy.httpRfc ??
           policy['http-rfc']
