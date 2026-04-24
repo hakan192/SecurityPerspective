@@ -2859,6 +2859,16 @@ def load_server_policies_from_db(db: Session) -> dict:
                 wpp.user_tracking_policy,
                 wpp.websocket_security_policy,
                 wpp.cors_protection_policy,
+                sbad.xss_html_tag_based_status,
+                sbad.xss_html_attribute_based_status,
+                sbad.xss_javascript_function_based_status,
+                sbad.xss_javascript_variable_based_status,
+                sbad.sql_stacked_queries_status,
+                sbad.sql_embeded_queries_status,
+                sbad.sql_condition_based_status,
+                sbad.sql_arithmetic_operation_status,
+                sbad.sql_line_comments_status,
+                sbad.sql_function_based_status,
                 sig.cross_site_scripting,
                 sig.cross_site_scripting_extended,
                 sig.sql_injection,
@@ -2921,6 +2931,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
+            LEFT JOIN "syntax-based-attack-detection" sbad
+                ON sbad.device_id = wpp.device_id
+                AND sbad.name = wpp.syntax_based_attack_detection
             LEFT JOIN signature sig
                 ON sig.device_id = wpp.device_id
                 AND sig.signature_set_name = wpp.signature_rule
@@ -3101,6 +3114,18 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "http2_rfc_selected_count": http2_rfc_control_status["selected_count"],
                     "signature": signature_set_status["status"],
                     "signature_selected_count": signature_set_status["selected_count"],
+                    "syntax_based_attack_detection_details": {
+                        "xss_html_tag_based_status": row["xss_html_tag_based_status"],
+                        "xss_html_attribute_based_status": row["xss_html_attribute_based_status"],
+                        "xss_javascript_function_based_status": row["xss_javascript_function_based_status"],
+                        "xss_javascript_variable_based_status": row["xss_javascript_variable_based_status"],
+                        "sql_stacked_queries_status": row["sql_stacked_queries_status"],
+                        "sql_embeded_queries_status": row["sql_embeded_queries_status"],
+                        "sql_condition_based_status": row["sql_condition_based_status"],
+                        "sql_arithmetic_operation_status": row["sql_arithmetic_operation_status"],
+                        "sql_line_comments_status": row["sql_line_comments_status"],
+                        "sql_function_based_status": row["sql_function_based_status"],
+                    },
                     "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["allow_hosts"]), []),
                     "web_protection_profile_details": {
                         "signature_rule": row["signature_rule"],
@@ -3144,6 +3169,18 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "user_tracking_policy": row["user_tracking_policy"],
                         "websocket_security_policy": row["websocket_security_policy"],
                         "cors_protection_policy": row["cors_protection_policy"],
+                        "syntax_based_attack_detection_details": {
+                            "xss_html_tag_based_status": row["xss_html_tag_based_status"],
+                            "xss_html_attribute_based_status": row["xss_html_attribute_based_status"],
+                            "xss_javascript_function_based_status": row["xss_javascript_function_based_status"],
+                            "xss_javascript_variable_based_status": row["xss_javascript_variable_based_status"],
+                            "sql_stacked_queries_status": row["sql_stacked_queries_status"],
+                            "sql_embeded_queries_status": row["sql_embeded_queries_status"],
+                            "sql_condition_based_status": row["sql_condition_based_status"],
+                            "sql_arithmetic_operation_status": row["sql_arithmetic_operation_status"],
+                            "sql_line_comments_status": row["sql_line_comments_status"],
+                            "sql_function_based_status": row["sql_function_based_status"],
+                        },
                         "application_layer_dos_prevention_policy": {
                             "name": row["application_layer_dos_prevention"],
                             "http_request_flood_prevention_rule": row["http_request_flood_prevention_rule"],
