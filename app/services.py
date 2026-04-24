@@ -1536,6 +1536,34 @@ def _extract_policy_rows(payload: dict) -> list[dict]:
     return rows
 
 
+SIGNATURE_SELECTION_FIELDS = [
+    "cross_site_scripting",
+    "cross_site_scripting_extended",
+    "sql_injection",
+    "sql_injection_extended",
+    "generic_attacks",
+    "generic_attacks_extended",
+    "known_exploits",
+    "trojans",
+    "information_disclosure",
+    "personally_identifiable_information",
+]
+
+
+def _is_signature_attribute_selected(value) -> bool:
+    normalized = _as_enable_disable(value)
+    return normalized is not None and normalized != "disable"
+
+
+def _build_signature_set_status(row: dict) -> dict:
+    selected_count = sum(1 for field in SIGNATURE_SELECTION_FIELDS if _is_signature_attribute_selected(row.get(field)))
+    is_enabled = selected_count >= 2
+    return {
+        "selected_count": selected_count,
+        "status": "enabled" if is_enabled else "disabled",
+    }
+
+
 def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
     for row in rows:
         if row["web_protection_profile_name"]:
@@ -2793,6 +2821,16 @@ def load_server_policies_from_db(db: Session) -> dict:
                 wpp.user_tracking_policy,
                 wpp.websocket_security_policy,
                 wpp.cors_protection_policy,
+                sig.cross_site_scripting,
+                sig.cross_site_scripting_extended,
+                sig.sql_injection,
+                sig.sql_injection_extended,
+                sig.generic_attacks,
+                sig.generic_attacks_extended,
+                sig.known_exploits,
+                sig.trojans,
+                sig.information_disclosure,
+                sig.personally_identifiable_information,
                 aldp.http_request_flood_prevention_rule,
                 aldp.enable_layer4_dos_prevention,
                 aldp.layer4_access_limit_rule,
@@ -2842,6 +2880,9 @@ def load_server_policies_from_db(db: Session) -> dict:
             LEFT JOIN web_protection_profiles wpp
                 ON wpp.device_id = sp.device_id
                 AND wpp.web_protection_profile_name = sp.web_protection_profile_name
+            LEFT JOIN signature sig
+                ON sig.device_id = wpp.device_id
+                AND sig.signature_set_name = wpp.signature_rule
             LEFT JOIN "application-layer-dos-prevention" aldp
                 ON aldp.device_id = wpp.device_id
                 AND aldp.name = wpp.application_layer_dos_prevention
@@ -2976,6 +3017,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "error": "",
             }
         if row["server_policy_name"]:
+            signature_set_status = _build_signature_set_status(row)
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],
@@ -3007,9 +3049,23 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "tls_v12": row["tls_v12"],
                     "tls_v13": row["tls_v13"],
                     "http2": row["http2"],
+                    "signature": signature_set_status["status"],
+                    "signature_selected_count": signature_set_status["selected_count"],
                     "allow_hosts_entries": allow_hosts_by_policy.get((device_id, row["allow_hosts"]), []),
                     "web_protection_profile_details": {
                         "signature_rule": row["signature_rule"],
+                        "signature_set_status": signature_set_status["status"],
+                        "signature_selected_count": signature_set_status["selected_count"],
+                        "cross_site_scripting": row["cross_site_scripting"],
+                        "cross_site_scripting_extended": row["cross_site_scripting_extended"],
+                        "sql_injection": row["sql_injection"],
+                        "sql_injection_extended": row["sql_injection_extended"],
+                        "generic_attacks": row["generic_attacks"],
+                        "generic_attacks_extended": row["generic_attacks_extended"],
+                        "known_exploits": row["known_exploits"],
+                        "trojans": row["trojans"],
+                        "information_disclosure": row["information_disclosure"],
+                        "personally_identifiable_information": row["personally_identifiable_information"],
                         "http_protocol_parameter_restriction": row["http_protocol_parameter_restriction"],
                         "cookie_security_policy": row["cookie_security_policy"],
                         "custom_access_policy": row["custom_access_policy"],

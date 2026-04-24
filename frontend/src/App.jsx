@@ -124,11 +124,23 @@ function FullDetailsPage({ policy }) {
     return String(value)
   }
 
+  const normalizeFeatureStatus = (value) => {
+    const normalized = String(value ?? '').trim().toLowerCase()
+    if (['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(normalized)) return 'Enabled'
+    if (['false', '0', 'no', 'off', 'disable', 'disabled'].includes(normalized)) return 'Disabled'
+    return 'Unknown'
+  }
+
   const standardProtectionFeatures = [
     {
       name: 'Signature',
-      value: normalizeFeatureValue(
+      value:
+        typeof policy.signature_selected_count === 'number'
+          ? `${policy.signature_selected_count}/10 selected`
+          : normalizeFeatureValue(policy.signature_selected_count ?? '-'),
+      status: normalizeFeatureStatus(
         policy.signature ??
+          policy.web_protection_profile_details?.signature_set_status ??
           policy.signature_protection ??
           policy['signature-protection']
       )
@@ -137,6 +149,13 @@ function FullDetailsPage({ policy }) {
       name: 'HTTP RFC',
       value: normalizeFeatureValue(
         policy.http_rfc ??
+          policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
+          policy.httpRfc ??
+          policy['http-rfc']
+      ),
+      status: normalizeFeatureStatus(
+        policy.http_rfc ??
+          policy.web_protection_profile_details?.http_protocol_parameter_restriction ??
           policy.httpRfc ??
           policy['http-rfc']
       )
@@ -144,6 +163,11 @@ function FullDetailsPage({ policy }) {
     {
       name: 'HTTP/2 RFC control',
       value: normalizeFeatureValue(
+        policy.http2_rfc_control ??
+          policy.http2RfcControl ??
+          policy['http2-rfc-control']
+      ),
+      status: normalizeFeatureStatus(
         policy.http2_rfc_control ??
           policy.http2RfcControl ??
           policy['http2-rfc-control']
@@ -166,7 +190,10 @@ function FullDetailsPage({ policy }) {
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
-                <p>{feature.name}</p>
+                <div className="details-feature-head">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>{feature.status}</span>
+                </div>
                 <strong>{feature.value}</strong>
               </article>
             ))}
