@@ -242,14 +242,49 @@ function FullDetailsPage({ policy }) {
     }
   ]
 
-  const syntaxBasedAttackDetection =
+  const syntaxBasedAttackDetectionRaw =
+    policy.syntax_based_attack_detection_details ??
+    policy.syntaxBasedAttackDetectionDetails ??
+    policy['syntax-based-attack-detection-details'] ??
     policy.syntax_based_attack_detection ??
     policy.syntaxBasedAttackDetection ??
     policy['syntax-based-attack-detection'] ??
+    policy.web_protection_profile_details?.syntax_based_attack_detection_details ??
+    policy.web_protection_profile_details?.syntaxBasedAttackDetectionDetails ??
+    policy.web_protection_profile_details?.['syntax-based-attack-detection-details'] ??
     policy.web_protection_profile_details?.syntax_based_attack_detection ??
     policy.web_protection_profile_details?.syntaxBasedAttackDetection ??
     policy.web_protection_profile_details?.['syntax-based-attack-detection'] ??
-    {}
+    null
+
+  const parseJsonSafely = (value) => {
+    if (typeof value !== 'string') return value
+    const trimmedValue = value.trim()
+    if (!trimmedValue) return null
+    try {
+      return JSON.parse(trimmedValue)
+    } catch {
+      return value
+    }
+  }
+
+  const syntaxBasedAttackDetectionParsed = parseJsonSafely(syntaxBasedAttackDetectionRaw)
+  const syntaxBasedDetectionProfileName = String(
+    policy.syntax_based_attack_detection ??
+      policy.syntaxBasedAttackDetection ??
+      policy['syntax-based-attack-detection'] ??
+      ''
+  )
+    .trim()
+    .toLowerCase()
+
+  const syntaxBasedAttackDetection = Array.isArray(syntaxBasedAttackDetectionParsed)
+    ? syntaxBasedAttackDetectionParsed.find((entry) => String(entry?.name ?? '').trim().toLowerCase() === syntaxBasedDetectionProfileName) ??
+      syntaxBasedAttackDetectionParsed[0] ??
+      {}
+    : typeof syntaxBasedAttackDetectionParsed === 'object' && syntaxBasedAttackDetectionParsed !== null
+      ? syntaxBasedAttackDetectionParsed
+      : {}
 
   const syntaxBasedDetectionAttributes = [
     'xss_html_tag_based_status',
