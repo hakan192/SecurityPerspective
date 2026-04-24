@@ -831,6 +831,10 @@ input,
   margin: 0;
 }
 
+.full-details-head .policy-status-pill {
+  margin-top: 0.55rem;
+}
+
 .full-details-head p {
   margin: 0.4rem 0 1rem;
   color: #64748b;
