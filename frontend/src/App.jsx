@@ -390,6 +390,7 @@ function FullDetailsPage({ policy }) {
     }
   ]
   const biometricBasedDetectionDetails =
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy?.bot_mitigate_policy_detail?.biometric_based_detection_details ??
     policy.web_protection_profile_details?.bot_mitigate_policy_detail?.biometric_based_detection_details ??
     policy.web_protection_profile_details?.biometric_based_detection_details ??
     policy.bot_mitigate_policy_detail?.biometric_based_detection_details ??
