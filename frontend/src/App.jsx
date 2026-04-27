@@ -176,6 +176,7 @@ function FullDetailsPage({ policy }) {
   const [ipListExpanded, setIpListExpanded] = useState(false)
   const [geoLocationExpanded, setGeoLocationExpanded] = useState(false)
   const [biometricDetectionExpanded, setBiometricDetectionExpanded] = useState(false)
+  const [thresholdDetectionExpanded, setThresholdDetectionExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -405,7 +406,19 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'Threshold Based Detection',
-      status: 'Unknown'
+      status: 'Unknown',
+      details: {
+        botConfirmation: '-',
+        botRecognition: '-',
+        crawlerDetection: '-',
+        crawlerAction: '-',
+        crawlerOccurrenceNum: '-',
+        crawlerWithin: '-',
+        slowAttackDetection: '-',
+        slowAttackAction: '-',
+        slowAttackOccurrenceNum: '-',
+        slowAttackWithin: '-'
+      }
     },
     {
       name: 'Known-Bot',
@@ -794,16 +807,26 @@ function FullDetailsPage({ policy }) {
             {botMitigationFeatures.map((feature) => (
               <article
                 key={feature.name}
-                className={`details-feature-card ${feature.name === 'Biometric Based Detection' ? 'details-feature-card-clickable' : ''}`}
-                onClick={feature.name === 'Biometric Based Detection' ? () => setBiometricDetectionExpanded((current) => !current) : undefined}
-                role={feature.name === 'Biometric Based Detection' ? 'button' : undefined}
-                tabIndex={feature.name === 'Biometric Based Detection' ? 0 : undefined}
-                onKeyDown={
+                className={`details-feature-card ${feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' ? 'details-feature-card-clickable' : ''}`}
+                onClick={
                   feature.name === 'Biometric Based Detection'
+                    ? () => setBiometricDetectionExpanded((current) => !current)
+                    : feature.name === 'Threshold Based Detection'
+                      ? () => setThresholdDetectionExpanded((current) => !current)
+                      : undefined
+                }
+                role={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' ? 'button' : undefined}
+                tabIndex={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection'
                     ? (event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
-                          setBiometricDetectionExpanded((current) => !current)
+                          if (feature.name === 'Biometric Based Detection') {
+                            setBiometricDetectionExpanded((current) => !current)
+                          } else {
+                            setThresholdDetectionExpanded((current) => !current)
+                          }
                         }
                       }
                     : undefined
@@ -854,6 +877,54 @@ function FullDetailsPage({ policy }) {
                         <tr>
                           <th scope="row">Bot traits num</th>
                           <td>{feature.details.botTraitsNum}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {feature.name === 'Threshold Based Detection' && thresholdDetectionExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Bot confirmation</th>
+                          <td>{feature.details.botConfirmation}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot recognition</th>
+                          <td>{feature.details.botRecognition}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler detection</th>
+                          <td>{feature.details.crawlerDetection}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler action</th>
+                          <td>{feature.details.crawlerAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler occurrence num</th>
+                          <td>{feature.details.crawlerOccurrenceNum}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler within</th>
+                          <td>{feature.details.crawlerWithin}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack detection</th>
+                          <td>{feature.details.slowAttackDetection}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack action</th>
+                          <td>{feature.details.slowAttackAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack occurrence num</th>
+                          <td>{feature.details.slowAttackOccurrenceNum}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack within</th>
+                          <td>{feature.details.slowAttackWithin}</td>
                         </tr>
                       </tbody>
                     </table>
