@@ -389,20 +389,24 @@ function FullDetailsPage({ policy }) {
       }
     }
   ]
+  const biometricBasedDetectionDetails =
+    policy.biometric_based_detection_details ??
+    policy.web_protection_profile_details?.bot_mitigate_policy_detail?.biometric_based_detection_details ??
+    {}
   const botMitigationFeatures = [
     {
       name: 'Biometric Based Detection',
       status: 'Unknown',
       details: {
-        action: '-',
-        host: '-',
-        mouseMovement: '-',
-        pageFocus: '-',
-        keyboard: '-',
-        screenTouch: '-',
-        scroll: '-',
-        botTraits: '-',
-        botTraitsNum: '-'
+        action: biometricBasedDetectionDetails.action ?? '-',
+        host: biometricBasedDetectionDetails.host ?? '-',
+        mouseMovement: biometricBasedDetectionDetails.mouse_movement ?? '-',
+        pageFocus: biometricBasedDetectionDetails.page_focus ?? '-',
+        keyboard: biometricBasedDetectionDetails.keyboard ?? '-',
+        screenTouch: biometricBasedDetectionDetails.screen_touch ?? '-',
+        scroll: biometricBasedDetectionDetails.scroll ?? '-',
+        botTraits: biometricBasedDetectionDetails.bot_traits ?? '-',
+        botTraitsNum: biometricBasedDetectionDetails.bot_traits_num ?? '-'
       }
     },
     {
