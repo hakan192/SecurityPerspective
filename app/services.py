@@ -2846,6 +2846,11 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
 
 
 def load_server_policies_from_db(db: Session) -> dict:
+    def _normalize_policy_lookup_key(value):
+        if value is None:
+            return ""
+        return str(value).strip().lower()
+
     http_rfc_columns_sql = ",\n                ".join(f"hpr.{field}" for field in HTTP_RFC_CONTROL_FIELDS)
     rows = db.execute(
         text(
@@ -3174,6 +3179,41 @@ def load_server_policies_from_db(db: Session) -> dict:
             "raw_json_custom_rule": row["raw_json_custom_rule"],
         }
 
+    biometric_detection_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                name,
+                mouse_movement,
+                page_focus,
+                keyboard,
+                screen_touch,
+                scroll,
+                bot_traits,
+                bot_traits_num,
+                action,
+                host
+            FROM biometric_based_detection
+            """
+        )
+    ).mappings().all()
+    biometric_detection_by_name = {}
+    for row in biometric_detection_rows:
+        lookup_key = (row["device_id"], _normalize_policy_lookup_key(row["name"]))
+        biometric_detection_by_name[lookup_key] = {
+            "name": row["name"],
+            "mouse_movement": row["mouse_movement"],
+            "page_focus": row["page_focus"],
+            "keyboard": row["keyboard"],
+            "screen_touch": row["screen_touch"],
+            "scroll": row["scroll"],
+            "bot_traits": row["bot_traits"],
+            "bot_traits_num": row["bot_traits_num"],
+            "action": row["action"],
+            "host": row["host"],
+        }
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3186,6 +3226,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "error": "",
             }
         if row["server_policy_name"]:
+            biometric_policy_name = row["biometric_based_detection_name"] or row["biometrics_based_detection"]
+            biometric_lookup = biometric_detection_by_name.get(
+                (device_id, _normalize_policy_lookup_key(biometric_policy_name)),
+                {},
+            )
             allow_method_info = _format_allow_method_value(row.get("allow_method_value"))
             signature_set_status = _build_signature_set_status(row)
             http_rfc_control_status = _build_http_rfc_control_status(row)
@@ -3348,20 +3393,20 @@ def load_server_policies_from_db(db: Session) -> dict:
                             },
                             "bot_mitigate_policy_detail": {
                                 "name": row["bot_mitigate_policy_name"],
-                                "biometrics_based_detection": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
+                                "biometrics_based_detection": biometric_policy_name,
                                 "threshold_based_detection": row["threshold_based_detection_name"] or row["threshold_based_detection"],
                                 "known_bots": row["known_bots_name"] or row["known_bots"],
                                 "biometric_based_detection_details": {
-                                    "name": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
-                                    "mouse_movement": row["biometric_mouse_movement"],
-                                    "page_focus": row["biometric_page_focus"],
-                                    "keyboard": row["biometric_keyboard"],
-                                    "screen_touch": row["biometric_screen_touch"],
-                                    "scroll": row["biometric_scroll"],
-                                    "bot_traits": row["biometric_bot_traits"],
-                                    "bot_traits_num": row["biometric_bot_traits_num"],
-                                    "action": row["biometric_action"],
-                                    "host": row["biometric_host"],
+                                    "name": biometric_lookup.get("name") or biometric_policy_name,
+                                    "mouse_movement": biometric_lookup.get("mouse_movement") or row["biometric_mouse_movement"],
+                                    "page_focus": biometric_lookup.get("page_focus") or row["biometric_page_focus"],
+                                    "keyboard": biometric_lookup.get("keyboard") or row["biometric_keyboard"],
+                                    "screen_touch": biometric_lookup.get("screen_touch") or row["biometric_screen_touch"],
+                                    "scroll": biometric_lookup.get("scroll") or row["biometric_scroll"],
+                                    "bot_traits": biometric_lookup.get("bot_traits") or row["biometric_bot_traits"],
+                                    "bot_traits_num": biometric_lookup.get("bot_traits_num") or row["biometric_bot_traits_num"],
+                                    "action": biometric_lookup.get("action") or row["biometric_action"],
+                                    "host": biometric_lookup.get("host") or row["biometric_host"],
                                 },
                             },
                         },
