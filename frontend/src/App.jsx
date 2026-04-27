@@ -175,6 +175,7 @@ function FullDetailsPage({ policy }) {
   const [allowMethodExpanded, setAllowMethodExpanded] = useState(false)
   const [ipListExpanded, setIpListExpanded] = useState(false)
   const [geoLocationExpanded, setGeoLocationExpanded] = useState(false)
+  const [biometricDetectionExpanded, setBiometricDetectionExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -389,7 +390,18 @@ function FullDetailsPage({ policy }) {
   const botMitigationFeatures = [
     {
       name: 'Biometric Based Detection',
-      status: 'Unknown'
+      status: 'Unknown',
+      details: {
+        action: '-',
+        host: '-',
+        mouseMovement: '-',
+        pageFocus: '-',
+        keyboard: '-',
+        screenTouch: '-',
+        scroll: '-',
+        botTraits: '-',
+        botTraitsNum: '-'
+      }
     },
     {
       name: 'Threshold Based Detection',
@@ -780,13 +792,73 @@ function FullDetailsPage({ policy }) {
           </header>
           <div className="details-feature-grid details-feature-grid-stacked">
             {botMitigationFeatures.map((feature) => (
-              <article key={feature.name} className="details-feature-card">
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'Biometric Based Detection' ? 'details-feature-card-clickable' : ''}`}
+                onClick={feature.name === 'Biometric Based Detection' ? () => setBiometricDetectionExpanded((current) => !current) : undefined}
+                role={feature.name === 'Biometric Based Detection' ? 'button' : undefined}
+                tabIndex={feature.name === 'Biometric Based Detection' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'Biometric Based Detection'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setBiometricDetectionExpanded((current) => !current)
+                        }
+                      }
+                    : undefined
+                }
+              >
                 <div className="details-article-row">
                   <p>{feature.name}</p>
                   <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
                     <span>{feature.status}</span>
                   </span>
                 </div>
+                {feature.name === 'Biometric Based Detection' && biometricDetectionExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Action</th>
+                          <td>{feature.details.action}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Host</th>
+                          <td>{feature.details.host}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Mouse movement</th>
+                          <td>{feature.details.mouseMovement}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Page focus</th>
+                          <td>{feature.details.pageFocus}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Keyboard</th>
+                          <td>{feature.details.keyboard}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Screen touch</th>
+                          <td>{feature.details.screenTouch}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Scroll</th>
+                          <td>{feature.details.scroll}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot traits</th>
+                          <td>{feature.details.botTraits}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot traits num</th>
+                          <td>{feature.details.botTraitsNum}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
