@@ -417,10 +417,18 @@ function FullDetailsPage({ policy }) {
       }
     }
   ]
+  const ipListPolicyEntries = (
+    policy.ip_list_policy_entries ??
+    policy.web_protection_profile_details?.ip_list_policy_entries ??
+    []
+  ).filter((entry) => entry && typeof entry === 'object')
   const ipProtectionFeatures = [
     {
       name: 'IP List',
       status: normalizePresenceStatus(
+        ipListPolicyEntries.length > 0
+          ? 'enabled'
+          :
         policy.ip_list ??
           policy.ipList ??
           policy['ip-list'] ??
@@ -480,7 +488,14 @@ function FullDetailsPage({ policy }) {
             ? policy.web_protection_profile_details.ip_external_list.join(', ')
             : null) ??
           policy.web_protection_profile_details?.['ip-external'] ??
-          '-'
+          '-',
+        entries: ipListPolicyEntries.map((entry) => ({
+          type: entry.type || '-',
+          groupType: entry.group_type || entry.groupType || '-',
+          ip: entry.ip || '-',
+          ipGroup: entry.ip_group || entry.ipGroup || '-',
+          ipExternal: entry.ip_external || entry.ipExternal || '-'
+        }))
       }
     },
     {
@@ -819,30 +834,59 @@ function FullDetailsPage({ policy }) {
                 </div>
                 {feature.name === 'IP List' && ipListExpanded ? (
                   <div className="details-sub-table-wrap">
-                    <table className="details-sub-table">
-                      <tbody>
-                        <tr>
-                          <th scope="row">Type</th>
-                          <td>{feature.details.type}</td>
-                        </tr>
-                        <tr>
-                          <th scope="row">Group type</th>
-                          <td>{feature.details.groupType}</td>
-                        </tr>
-                        <tr>
-                          <th scope="row">IP</th>
-                          <td>{feature.details.ip}</td>
-                        </tr>
-                        <tr>
-                          <th scope="row">IP group</th>
-                          <td>{feature.details.ipGroup}</td>
-                        </tr>
-                        <tr>
-                          <th scope="row">IP external</th>
-                          <td>{feature.details.ipExternal}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                    {feature.details.entries.length > 0 ? (
+                      feature.details.entries.map((entry, entryIndex) => (
+                        <table className="details-sub-table" key={`${entry.ip}-${entryIndex}`}>
+                          <tbody>
+                            <tr>
+                              <th scope="row">Type</th>
+                              <td>{entry.type}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">Group type</th>
+                              <td>{entry.groupType}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">IP</th>
+                              <td>{entry.ip}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">IP group</th>
+                              <td>{entry.ipGroup}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">IP external</th>
+                              <td>{entry.ipExternal}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ))
+                    ) : (
+                      <table className="details-sub-table">
+                        <tbody>
+                          <tr>
+                            <th scope="row">Type</th>
+                            <td>{feature.details.type}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">Group type</th>
+                            <td>{feature.details.groupType}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">IP</th>
+                            <td>{feature.details.ip}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">IP group</th>
+                            <td>{feature.details.ipGroup}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">IP external</th>
+                            <td>{feature.details.ipExternal}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 ) : null}
                 {feature.name === 'Geo Location' && geoLocationExpanded ? (
