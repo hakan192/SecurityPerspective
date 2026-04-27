@@ -3091,6 +3091,40 @@ def load_server_policies_from_db(db: Session) -> dict:
             }
         )
 
+    geo_ip_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                name,
+                action,
+                block_period,
+                country_name
+            FROM geo_ip
+            ORDER BY id ASC
+            """
+        )
+    ).mappings().all()
+
+    geo_ip_by_name = {}
+    for row in geo_ip_rows:
+        key = (row["device_id"], row["name"])
+        country_name = row["country_name"]
+        if isinstance(country_name, list):
+            country_name_value = ", ".join(country_name) if country_name else ""
+        elif country_name is None:
+            country_name_value = ""
+        else:
+            country_name_value = str(country_name)
+        geo_ip_by_name.setdefault(key, []).append(
+            {
+                "name": row["name"],
+                "action": row["action"],
+                "block_period": row["block_period"],
+                "country_name": country_name_value,
+            }
+        )
+
     custom_access_policy_rows = db.execute(
         text(
             """
@@ -3258,6 +3292,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "ip_list_policy_entries": ip_list_policy_by_name.get((device_id, row["ip_list_policy"]), []),
                         "ip_intelligence": row["ip_intelligence"],
                         "geo_block_list_policy": row["geo_block_list_policy"],
+                        "geo_ip_entries": geo_ip_by_name.get((device_id, row["geo_block_list_policy"]), []),
                         "waiting_room_policy": row["waiting_room_policy"],
                         "user_tracking_policy": row["user_tracking_policy"],
                         "websocket_security_policy": row["websocket_security_policy"],

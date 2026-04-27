@@ -422,6 +422,11 @@ function FullDetailsPage({ policy }) {
     policy.web_protection_profile_details?.ip_list_policy_entries ??
     []
   ).filter((entry) => entry && typeof entry === 'object')
+  const geoIpEntries = (
+    policy.geo_ip_entries ??
+    policy.web_protection_profile_details?.geo_ip_entries ??
+    []
+  ).filter((entry) => entry && typeof entry === 'object')
   const ipProtectionFeatures = [
     {
       name: 'IP List',
@@ -501,6 +506,9 @@ function FullDetailsPage({ policy }) {
     {
       name: 'Geo Location',
       status: normalizePresenceStatus(
+        geoIpEntries.length > 0
+          ? 'enabled'
+          :
         policy.geo_location ??
           policy.geoLocation ??
           policy['geo-location'] ??
@@ -536,7 +544,12 @@ function FullDetailsPage({ policy }) {
           policy.web_protection_profile_details?.geo_location_block_period ??
           policy.web_protection_profile_details?.geoLocationBlockPeriod ??
           policy.web_protection_profile_details?.['geo-location-block-period'] ??
-          '-'
+          '-',
+        entries: geoIpEntries.map((entry) => ({
+          action: entry.action || '-',
+          blockPeriod: entry.block_period || entry.blockPeriod || '-',
+          countryName: entry.country_name || entry.countryName || '-'
+        }))
       }
     }
   ]
@@ -891,22 +904,43 @@ function FullDetailsPage({ policy }) {
                 ) : null}
                 {feature.name === 'Geo Location' && geoLocationExpanded ? (
                   <div className="details-sub-table-wrap">
-                    <table className="details-sub-table">
-                      <tbody>
-                        <tr>
-                          <th scope="row">Action</th>
-                          <td>{feature.details.action}</td>
-                        </tr>
-                        <tr>
-                          <th scope="row">Country name</th>
-                          <td>{feature.details.countryName}</td>
-                        </tr>
-                        <tr>
-                          <th scope="row">Block period</th>
-                          <td>{feature.details.blockPeriod}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                    {feature.details.entries.length > 0 ? (
+                      feature.details.entries.map((entry, entryIndex) => (
+                        <table className="details-sub-table" key={`${entry.countryName}-${entryIndex}`}>
+                          <tbody>
+                            <tr>
+                              <th scope="row">Action</th>
+                              <td>{entry.action}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">Country name</th>
+                              <td>{entry.countryName}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">Block period</th>
+                              <td>{entry.blockPeriod}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ))
+                    ) : (
+                      <table className="details-sub-table">
+                        <tbody>
+                          <tr>
+                            <th scope="row">Action</th>
+                            <td>{feature.details.action}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">Country name</th>
+                            <td>{feature.details.countryName}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">Block period</th>
+                            <td>{feature.details.blockPeriod}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 ) : null}
               </article>
