@@ -386,6 +386,20 @@ function FullDetailsPage({ policy }) {
       }
     }
   ]
+  const botMitigationFeatures = [
+    {
+      name: 'Biometric Based Detection',
+      status: 'Unknown'
+    },
+    {
+      name: 'Threshold Based Detection',
+      status: 'Unknown'
+    },
+    {
+      name: 'Known-Bot',
+      status: 'Unknown'
+    }
+  ]
   const accessFeatures = [
     {
       name: 'Allow method',
@@ -755,6 +769,24 @@ function FullDetailsPage({ policy }) {
                     </table>
                   </div>
                 ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Bot Mitigation</h4>
+          </header>
+          <div className="details-feature-grid">
+            {botMitigationFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
               </article>
             ))}
           </div>
