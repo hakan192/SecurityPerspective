@@ -3101,7 +3101,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 block_period,
                 country_name
             FROM geo_ip
-            ORDER BY id ASC
+            ORDER BY device_id DESC, name ASC
             """
         )
     ).mappings().all()
