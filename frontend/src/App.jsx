@@ -177,6 +177,7 @@ function FullDetailsPage({ policy }) {
   const [geoLocationExpanded, setGeoLocationExpanded] = useState(false)
   const [biometricDetectionExpanded, setBiometricDetectionExpanded] = useState(false)
   const [thresholdDetectionExpanded, setThresholdDetectionExpanded] = useState(false)
+  const [knownBotExpanded, setKnownBotExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -422,7 +423,15 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'Known-Bot',
-      status: 'Unknown'
+      status: 'Unknown',
+      details: {
+        dos: '-',
+        spam: '-',
+        trojan: '-',
+        scanner: '-',
+        crawler: '-',
+        knownEngines: '-'
+      }
     }
   ]
   const accessFeatures = [
@@ -807,25 +816,29 @@ function FullDetailsPage({ policy }) {
             {botMitigationFeatures.map((feature) => (
               <article
                 key={feature.name}
-                className={`details-feature-card ${feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' ? 'details-feature-card-clickable' : ''}`}
+                className={`details-feature-card ${feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot' ? 'details-feature-card-clickable' : ''}`}
                 onClick={
                   feature.name === 'Biometric Based Detection'
                     ? () => setBiometricDetectionExpanded((current) => !current)
                     : feature.name === 'Threshold Based Detection'
                       ? () => setThresholdDetectionExpanded((current) => !current)
+                      : feature.name === 'Known-Bot'
+                        ? () => setKnownBotExpanded((current) => !current)
                       : undefined
                 }
-                role={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' ? 'button' : undefined}
-                tabIndex={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' ? 0 : undefined}
+                role={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot' ? 'button' : undefined}
+                tabIndex={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot' ? 0 : undefined}
                 onKeyDown={
-                  feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection'
+                  feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot'
                     ? (event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
                           if (feature.name === 'Biometric Based Detection') {
                             setBiometricDetectionExpanded((current) => !current)
-                          } else {
+                          } else if (feature.name === 'Threshold Based Detection') {
                             setThresholdDetectionExpanded((current) => !current)
+                          } else {
+                            setKnownBotExpanded((current) => !current)
                           }
                         }
                       }
@@ -925,6 +938,38 @@ function FullDetailsPage({ policy }) {
                         <tr>
                           <th scope="row">Slow attack within</th>
                           <td>{feature.details.slowAttackWithin}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {feature.name === 'Known-Bot' && knownBotExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Dos</th>
+                          <td>{feature.details.dos}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Spam</th>
+                          <td>{feature.details.spam}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Trojan</th>
+                          <td>{feature.details.trojan}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Scanner</th>
+                          <td>{feature.details.scanner}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler</th>
+                          <td>{feature.details.crawler}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Known engines</th>
+                          <td>{feature.details.knownEngines}</td>
                         </tr>
                       </tbody>
                     </table>
