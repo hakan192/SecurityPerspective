@@ -390,24 +390,62 @@ function FullDetailsPage({ policy }) {
     }
   ]
   const biometricBasedDetectionDetails =
-    policy.biometric_based_detection_details ??
     policy.web_protection_profile_details?.bot_mitigate_policy_detail?.biometric_based_detection_details ??
+    policy.web_protection_profile_details?.biometric_based_detection_details ??
+    policy.bot_mitigate_policy_detail?.biometric_based_detection_details ??
+    policy.biometric_based_detection_details ??
     {}
+  const resolveBiometricDetail = (...values) => {
+    const resolved = values.find((value) => value !== null && value !== undefined && String(value).trim() !== '')
+    return resolved ?? '-'
+  }
+  const biometricDetails = {
+    action: resolveBiometricDetail(
+      biometricBasedDetectionDetails.action,
+      biometricBasedDetectionDetails['action']
+    ),
+    host: resolveBiometricDetail(
+      biometricBasedDetectionDetails.host,
+      biometricBasedDetectionDetails['host']
+    ),
+    mouseMovement: resolveBiometricDetail(
+      biometricBasedDetectionDetails.mouse_movement,
+      biometricBasedDetectionDetails['mouse-movement'],
+      biometricBasedDetectionDetails.mouseMovement
+    ),
+    pageFocus: resolveBiometricDetail(
+      biometricBasedDetectionDetails.page_focus,
+      biometricBasedDetectionDetails['page-focus'],
+      biometricBasedDetectionDetails.pageFocus
+    ),
+    keyboard: resolveBiometricDetail(
+      biometricBasedDetectionDetails.keyboard
+    ),
+    screenTouch: resolveBiometricDetail(
+      biometricBasedDetectionDetails.screen_touch,
+      biometricBasedDetectionDetails['screen-touch'],
+      biometricBasedDetectionDetails.screenTouch
+    ),
+    scroll: resolveBiometricDetail(
+      biometricBasedDetectionDetails.scroll
+    ),
+    botTraits: resolveBiometricDetail(
+      biometricBasedDetectionDetails.bot_traits,
+      biometricBasedDetectionDetails['bot-traits'],
+      biometricBasedDetectionDetails.botTraits
+    ),
+    botTraitsNum: resolveBiometricDetail(
+      biometricBasedDetectionDetails.bot_traits_num,
+      biometricBasedDetectionDetails['bot-traits-num'],
+      biometricBasedDetectionDetails.botTraitsNum
+    )
+  }
+  const biometricHasValues = Object.values(biometricDetails).some((value) => value !== '-')
   const botMitigationFeatures = [
     {
       name: 'Biometric Based Detection',
-      status: 'Unknown',
-      details: {
-        action: biometricBasedDetectionDetails.action ?? '-',
-        host: biometricBasedDetectionDetails.host ?? '-',
-        mouseMovement: biometricBasedDetectionDetails.mouse_movement ?? '-',
-        pageFocus: biometricBasedDetectionDetails.page_focus ?? '-',
-        keyboard: biometricBasedDetectionDetails.keyboard ?? '-',
-        screenTouch: biometricBasedDetectionDetails.screen_touch ?? '-',
-        scroll: biometricBasedDetectionDetails.scroll ?? '-',
-        botTraits: biometricBasedDetectionDetails.bot_traits ?? '-',
-        botTraitsNum: biometricBasedDetectionDetails.bot_traits_num ?? '-'
-      }
+      status: biometricHasValues ? 'Enabled' : 'Unknown',
+      details: biometricDetails
     },
     {
       name: 'Threshold Based Detection',
