@@ -173,6 +173,8 @@ function FullDetailsPage({ policy }) {
   const [httpAccessLimitExpanded, setHttpAccessLimitExpanded] = useState(false)
   const [tcpFloodExpanded, setTcpFloodExpanded] = useState(false)
   const [allowMethodExpanded, setAllowMethodExpanded] = useState(false)
+  const [ipListExpanded, setIpListExpanded] = useState(false)
+  const [geoLocationExpanded, setGeoLocationExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -412,6 +414,142 @@ function FullDetailsPage({ policy }) {
           policy.web_protection_profile_details?.allowMethod ??
           policy.web_protection_profile_details?.['allow-method'] ??
           '-'
+      }
+    }
+  ]
+  const ipListPolicyEntries = (
+    policy.ip_list_policy_entries ??
+    policy.web_protection_profile_details?.ip_list_policy_entries ??
+    []
+  ).filter((entry) => entry && typeof entry === 'object')
+  const geoIpEntries = (
+    policy.geo_ip_entries ??
+    policy.web_protection_profile_details?.geo_ip_entries ??
+    []
+  ).filter((entry) => entry && typeof entry === 'object')
+  const ipProtectionFeatures = [
+    {
+      name: 'IP List',
+      status: normalizePresenceStatus(
+        ipListPolicyEntries.length > 0
+          ? 'enabled'
+          :
+        policy.ip_list ??
+          policy.ipList ??
+          policy['ip-list'] ??
+          policy.web_protection_profile_details?.ip_list ??
+          policy.web_protection_profile_details?.ipList ??
+          policy.web_protection_profile_details?.['ip-list']
+      ),
+      details: {
+        type:
+          policy.ip_list_type ??
+          policy.ipListType ??
+          policy['ip-list-type'] ??
+          policy.web_protection_profile_details?.ip_list_type ??
+          policy.web_protection_profile_details?.ipListType ??
+          policy.web_protection_profile_details?.['ip-list-type'] ??
+          '-',
+        groupType:
+          policy.ip_list_group_type ??
+          policy.ipListGroupType ??
+          policy['ip-list-group-type'] ??
+          policy.web_protection_profile_details?.ip_list_group_type ??
+          policy.web_protection_profile_details?.ipListGroupType ??
+          policy.web_protection_profile_details?.['ip-list-group-type'] ??
+          '-',
+        ip:
+          policy.ip_list ??
+          policy.ipList ??
+          policy['ip-list'] ??
+          (Array.isArray(policy.ip_list_entries) ? policy.ip_list_entries.join(', ') : null) ??
+          policy.web_protection_profile_details?.ip_list ??
+          policy.web_protection_profile_details?.ipList ??
+          (Array.isArray(policy.web_protection_profile_details?.ip_list_entries)
+            ? policy.web_protection_profile_details.ip_list_entries.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['ip-list'] ??
+          '-',
+        ipGroup:
+          policy.ip_group ??
+          policy.ipGroup ??
+          policy['ip-group'] ??
+          (Array.isArray(policy.ip_group_list) ? policy.ip_group_list.join(', ') : null) ??
+          policy.web_protection_profile_details?.ip_group ??
+          policy.web_protection_profile_details?.ipGroup ??
+          (Array.isArray(policy.web_protection_profile_details?.ip_group_list)
+            ? policy.web_protection_profile_details.ip_group_list.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['ip-group'] ??
+          '-',
+        ipExternal:
+          policy.ip_external ??
+          policy.ipExternal ??
+          policy['ip-external'] ??
+          (Array.isArray(policy.ip_external_list) ? policy.ip_external_list.join(', ') : null) ??
+          policy.web_protection_profile_details?.ip_external ??
+          policy.web_protection_profile_details?.ipExternal ??
+          (Array.isArray(policy.web_protection_profile_details?.ip_external_list)
+            ? policy.web_protection_profile_details.ip_external_list.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['ip-external'] ??
+          '-',
+        entries: ipListPolicyEntries.map((entry) => ({
+          type: entry.type || '-',
+          groupType: entry.group_type || entry.groupType || '-',
+          ip: entry.ip || '-',
+          ipGroup: entry.ip_group || entry.ipGroup || '-',
+          ipExternal: entry.ip_external || entry.ipExternal || '-'
+        }))
+      }
+    },
+    {
+      name: 'Geo Location',
+      status: normalizePresenceStatus(
+        geoIpEntries.length > 0
+          ? 'enabled'
+          :
+        policy.geo_location ??
+          policy.geoLocation ??
+          policy['geo-location'] ??
+          policy.web_protection_profile_details?.geo_location ??
+          policy.web_protection_profile_details?.geoLocation ??
+          policy.web_protection_profile_details?.['geo-location']
+      ),
+      details: {
+        action:
+          policy.geo_location_action ??
+          policy.geoLocationAction ??
+          policy['geo-location-action'] ??
+          policy.web_protection_profile_details?.geo_location_action ??
+          policy.web_protection_profile_details?.geoLocationAction ??
+          policy.web_protection_profile_details?.['geo-location-action'] ??
+          '-',
+        countryName:
+          policy.geo_location ??
+          policy.geoLocation ??
+          policy['geo-location'] ??
+          (Array.isArray(policy.geo_location_list) ? policy.geo_location_list.join(', ') : null) ??
+          policy.web_protection_profile_details?.geo_location ??
+          policy.web_protection_profile_details?.geoLocation ??
+          (Array.isArray(policy.web_protection_profile_details?.geo_location_list)
+            ? policy.web_protection_profile_details.geo_location_list.join(', ')
+            : null) ??
+          policy.web_protection_profile_details?.['geo-location'] ??
+          '-',
+        blockPeriod:
+          policy.geo_location_block_period ??
+          policy.geoLocationBlockPeriod ??
+          policy['geo-location-block-period'] ??
+          policy.web_protection_profile_details?.geo_location_block_period ??
+          policy.web_protection_profile_details?.geoLocationBlockPeriod ??
+          policy.web_protection_profile_details?.['geo-location-block-period'] ??
+          '-',
+        entries: geoIpEntries.map((entry) => ({
+          action: entry.action || '-',
+          blockPeriod: entry.block_period || entry.blockPeriod || '-',
+          countryName: entry.country_name || entry.countryName || '-'
+        }))
       }
     }
   ]
@@ -661,6 +799,148 @@ function FullDetailsPage({ policy }) {
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>IP Protection</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {ipProtectionFeatures.map((feature) => (
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'IP List' || feature.name === 'Geo Location' ? 'details-feature-card-clickable' : ''}`}
+                onClick={
+                  feature.name === 'IP List'
+                    ? () => setIpListExpanded((current) => !current)
+                    : feature.name === 'Geo Location'
+                      ? () => setGeoLocationExpanded((current) => !current)
+                      : undefined
+                }
+                role={feature.name === 'IP List' || feature.name === 'Geo Location' ? 'button' : undefined}
+                tabIndex={feature.name === 'IP List' || feature.name === 'Geo Location' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'IP List' || feature.name === 'Geo Location'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          if (feature.name === 'IP List') {
+                            setIpListExpanded((current) => !current)
+                          } else {
+                            setGeoLocationExpanded((current) => !current)
+                          }
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                {feature.name === 'IP List' && ipListExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    {feature.details.entries.length > 0 ? (
+                      feature.details.entries.map((entry, entryIndex) => (
+                        <table className="details-sub-table" key={`${entry.ip}-${entryIndex}`}>
+                          <tbody>
+                            <tr>
+                              <th scope="row">Type</th>
+                              <td>{entry.type}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">Group type</th>
+                              <td>{entry.groupType}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">IP</th>
+                              <td>{entry.ip}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">IP group</th>
+                              <td>{entry.ipGroup}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">IP external</th>
+                              <td>{entry.ipExternal}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ))
+                    ) : (
+                      <table className="details-sub-table">
+                        <tbody>
+                          <tr>
+                            <th scope="row">Type</th>
+                            <td>{feature.details.type}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">Group type</th>
+                            <td>{feature.details.groupType}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">IP</th>
+                            <td>{feature.details.ip}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">IP group</th>
+                            <td>{feature.details.ipGroup}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">IP external</th>
+                            <td>{feature.details.ipExternal}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                ) : null}
+                {feature.name === 'Geo Location' && geoLocationExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    {feature.details.entries.length > 0 ? (
+                      feature.details.entries.map((entry, entryIndex) => (
+                        <table className="details-sub-table" key={`${entry.countryName}-${entryIndex}`}>
+                          <tbody>
+                            <tr>
+                              <th scope="row">Action</th>
+                              <td>{entry.action}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">Country name</th>
+                              <td>{entry.countryName}</td>
+                            </tr>
+                            <tr>
+                              <th scope="row">Block period</th>
+                              <td>{entry.blockPeriod}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ))
+                    ) : (
+                      <table className="details-sub-table">
+                        <tbody>
+                          <tr>
+                            <th scope="row">Action</th>
+                            <td>{feature.details.action}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">Country name</th>
+                            <td>{feature.details.countryName}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row">Block period</th>
+                            <td>{feature.details.blockPeriod}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 ) : null}
               </article>
