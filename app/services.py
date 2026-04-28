@@ -2943,6 +2943,16 @@ def load_server_policies_from_db(db: Session) -> dict:
                 bbd.action AS biometric_action,
                 bbd.host AS biometric_host,
                 tbd.name AS threshold_based_detection_name,
+                tbd.bot_confirmation AS threshold_bot_confirmation,
+                tbd.bot_recognition AS threshold_bot_recognition,
+                tbd.crawler_detection AS threshold_crawler_detection,
+                tbd.crawler_action AS threshold_crawler_action,
+                tbd.crawler_occurrence_num AS threshold_crawler_occurrence_num,
+                tbd.crawler_within AS threshold_crawler_within,
+                tbd.slow_attack_detection AS threshold_slow_attack_detection,
+                tbd.slow_attack_action AS threshold_slow_attack_action,
+                tbd.slow_attack_occurrence_num AS threshold_slow_attack_occurrence_num,
+                tbd.slow_attack_within AS threshold_slow_attack_within,
                 kb.known_bots_name,
                 pool.ip AS server_pool_ip,
                 pool.sni,
@@ -3214,6 +3224,43 @@ def load_server_policies_from_db(db: Session) -> dict:
             "host": row["host"],
         }
 
+    threshold_detection_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                name,
+                bot_confirmation,
+                bot_recognition,
+                crawler_detection,
+                crawler_action,
+                crawler_occurrence_num,
+                crawler_within,
+                slow_attack_detection,
+                slow_attack_action,
+                slow_attack_occurrence_num,
+                slow_attack_within
+            FROM threshold_based_detection
+            """
+        )
+    ).mappings().all()
+    threshold_detection_by_name = {}
+    for row in threshold_detection_rows:
+        lookup_key = (row["device_id"], _normalize_policy_lookup_key(row["name"]))
+        threshold_detection_by_name[lookup_key] = {
+            "name": row["name"],
+            "bot_confirmation": row["bot_confirmation"],
+            "bot_recognition": row["bot_recognition"],
+            "crawler_detection": row["crawler_detection"],
+            "crawler_action": row["crawler_action"],
+            "crawler_occurrence_num": row["crawler_occurrence_num"],
+            "crawler_within": row["crawler_within"],
+            "slow_attack_detection": row["slow_attack_detection"],
+            "slow_attack_action": row["slow_attack_action"],
+            "slow_attack_occurrence_num": row["slow_attack_occurrence_num"],
+            "slow_attack_within": row["slow_attack_within"],
+        }
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3229,6 +3276,11 @@ def load_server_policies_from_db(db: Session) -> dict:
             biometric_policy_name = row["biometric_based_detection_name"] or row["biometrics_based_detection"]
             biometric_lookup = biometric_detection_by_name.get(
                 (device_id, _normalize_policy_lookup_key(biometric_policy_name)),
+                {},
+            )
+            threshold_policy_name = row["threshold_based_detection_name"] or row["threshold_based_detection"]
+            threshold_lookup = threshold_detection_by_name.get(
+                (device_id, _normalize_policy_lookup_key(threshold_policy_name)),
                 {},
             )
             allow_method_info = _format_allow_method_value(row.get("allow_method_value"))
@@ -3394,7 +3446,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                             "bot_mitigate_policy_detail": {
                                 "name": row["bot_mitigate_policy_name"],
                                 "biometrics_based_detection": biometric_policy_name,
-                                "threshold_based_detection": row["threshold_based_detection_name"] or row["threshold_based_detection"],
+                                "threshold_based_detection": threshold_policy_name,
                                 "known_bots": row["known_bots_name"] or row["known_bots"],
                                 "biometric_based_detection_details": {
                                     "name": biometric_lookup.get("name") or biometric_policy_name,
@@ -3407,6 +3459,19 @@ def load_server_policies_from_db(db: Session) -> dict:
                                     "bot_traits_num": biometric_lookup.get("bot_traits_num") or row["biometric_bot_traits_num"],
                                     "action": biometric_lookup.get("action") or row["biometric_action"],
                                     "host": biometric_lookup.get("host") or row["biometric_host"],
+                                },
+                                "threshold_based_detection_details": {
+                                    "name": threshold_lookup.get("name") or threshold_policy_name,
+                                    "bot_confirmation": threshold_lookup.get("bot_confirmation") or row["threshold_bot_confirmation"],
+                                    "bot_recognition": threshold_lookup.get("bot_recognition") or row["threshold_bot_recognition"],
+                                    "crawler_detection": threshold_lookup.get("crawler_detection") or row["threshold_crawler_detection"],
+                                    "crawler_action": threshold_lookup.get("crawler_action") or row["threshold_crawler_action"],
+                                    "crawler_occurrence_num": threshold_lookup.get("crawler_occurrence_num") or row["threshold_crawler_occurrence_num"],
+                                    "crawler_within": threshold_lookup.get("crawler_within") or row["threshold_crawler_within"],
+                                    "slow_attack_detection": threshold_lookup.get("slow_attack_detection") or row["threshold_slow_attack_detection"],
+                                    "slow_attack_action": threshold_lookup.get("slow_attack_action") or row["threshold_slow_attack_action"],
+                                    "slow_attack_occurrence_num": threshold_lookup.get("slow_attack_occurrence_num") or row["threshold_slow_attack_occurrence_num"],
+                                    "slow_attack_within": threshold_lookup.get("slow_attack_within") or row["threshold_slow_attack_within"],
                                 },
                             },
                         },

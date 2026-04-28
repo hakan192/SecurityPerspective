@@ -442,6 +442,66 @@ function FullDetailsPage({ policy }) {
     )
   }
   const biometricHasValues = Object.values(biometricDetails).some((value) => value !== '-')
+  const thresholdBasedDetectionDetails =
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy?.bot_mitigate_policy_detail?.threshold_based_detection_details ??
+    policy.web_protection_profile_details?.bot_mitigate_policy_detail?.threshold_based_detection_details ??
+    policy.web_protection_profile_details?.threshold_based_detection_details ??
+    policy.bot_mitigate_policy_detail?.threshold_based_detection_details ??
+    policy.threshold_based_detection_details ??
+    {}
+  const thresholdDetails = {
+    botConfirmation: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.bot_confirmation,
+      thresholdBasedDetectionDetails['bot-confirmation'],
+      thresholdBasedDetectionDetails.botConfirmation
+    ),
+    botRecognition: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.bot_recognition,
+      thresholdBasedDetectionDetails['bot-recognition'],
+      thresholdBasedDetectionDetails.botRecognition
+    ),
+    crawlerDetection: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_detection,
+      thresholdBasedDetectionDetails['crawler-detection'],
+      thresholdBasedDetectionDetails.crawlerDetection
+    ),
+    crawlerAction: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_action,
+      thresholdBasedDetectionDetails['crawler-action'],
+      thresholdBasedDetectionDetails.crawlerAction
+    ),
+    crawlerOccurrenceNum: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_occurrence_num,
+      thresholdBasedDetectionDetails['crawler-occurrence-num'],
+      thresholdBasedDetectionDetails.crawlerOccurrenceNum
+    ),
+    crawlerWithin: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_within,
+      thresholdBasedDetectionDetails['crawler-within'],
+      thresholdBasedDetectionDetails.crawlerWithin
+    ),
+    slowAttackDetection: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_detection,
+      thresholdBasedDetectionDetails['slow-attack-detection'],
+      thresholdBasedDetectionDetails.slowAttackDetection
+    ),
+    slowAttackAction: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_action,
+      thresholdBasedDetectionDetails['slow-attack-action'],
+      thresholdBasedDetectionDetails.slowAttackAction
+    ),
+    slowAttackOccurrenceNum: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_occurrence_num,
+      thresholdBasedDetectionDetails['slow-attack-occurrence-num'],
+      thresholdBasedDetectionDetails.slowAttackOccurrenceNum
+    ),
+    slowAttackWithin: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_within,
+      thresholdBasedDetectionDetails['slow-attack-within'],
+      thresholdBasedDetectionDetails.slowAttackWithin
+    )
+  }
+  const thresholdHasValues = Object.values(thresholdDetails).some((value) => value !== '-')
   const botMitigationFeatures = [
     {
       name: 'Biometric Based Detection',
@@ -450,19 +510,8 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'Threshold Based Detection',
-      status: 'Unknown',
-      details: {
-        botConfirmation: '-',
-        botRecognition: '-',
-        crawlerDetection: '-',
-        crawlerAction: '-',
-        crawlerOccurrenceNum: '-',
-        crawlerWithin: '-',
-        slowAttackDetection: '-',
-        slowAttackAction: '-',
-        slowAttackOccurrenceNum: '-',
-        slowAttackWithin: '-'
-      }
+      status: thresholdHasValues ? 'Enabled' : 'Unknown',
+      details: thresholdDetails
     },
     {
       name: 'Known-Bot',
