@@ -769,7 +769,11 @@ function FullDetailsPage({ policy }) {
     {
       name: 'XMLValidation Policy',
       status: normalizeFeatureStatus(
-        policy.xml_validation_policy ??
+        policy.xml_validation_enable_signature_detection ??
+          policy['xml-validation-enable-signature-detection'] ??
+          policy.web_protection_profile_details?.xml_validation_enable_signature_detection ??
+          policy.web_protection_profile_details?.['xml-validation-enable-signature-detection'] ??
+          policy.xml_validation_policy ??
           policy.xmlValidationPolicy ??
           policy['xml-validation-policy'] ??
           policy.web_protection_profile_details?.xml_validation_policy ??
