@@ -1384,7 +1384,7 @@ function FullDetailsPage({ policy }) {
           <header className="details-section-head">
             <h4>API Security</h4>
           </header>
-          <div className="details-feature-grid">
+          <div className="details-feature-grid details-feature-grid-stacked">
             {apiSecurityFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
                 <div className="details-article-row">
