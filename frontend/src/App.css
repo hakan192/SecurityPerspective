@@ -953,6 +953,72 @@ input,
   font-size: 1rem;
   letter-spacing: 0.04em;
 }
+.details-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.details-section-info-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  text-decoration: none;
+}
+
+.details-section-info-link:hover,
+.details-section-info-link:focus-visible {
+  color: #2563eb;
+}
+
+.details-section-info-icon {
+  flex-shrink: 0;
+}
+
+.details-section-info-tooltip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.45rem);
+  width: min(20rem, 72vw);
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 2;
+}
+
+.details-section-info-link:hover .details-section-info-tooltip,
+.details-section-info-link:focus-visible .details-section-info-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.dark .details-section-info-link {
+  color: #cbd5e1;
+}
+
+.dark .details-section-info-link:hover,
+.dark .details-section-info-link:focus-visible {
+  color: #60a5fa;
+}
+
+.dark .details-section-info-tooltip {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-color: rgba(100, 116, 139, 0.55);
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.5);
+}
 
 .details-feature-grid {
   margin-top: 0.75rem;

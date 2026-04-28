@@ -70,6 +70,16 @@ function DeviceStackIcon({ className = '', size = 14 }) {
   )
 }
 
+function InfoCircleIcon({ className = '', size = 14 }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="10" x2="12" y2="16" />
+      <circle cx="12" cy="7" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 function getPolicyStatusVisual(status) {
   const normalized = String(status ?? '').trim().toLowerCase()
   if (normalized === 'blocking') {
@@ -801,6 +811,55 @@ function FullDetailsPage({ policy }) {
       )
     }
   ]
+  const fullDetailsSectionMeta = {
+    'Standard Protection': {
+      summary: 'Baseline defenses for signatures, web attacks, and protocol validation to stop common threats.',
+      link: '#'
+    },
+    'Advance Protection': {
+      summary: 'Advanced controls for custom access, nuanced threat logic, and tighter policy hardening.',
+      link: '#'
+    },
+    'Application Dos protection': {
+      summary: 'Application-layer DoS controls for flood prevention, access limiting, and connection thresholds.',
+      link: '#'
+    },
+    'Bot Mitigation': {
+      summary: 'Behavioral and known-bot detection to identify, challenge, or block automated abuse.',
+      link: '#'
+    },
+    Access: {
+      summary: 'Request access controls such as method restrictions and policy enforcement for inbound traffic.',
+      link: '#'
+    },
+    'IP Protection': {
+      summary: 'Network-level controls for IP and geo-based allow/block lists to reduce malicious exposure.',
+      link: '#'
+    },
+    'API Security': {
+      summary: 'Schema and payload validation policies for XML/JSON API traffic and signature detection.',
+      link: '#'
+    }
+  }
+
+  const renderSectionHeader = (title) => {
+    const meta = fullDetailsSectionMeta[title]
+    return (
+      <header className="details-section-head">
+        <h4>{title}</h4>
+        {meta ? (
+          <a
+            className="details-section-info-link"
+            href={meta.link}
+            aria-label={`${title} information`}
+          >
+            <span className="details-section-info-tooltip" role="tooltip">{meta.summary}</span>
+            <InfoCircleIcon className="details-section-info-icon" size={16} />
+          </a>
+        ) : null}
+      </header>
+    )
+  }
 
   return (
     <section className="full-details-page">
@@ -826,9 +885,7 @@ function FullDetailsPage({ policy }) {
 
       <div className="details-sections">
         <section className="details-section">
-          <header className="details-section-head">
-            <h4>Standard Protection</h4>
-          </header>
+          {renderSectionHeader('Standard Protection')}
           <div className="details-feature-grid">
             {standardProtectionFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
@@ -845,9 +902,7 @@ function FullDetailsPage({ policy }) {
 
 
         <section className="details-section">
-          <header className="details-section-head">
-            <h4>Advance Protection</h4>
-          </header>
+          {renderSectionHeader('Advance Protection')}
           <div className="details-feature-grid details-feature-grid-stacked">
             {advancedProtectionFeatures.map((feature) => (
               <article
@@ -893,9 +948,7 @@ function FullDetailsPage({ policy }) {
         </section>
 
         <section className="details-section">
-          <header className="details-section-head">
-            <h4>Application Dos protection</h4>
-          </header>
+          {renderSectionHeader('Application Dos protection')}
           <div className="details-feature-grid details-feature-grid-stacked">
             {applicationDosProtectionFeatures.map((feature) => (
               <article
@@ -1009,9 +1062,7 @@ function FullDetailsPage({ policy }) {
         </section>
 
         <section className="details-section">
-          <header className="details-section-head">
-            <h4>Bot Mitigation</h4>
-          </header>
+          {renderSectionHeader('Bot Mitigation')}
           <div className="details-feature-grid details-feature-grid-stacked">
             {botMitigationFeatures.map((feature) => (
               <article
@@ -1205,9 +1256,7 @@ function FullDetailsPage({ policy }) {
         </section>
 
         <section className="details-section">
-          <header className="details-section-head">
-            <h4>Access</h4>
-          </header>
+          {renderSectionHeader('Access')}
           <div className="details-feature-grid details-feature-grid-stacked">
             {accessFeatures.map((feature) => (
               <article
@@ -1251,9 +1300,7 @@ function FullDetailsPage({ policy }) {
         </section>
 
         <section className="details-section">
-          <header className="details-section-head">
-            <h4>IP Protection</h4>
-          </header>
+          {renderSectionHeader('IP Protection')}
           <div className="details-feature-grid details-feature-grid-stacked">
             {ipProtectionFeatures.map((feature) => (
               <article
@@ -1393,9 +1440,7 @@ function FullDetailsPage({ policy }) {
         </section>
 
         <section className="details-section">
-          <header className="details-section-head">
-            <h4>API Security</h4>
-          </header>
+          {renderSectionHeader('API Security')}
           <div className="details-feature-grid details-feature-grid-stacked">
             {apiSecurityFeatures.map((feature) => (
               <article key={feature.name} className="details-feature-card">
