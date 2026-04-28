@@ -765,6 +765,42 @@ function FullDetailsPage({ policy }) {
       }
     }
   ]
+  const apiSecurityFeatures = [
+    {
+      name: 'XMLValidation Policy',
+      status: normalizeFeatureStatus(
+        policy.xml_validation_enable_signature_detection ??
+          policy['xml-validation-enable-signature-detection'] ??
+          policy.web_protection_profile_details?.xml_validation_enable_signature_detection ??
+          policy.web_protection_profile_details?.['xml-validation-enable-signature-detection'] ??
+          policy.xml_validation_policy ??
+          policy.xmlValidationPolicy ??
+          policy['xml-validation-policy'] ??
+          policy.web_protection_profile_details?.xml_validation_policy ??
+          policy.web_protection_profile_details?.xmlValidationPolicy ??
+          policy.web_protection_profile_details?.['xml-validation-policy']
+      )
+    },
+    {
+      name: 'JSON Validation Policy',
+      status: normalizeFeatureStatus(
+        policy.json_validation_enable_attack_signatures ??
+          policy['json-validation-enable-attack-signatures'] ??
+          policy.web_protection_profile_details?.json_validation_enable_attack_signatures ??
+          policy.web_protection_profile_details?.['json-validation-enable-attack-signatures'] ??
+          policy.json_validation_enable_signature_detection ??
+          policy['json-validation-enable-signature-detection'] ??
+          policy.web_protection_profile_details?.json_validation_enable_signature_detection ??
+          policy.web_protection_profile_details?.['json-validation-enable-signature-detection'] ??
+          policy.json_validation_policy ??
+          policy.jsonValidationPolicy ??
+          policy['json-validation-policy'] ??
+          policy.web_protection_profile_details?.json_validation_policy ??
+          policy.web_protection_profile_details?.jsonValidationPolicy ??
+          policy.web_protection_profile_details?.['json-validation-policy']
+      )
+    }
+  ]
 
   return (
     <section className="full-details-page">
@@ -1351,6 +1387,24 @@ function FullDetailsPage({ policy }) {
                     )}
                   </div>
                 ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>API Security</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {apiSecurityFeatures.map((feature) => (
+              <article key={feature.name} className="details-feature-card">
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
               </article>
             ))}
           </div>
