@@ -2954,6 +2954,18 @@ def load_server_policies_from_db(db: Session) -> dict:
                 tbd.slow_attack_occurrence_num AS threshold_slow_attack_occurrence_num,
                 tbd.slow_attack_within AS threshold_slow_attack_within,
                 kb.known_bots_name,
+                kb.dos_status AS known_bots_dos_status,
+                kb.dos_action AS known_bots_dos_action,
+                kb.spam_status AS known_bots_spam_status,
+                kb.spam_action AS known_bots_spam_action,
+                kb.trojan_status AS known_bots_trojan_status,
+                kb.trojan_action AS known_bots_trojan_action,
+                kb.scanner_status AS known_bots_scanner_status,
+                kb.scanner_action AS known_bots_scanner_action,
+                kb.crawler_status AS known_bots_crawler_status,
+                kb.crawler_action AS known_bots_crawler_action,
+                kb.known_engines_status AS known_bots_known_engines_status,
+                kb.known_engines_action AS known_bots_known_engines_action,
                 pool.ip AS server_pool_ip,
                 pool.sni,
                 pool.sni_certificate,
@@ -3261,6 +3273,47 @@ def load_server_policies_from_db(db: Session) -> dict:
             "slow_attack_within": row["slow_attack_within"],
         }
 
+    known_bots_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                known_bots_name,
+                dos_status,
+                dos_action,
+                spam_status,
+                spam_action,
+                trojan_status,
+                trojan_action,
+                scanner_status,
+                scanner_action,
+                crawler_status,
+                crawler_action,
+                known_engines_status,
+                known_engines_action
+            FROM "Known-bots"
+            """
+        )
+    ).mappings().all()
+    known_bots_by_name = {}
+    for row in known_bots_rows:
+        lookup_key = (row["device_id"], _normalize_policy_lookup_key(row["known_bots_name"]))
+        known_bots_by_name[lookup_key] = {
+            "known_bots_name": row["known_bots_name"],
+            "dos_status": row["dos_status"],
+            "dos_action": row["dos_action"],
+            "spam_status": row["spam_status"],
+            "spam_action": row["spam_action"],
+            "trojan_status": row["trojan_status"],
+            "trojan_action": row["trojan_action"],
+            "scanner_status": row["scanner_status"],
+            "scanner_action": row["scanner_action"],
+            "crawler_status": row["crawler_status"],
+            "crawler_action": row["crawler_action"],
+            "known_engines_status": row["known_engines_status"],
+            "known_engines_action": row["known_engines_action"],
+        }
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3281,6 +3334,11 @@ def load_server_policies_from_db(db: Session) -> dict:
             threshold_policy_name = row["threshold_based_detection_name"] or row["threshold_based_detection"]
             threshold_lookup = threshold_detection_by_name.get(
                 (device_id, _normalize_policy_lookup_key(threshold_policy_name)),
+                {},
+            )
+            known_bots_policy_name = row["known_bots_name"] or row["known_bots"]
+            known_bots_lookup = known_bots_by_name.get(
+                (device_id, _normalize_policy_lookup_key(known_bots_policy_name)),
                 {},
             )
             allow_method_info = _format_allow_method_value(row.get("allow_method_value"))
@@ -3447,7 +3505,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                                 "name": row["bot_mitigate_policy_name"],
                                 "biometrics_based_detection": biometric_policy_name,
                                 "threshold_based_detection": threshold_policy_name,
-                                "known_bots": row["known_bots_name"] or row["known_bots"],
+                                "known_bots": known_bots_policy_name,
                                 "biometric_based_detection_details": {
                                     "name": biometric_lookup.get("name") or biometric_policy_name,
                                     "mouse_movement": biometric_lookup.get("mouse_movement") or row["biometric_mouse_movement"],
@@ -3472,6 +3530,21 @@ def load_server_policies_from_db(db: Session) -> dict:
                                     "slow_attack_action": threshold_lookup.get("slow_attack_action") or row["threshold_slow_attack_action"],
                                     "slow_attack_occurrence_num": threshold_lookup.get("slow_attack_occurrence_num") or row["threshold_slow_attack_occurrence_num"],
                                     "slow_attack_within": threshold_lookup.get("slow_attack_within") or row["threshold_slow_attack_within"],
+                                },
+                                "known_bots_details": {
+                                    "name": known_bots_lookup.get("known_bots_name") or known_bots_policy_name,
+                                    "dos_status": known_bots_lookup.get("dos_status") or row["known_bots_dos_status"],
+                                    "dos_action": known_bots_lookup.get("dos_action") or row["known_bots_dos_action"],
+                                    "spam_status": known_bots_lookup.get("spam_status") or row["known_bots_spam_status"],
+                                    "spam_action": known_bots_lookup.get("spam_action") or row["known_bots_spam_action"],
+                                    "trojan_status": known_bots_lookup.get("trojan_status") or row["known_bots_trojan_status"],
+                                    "trojan_action": known_bots_lookup.get("trojan_action") or row["known_bots_trojan_action"],
+                                    "scanner_status": known_bots_lookup.get("scanner_status") or row["known_bots_scanner_status"],
+                                    "scanner_action": known_bots_lookup.get("scanner_action") or row["known_bots_scanner_action"],
+                                    "crawler_status": known_bots_lookup.get("crawler_status") or row["known_bots_crawler_status"],
+                                    "crawler_action": known_bots_lookup.get("crawler_action") or row["known_bots_crawler_action"],
+                                    "known_engines_status": known_bots_lookup.get("known_engines_status") or row["known_bots_known_engines_status"],
+                                    "known_engines_action": known_bots_lookup.get("known_engines_action") or row["known_bots_known_engines_action"],
                                 },
                             },
                         },

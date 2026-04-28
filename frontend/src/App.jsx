@@ -502,6 +502,85 @@ function FullDetailsPage({ policy }) {
     )
   }
   const thresholdHasValues = Object.values(thresholdDetails).some((value) => value !== '-')
+  const knownBotsDetailsPayload =
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy?.bot_mitigate_policy_detail?.known_bots_details ??
+    policy.web_protection_profile_details?.bot_mitigate_policy_detail?.known_bots_details ??
+    policy.web_protection_profile_details?.known_bots_details ??
+    policy.bot_mitigate_policy_detail?.known_bots_details ??
+    policy.known_bots_details ??
+    {}
+  const knownBotsDetails = {
+    dos: resolveBiometricDetail(
+      knownBotsDetailsPayload.dos_status,
+      knownBotsDetailsPayload['dos-status'],
+      knownBotsDetailsPayload.dos
+    ),
+    dosAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.dos_action,
+      knownBotsDetailsPayload['dos-action'],
+      knownBotsDetailsPayload.dosAction
+    ),
+    spam: resolveBiometricDetail(
+      knownBotsDetailsPayload.spam_status,
+      knownBotsDetailsPayload['spam-status'],
+      knownBotsDetailsPayload.spam
+    ),
+    spamAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.spam_action,
+      knownBotsDetailsPayload['spam-action'],
+      knownBotsDetailsPayload.spamAction
+    ),
+    trojan: resolveBiometricDetail(
+      knownBotsDetailsPayload.trojan_status,
+      knownBotsDetailsPayload['trojan-status'],
+      knownBotsDetailsPayload.trojan
+    ),
+    trojanAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.trojan_action,
+      knownBotsDetailsPayload['trojan-action'],
+      knownBotsDetailsPayload.trojanAction
+    ),
+    scanner: resolveBiometricDetail(
+      knownBotsDetailsPayload.scanner_status,
+      knownBotsDetailsPayload['scanner-status'],
+      knownBotsDetailsPayload.scanner
+    ),
+    scannerAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.scanner_action,
+      knownBotsDetailsPayload['scanner-action'],
+      knownBotsDetailsPayload.scannerAction
+    ),
+    crawler: resolveBiometricDetail(
+      knownBotsDetailsPayload.crawler_status,
+      knownBotsDetailsPayload['crawler-status'],
+      knownBotsDetailsPayload.crawler
+    ),
+    crawlerAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.crawler_action,
+      knownBotsDetailsPayload['crawler-action'],
+      knownBotsDetailsPayload.crawlerAction
+    ),
+    knownEngines: resolveBiometricDetail(
+      knownBotsDetailsPayload.known_engines_status,
+      knownBotsDetailsPayload['known-engines-status'],
+      knownBotsDetailsPayload.knownEngines
+    ),
+    knownEnginesAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.known_engines_action,
+      knownBotsDetailsPayload['known-engines-action'],
+      knownBotsDetailsPayload.knownEnginesAction
+    )
+  }
+  const isEnabledValue = (value) =>
+    ['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(String(value ?? '').trim().toLowerCase())
+  const knownBotsHasEnabledControl = [
+    knownBotsDetails.dos,
+    knownBotsDetails.spam,
+    knownBotsDetails.trojan,
+    knownBotsDetails.scanner,
+    knownBotsDetails.crawler,
+    knownBotsDetails.knownEngines
+  ].some(isEnabledValue)
   const botMitigationFeatures = [
     {
       name: 'Biometric Based Detection',
@@ -515,15 +594,8 @@ function FullDetailsPage({ policy }) {
     },
     {
       name: 'Known-Bot',
-      status: 'Unknown',
-      details: {
-        dos: '-',
-        spam: '-',
-        trojan: '-',
-        scanner: '-',
-        crawler: '-',
-        knownEngines: '-'
-      }
+      status: knownBotsHasEnabledControl ? 'Enabled' : 'Unknown',
+      details: knownBotsDetails
     }
   ]
   const accessFeatures = [
@@ -1044,24 +1116,48 @@ function FullDetailsPage({ policy }) {
                           <td>{feature.details.dos}</td>
                         </tr>
                         <tr>
+                          <th scope="row">Dos action</th>
+                          <td>{feature.details.dosAction}</td>
+                        </tr>
+                        <tr>
                           <th scope="row">Spam</th>
                           <td>{feature.details.spam}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Spam action</th>
+                          <td>{feature.details.spamAction}</td>
                         </tr>
                         <tr>
                           <th scope="row">Trojan</th>
                           <td>{feature.details.trojan}</td>
                         </tr>
                         <tr>
+                          <th scope="row">Trojan action</th>
+                          <td>{feature.details.trojanAction}</td>
+                        </tr>
+                        <tr>
                           <th scope="row">Scanner</th>
                           <td>{feature.details.scanner}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Scanner action</th>
+                          <td>{feature.details.scannerAction}</td>
                         </tr>
                         <tr>
                           <th scope="row">Crawler</th>
                           <td>{feature.details.crawler}</td>
                         </tr>
                         <tr>
+                          <th scope="row">Crawler action</th>
+                          <td>{feature.details.crawlerAction}</td>
+                        </tr>
+                        <tr>
                           <th scope="row">Known engines</th>
                           <td>{feature.details.knownEngines}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Known engines action</th>
+                          <td>{feature.details.knownEnginesAction}</td>
                         </tr>
                       </tbody>
                     </table>
