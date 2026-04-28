@@ -3179,6 +3179,24 @@ def load_server_policies_from_db(db: Session) -> dict:
             "xml_validation_name": row["xml_validation_name"],
             "enable_signature_detection": row["enable_signature_detection"],
         }
+    json_validation_policy_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                json_validation_name,
+                enable_signature_detection
+            FROM "json-validation-policy"
+            """
+        )
+    ).mappings().all()
+    json_validation_policy_by_name = {}
+    for row in json_validation_policy_rows:
+        lookup_key = (row["device_id"], _normalize_policy_lookup_key(row["json_validation_name"]))
+        json_validation_policy_by_name[lookup_key] = {
+            "json_validation_name": row["json_validation_name"],
+            "enable_signature_detection": row["enable_signature_detection"],
+        }
 
     custom_access_policy_rows = db.execute(
         text(
@@ -3350,6 +3368,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                 {},
             )
             xml_enable_signature_detection = xml_validation_lookup.get("enable_signature_detection")
+            json_validation_lookup = json_validation_policy_by_name.get(
+                (device_id, _normalize_policy_lookup_key(row["json_validation_policy"])),
+                {},
+            )
+            json_enable_signature_detection = json_validation_lookup.get("enable_signature_detection")
             biometric_policy_name = row["biometric_based_detection_name"] or row["biometrics_based_detection"]
             biometric_lookup = biometric_detection_by_name.get(
                 (device_id, _normalize_policy_lookup_key(biometric_policy_name)),
@@ -3427,6 +3450,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "allow_method_list": allow_method_info["methods"],
                     "xml_validation_enable_signature_detection": xml_enable_signature_detection,
                     "xml-validation-enable-signature-detection": xml_enable_signature_detection,
+                    "json_validation_enable_signature_detection": json_enable_signature_detection,
+                    "json-validation-enable-signature-detection": json_enable_signature_detection,
                     "syntax_based_attack_detection_details": {
                         "xss_html_tag_based_status": row["xss_html_tag_based_status"],
                         "xss_html_attribute_based_status": row["xss_html_attribute_based_status"],
@@ -3477,6 +3502,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "xml_validation_enable_signature_detection": xml_enable_signature_detection,
                         "xml-validation-enable-signature-detection": xml_enable_signature_detection,
                         "json_validation_policy": row["json_validation_policy"],
+                        "json_validation_enable_signature_detection": json_enable_signature_detection,
+                        "json-validation-enable-signature-detection": json_enable_signature_detection,
                         "graphql_validation_policy": row["graphql_validation_policy"],
                         "openapi_validation_policy": row["openapi_validation_policy"],
                         "application_layer_dos_prevention": row["application_layer_dos_prevention"],

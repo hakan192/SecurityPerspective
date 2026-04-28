@@ -784,7 +784,11 @@ function FullDetailsPage({ policy }) {
     {
       name: 'JSON Validation Policy',
       status: normalizeFeatureStatus(
-        policy.json_validation_policy ??
+        policy.json_validation_enable_signature_detection ??
+          policy['json-validation-enable-signature-detection'] ??
+          policy.web_protection_profile_details?.json_validation_enable_signature_detection ??
+          policy.web_protection_profile_details?.['json-validation-enable-signature-detection'] ??
+          policy.json_validation_policy ??
           policy.jsonValidationPolicy ??
           policy['json-validation-policy'] ??
           policy.web_protection_profile_details?.json_validation_policy ??
