@@ -2846,6 +2846,11 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
 
 
 def load_server_policies_from_db(db: Session) -> dict:
+    def _normalize_policy_lookup_key(value):
+        if value is None:
+            return ""
+        return str(value).strip().lower()
+
     http_rfc_columns_sql = ",\n                ".join(f"hpr.{field}" for field in HTTP_RFC_CONTROL_FIELDS)
     rows = db.execute(
         text(
@@ -2928,8 +2933,39 @@ def load_server_policies_from_db(db: Session) -> dict:
                 bmp.threshold_based_detection,
                 bmp.known_bots,
                 bbd.name AS biometric_based_detection_name,
+                bbd.mouse_movement AS biometric_mouse_movement,
+                bbd.page_focus AS biometric_page_focus,
+                bbd.keyboard AS biometric_keyboard,
+                bbd.screen_touch AS biometric_screen_touch,
+                bbd.scroll AS biometric_scroll,
+                bbd.bot_traits AS biometric_bot_traits,
+                bbd.bot_traits_num AS biometric_bot_traits_num,
+                bbd.action AS biometric_action,
+                bbd.host AS biometric_host,
                 tbd.name AS threshold_based_detection_name,
+                tbd.bot_confirmation AS threshold_bot_confirmation,
+                tbd.bot_recognition AS threshold_bot_recognition,
+                tbd.crawler_detection AS threshold_crawler_detection,
+                tbd.crawler_action AS threshold_crawler_action,
+                tbd.crawler_occurrence_num AS threshold_crawler_occurrence_num,
+                tbd.crawler_within AS threshold_crawler_within,
+                tbd.slow_attack_detection AS threshold_slow_attack_detection,
+                tbd.slow_attack_action AS threshold_slow_attack_action,
+                tbd.slow_attack_occurrence_num AS threshold_slow_attack_occurrence_num,
+                tbd.slow_attack_within AS threshold_slow_attack_within,
                 kb.known_bots_name,
+                kb.dos_status AS known_bots_dos_status,
+                kb.dos_action AS known_bots_dos_action,
+                kb.spam_status AS known_bots_spam_status,
+                kb.spam_action AS known_bots_spam_action,
+                kb.trojan_status AS known_bots_trojan_status,
+                kb.trojan_action AS known_bots_trojan_action,
+                kb.scanner_status AS known_bots_scanner_status,
+                kb.scanner_action AS known_bots_scanner_action,
+                kb.crawler_status AS known_bots_crawler_status,
+                kb.crawler_action AS known_bots_crawler_action,
+                kb.known_engines_status AS known_bots_known_engines_status,
+                kb.known_engines_action AS known_bots_known_engines_action,
                 pool.ip AS server_pool_ip,
                 pool.sni,
                 pool.sni_certificate,
@@ -3165,6 +3201,119 @@ def load_server_policies_from_db(db: Session) -> dict:
             "raw_json_custom_rule": row["raw_json_custom_rule"],
         }
 
+    biometric_detection_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                name,
+                mouse_movement,
+                page_focus,
+                keyboard,
+                screen_touch,
+                scroll,
+                bot_traits,
+                bot_traits_num,
+                action,
+                host
+            FROM biometric_based_detection
+            """
+        )
+    ).mappings().all()
+    biometric_detection_by_name = {}
+    for row in biometric_detection_rows:
+        lookup_key = (row["device_id"], _normalize_policy_lookup_key(row["name"]))
+        biometric_detection_by_name[lookup_key] = {
+            "name": row["name"],
+            "mouse_movement": row["mouse_movement"],
+            "page_focus": row["page_focus"],
+            "keyboard": row["keyboard"],
+            "screen_touch": row["screen_touch"],
+            "scroll": row["scroll"],
+            "bot_traits": row["bot_traits"],
+            "bot_traits_num": row["bot_traits_num"],
+            "action": row["action"],
+            "host": row["host"],
+        }
+
+    threshold_detection_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                name,
+                bot_confirmation,
+                bot_recognition,
+                crawler_detection,
+                crawler_action,
+                crawler_occurrence_num,
+                crawler_within,
+                slow_attack_detection,
+                slow_attack_action,
+                slow_attack_occurrence_num,
+                slow_attack_within
+            FROM threshold_based_detection
+            """
+        )
+    ).mappings().all()
+    threshold_detection_by_name = {}
+    for row in threshold_detection_rows:
+        lookup_key = (row["device_id"], _normalize_policy_lookup_key(row["name"]))
+        threshold_detection_by_name[lookup_key] = {
+            "name": row["name"],
+            "bot_confirmation": row["bot_confirmation"],
+            "bot_recognition": row["bot_recognition"],
+            "crawler_detection": row["crawler_detection"],
+            "crawler_action": row["crawler_action"],
+            "crawler_occurrence_num": row["crawler_occurrence_num"],
+            "crawler_within": row["crawler_within"],
+            "slow_attack_detection": row["slow_attack_detection"],
+            "slow_attack_action": row["slow_attack_action"],
+            "slow_attack_occurrence_num": row["slow_attack_occurrence_num"],
+            "slow_attack_within": row["slow_attack_within"],
+        }
+
+    known_bots_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                known_bots_name,
+                dos_status,
+                dos_action,
+                spam_status,
+                spam_action,
+                trojan_status,
+                trojan_action,
+                scanner_status,
+                scanner_action,
+                crawler_status,
+                crawler_action,
+                known_engines_status,
+                known_engines_action
+            FROM "Known-bots"
+            """
+        )
+    ).mappings().all()
+    known_bots_by_name = {}
+    for row in known_bots_rows:
+        lookup_key = (row["device_id"], _normalize_policy_lookup_key(row["known_bots_name"]))
+        known_bots_by_name[lookup_key] = {
+            "known_bots_name": row["known_bots_name"],
+            "dos_status": row["dos_status"],
+            "dos_action": row["dos_action"],
+            "spam_status": row["spam_status"],
+            "spam_action": row["spam_action"],
+            "trojan_status": row["trojan_status"],
+            "trojan_action": row["trojan_action"],
+            "scanner_status": row["scanner_status"],
+            "scanner_action": row["scanner_action"],
+            "crawler_status": row["crawler_status"],
+            "crawler_action": row["crawler_action"],
+            "known_engines_status": row["known_engines_status"],
+            "known_engines_action": row["known_engines_action"],
+        }
+
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3177,6 +3326,21 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "error": "",
             }
         if row["server_policy_name"]:
+            biometric_policy_name = row["biometric_based_detection_name"] or row["biometrics_based_detection"]
+            biometric_lookup = biometric_detection_by_name.get(
+                (device_id, _normalize_policy_lookup_key(biometric_policy_name)),
+                {},
+            )
+            threshold_policy_name = row["threshold_based_detection_name"] or row["threshold_based_detection"]
+            threshold_lookup = threshold_detection_by_name.get(
+                (device_id, _normalize_policy_lookup_key(threshold_policy_name)),
+                {},
+            )
+            known_bots_policy_name = row["known_bots_name"] or row["known_bots"]
+            known_bots_lookup = known_bots_by_name.get(
+                (device_id, _normalize_policy_lookup_key(known_bots_policy_name)),
+                {},
+            )
             allow_method_info = _format_allow_method_value(row.get("allow_method_value"))
             signature_set_status = _build_signature_set_status(row)
             http_rfc_control_status = _build_http_rfc_control_status(row)
@@ -3339,9 +3503,49 @@ def load_server_policies_from_db(db: Session) -> dict:
                             },
                             "bot_mitigate_policy_detail": {
                                 "name": row["bot_mitigate_policy_name"],
-                                "biometrics_based_detection": row["biometric_based_detection_name"] or row["biometrics_based_detection"],
-                                "threshold_based_detection": row["threshold_based_detection_name"] or row["threshold_based_detection"],
-                                "known_bots": row["known_bots_name"] or row["known_bots"],
+                                "biometrics_based_detection": biometric_policy_name,
+                                "threshold_based_detection": threshold_policy_name,
+                                "known_bots": known_bots_policy_name,
+                                "biometric_based_detection_details": {
+                                    "name": biometric_lookup.get("name") or biometric_policy_name,
+                                    "mouse_movement": biometric_lookup.get("mouse_movement") or row["biometric_mouse_movement"],
+                                    "page_focus": biometric_lookup.get("page_focus") or row["biometric_page_focus"],
+                                    "keyboard": biometric_lookup.get("keyboard") or row["biometric_keyboard"],
+                                    "screen_touch": biometric_lookup.get("screen_touch") or row["biometric_screen_touch"],
+                                    "scroll": biometric_lookup.get("scroll") or row["biometric_scroll"],
+                                    "bot_traits": biometric_lookup.get("bot_traits") or row["biometric_bot_traits"],
+                                    "bot_traits_num": biometric_lookup.get("bot_traits_num") or row["biometric_bot_traits_num"],
+                                    "action": biometric_lookup.get("action") or row["biometric_action"],
+                                    "host": biometric_lookup.get("host") or row["biometric_host"],
+                                },
+                                "threshold_based_detection_details": {
+                                    "name": threshold_lookup.get("name") or threshold_policy_name,
+                                    "bot_confirmation": threshold_lookup.get("bot_confirmation") or row["threshold_bot_confirmation"],
+                                    "bot_recognition": threshold_lookup.get("bot_recognition") or row["threshold_bot_recognition"],
+                                    "crawler_detection": threshold_lookup.get("crawler_detection") or row["threshold_crawler_detection"],
+                                    "crawler_action": threshold_lookup.get("crawler_action") or row["threshold_crawler_action"],
+                                    "crawler_occurrence_num": threshold_lookup.get("crawler_occurrence_num") or row["threshold_crawler_occurrence_num"],
+                                    "crawler_within": threshold_lookup.get("crawler_within") or row["threshold_crawler_within"],
+                                    "slow_attack_detection": threshold_lookup.get("slow_attack_detection") or row["threshold_slow_attack_detection"],
+                                    "slow_attack_action": threshold_lookup.get("slow_attack_action") or row["threshold_slow_attack_action"],
+                                    "slow_attack_occurrence_num": threshold_lookup.get("slow_attack_occurrence_num") or row["threshold_slow_attack_occurrence_num"],
+                                    "slow_attack_within": threshold_lookup.get("slow_attack_within") or row["threshold_slow_attack_within"],
+                                },
+                                "known_bots_details": {
+                                    "name": known_bots_lookup.get("known_bots_name") or known_bots_policy_name,
+                                    "dos_status": known_bots_lookup.get("dos_status") or row["known_bots_dos_status"],
+                                    "dos_action": known_bots_lookup.get("dos_action") or row["known_bots_dos_action"],
+                                    "spam_status": known_bots_lookup.get("spam_status") or row["known_bots_spam_status"],
+                                    "spam_action": known_bots_lookup.get("spam_action") or row["known_bots_spam_action"],
+                                    "trojan_status": known_bots_lookup.get("trojan_status") or row["known_bots_trojan_status"],
+                                    "trojan_action": known_bots_lookup.get("trojan_action") or row["known_bots_trojan_action"],
+                                    "scanner_status": known_bots_lookup.get("scanner_status") or row["known_bots_scanner_status"],
+                                    "scanner_action": known_bots_lookup.get("scanner_action") or row["known_bots_scanner_action"],
+                                    "crawler_status": known_bots_lookup.get("crawler_status") or row["known_bots_crawler_status"],
+                                    "crawler_action": known_bots_lookup.get("crawler_action") or row["known_bots_crawler_action"],
+                                    "known_engines_status": known_bots_lookup.get("known_engines_status") or row["known_bots_known_engines_status"],
+                                    "known_engines_action": known_bots_lookup.get("known_engines_action") or row["known_bots_known_engines_action"],
+                                },
                             },
                         },
                     },

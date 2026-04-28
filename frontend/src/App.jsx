@@ -175,6 +175,9 @@ function FullDetailsPage({ policy }) {
   const [allowMethodExpanded, setAllowMethodExpanded] = useState(false)
   const [ipListExpanded, setIpListExpanded] = useState(false)
   const [geoLocationExpanded, setGeoLocationExpanded] = useState(false)
+  const [biometricDetectionExpanded, setBiometricDetectionExpanded] = useState(false)
+  const [thresholdDetectionExpanded, setThresholdDetectionExpanded] = useState(false)
+  const [knownBotExpanded, setKnownBotExpanded] = useState(false)
 
   const parseCustomAccessRule = (rule) => {
     if (!rule || typeof rule !== 'object') return null
@@ -384,6 +387,215 @@ function FullDetailsPage({ policy }) {
           applicationLayerDosPolicy.layer4_connection_flood_check_action ??
           '-'
       }
+    }
+  ]
+  const biometricBasedDetectionDetails =
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy?.bot_mitigate_policy_detail?.biometric_based_detection_details ??
+    policy.web_protection_profile_details?.bot_mitigate_policy_detail?.biometric_based_detection_details ??
+    policy.web_protection_profile_details?.biometric_based_detection_details ??
+    policy.bot_mitigate_policy_detail?.biometric_based_detection_details ??
+    policy.biometric_based_detection_details ??
+    {}
+  const resolveBiometricDetail = (...values) => {
+    const resolved = values.find((value) => value !== null && value !== undefined && String(value).trim() !== '')
+    return resolved ?? '-'
+  }
+  const biometricDetails = {
+    action: resolveBiometricDetail(
+      biometricBasedDetectionDetails.action,
+      biometricBasedDetectionDetails['action']
+    ),
+    host: resolveBiometricDetail(
+      biometricBasedDetectionDetails.host,
+      biometricBasedDetectionDetails['host']
+    ),
+    mouseMovement: resolveBiometricDetail(
+      biometricBasedDetectionDetails.mouse_movement,
+      biometricBasedDetectionDetails['mouse-movement'],
+      biometricBasedDetectionDetails.mouseMovement
+    ),
+    pageFocus: resolveBiometricDetail(
+      biometricBasedDetectionDetails.page_focus,
+      biometricBasedDetectionDetails['page-focus'],
+      biometricBasedDetectionDetails.pageFocus
+    ),
+    keyboard: resolveBiometricDetail(
+      biometricBasedDetectionDetails.keyboard
+    ),
+    screenTouch: resolveBiometricDetail(
+      biometricBasedDetectionDetails.screen_touch,
+      biometricBasedDetectionDetails['screen-touch'],
+      biometricBasedDetectionDetails.screenTouch
+    ),
+    scroll: resolveBiometricDetail(
+      biometricBasedDetectionDetails.scroll
+    ),
+    botTraits: resolveBiometricDetail(
+      biometricBasedDetectionDetails.bot_traits,
+      biometricBasedDetectionDetails['bot-traits'],
+      biometricBasedDetectionDetails.botTraits
+    ),
+    botTraitsNum: resolveBiometricDetail(
+      biometricBasedDetectionDetails.bot_traits_num,
+      biometricBasedDetectionDetails['bot-traits-num'],
+      biometricBasedDetectionDetails.botTraitsNum
+    )
+  }
+  const biometricHasValues = Object.values(biometricDetails).some((value) => value !== '-')
+  const thresholdBasedDetectionDetails =
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy?.bot_mitigate_policy_detail?.threshold_based_detection_details ??
+    policy.web_protection_profile_details?.bot_mitigate_policy_detail?.threshold_based_detection_details ??
+    policy.web_protection_profile_details?.threshold_based_detection_details ??
+    policy.bot_mitigate_policy_detail?.threshold_based_detection_details ??
+    policy.threshold_based_detection_details ??
+    {}
+  const thresholdDetails = {
+    botConfirmation: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.bot_confirmation,
+      thresholdBasedDetectionDetails['bot-confirmation'],
+      thresholdBasedDetectionDetails.botConfirmation
+    ),
+    botRecognition: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.bot_recognition,
+      thresholdBasedDetectionDetails['bot-recognition'],
+      thresholdBasedDetectionDetails.botRecognition
+    ),
+    crawlerDetection: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_detection,
+      thresholdBasedDetectionDetails['crawler-detection'],
+      thresholdBasedDetectionDetails.crawlerDetection
+    ),
+    crawlerAction: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_action,
+      thresholdBasedDetectionDetails['crawler-action'],
+      thresholdBasedDetectionDetails.crawlerAction
+    ),
+    crawlerOccurrenceNum: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_occurrence_num,
+      thresholdBasedDetectionDetails['crawler-occurrence-num'],
+      thresholdBasedDetectionDetails.crawlerOccurrenceNum
+    ),
+    crawlerWithin: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.crawler_within,
+      thresholdBasedDetectionDetails['crawler-within'],
+      thresholdBasedDetectionDetails.crawlerWithin
+    ),
+    slowAttackDetection: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_detection,
+      thresholdBasedDetectionDetails['slow-attack-detection'],
+      thresholdBasedDetectionDetails.slowAttackDetection
+    ),
+    slowAttackAction: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_action,
+      thresholdBasedDetectionDetails['slow-attack-action'],
+      thresholdBasedDetectionDetails.slowAttackAction
+    ),
+    slowAttackOccurrenceNum: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_occurrence_num,
+      thresholdBasedDetectionDetails['slow-attack-occurrence-num'],
+      thresholdBasedDetectionDetails.slowAttackOccurrenceNum
+    ),
+    slowAttackWithin: resolveBiometricDetail(
+      thresholdBasedDetectionDetails.slow_attack_within,
+      thresholdBasedDetectionDetails['slow-attack-within'],
+      thresholdBasedDetectionDetails.slowAttackWithin
+    )
+  }
+  const thresholdHasValues = Object.values(thresholdDetails).some((value) => value !== '-')
+  const knownBotsDetailsPayload =
+    policy.web_protection_profile_details?.application_layer_dos_prevention_policy?.bot_mitigate_policy_detail?.known_bots_details ??
+    policy.web_protection_profile_details?.bot_mitigate_policy_detail?.known_bots_details ??
+    policy.web_protection_profile_details?.known_bots_details ??
+    policy.bot_mitigate_policy_detail?.known_bots_details ??
+    policy.known_bots_details ??
+    {}
+  const knownBotsDetails = {
+    dos: resolveBiometricDetail(
+      knownBotsDetailsPayload.dos_status,
+      knownBotsDetailsPayload['dos-status'],
+      knownBotsDetailsPayload.dos
+    ),
+    dosAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.dos_action,
+      knownBotsDetailsPayload['dos-action'],
+      knownBotsDetailsPayload.dosAction
+    ),
+    spam: resolveBiometricDetail(
+      knownBotsDetailsPayload.spam_status,
+      knownBotsDetailsPayload['spam-status'],
+      knownBotsDetailsPayload.spam
+    ),
+    spamAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.spam_action,
+      knownBotsDetailsPayload['spam-action'],
+      knownBotsDetailsPayload.spamAction
+    ),
+    trojan: resolveBiometricDetail(
+      knownBotsDetailsPayload.trojan_status,
+      knownBotsDetailsPayload['trojan-status'],
+      knownBotsDetailsPayload.trojan
+    ),
+    trojanAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.trojan_action,
+      knownBotsDetailsPayload['trojan-action'],
+      knownBotsDetailsPayload.trojanAction
+    ),
+    scanner: resolveBiometricDetail(
+      knownBotsDetailsPayload.scanner_status,
+      knownBotsDetailsPayload['scanner-status'],
+      knownBotsDetailsPayload.scanner
+    ),
+    scannerAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.scanner_action,
+      knownBotsDetailsPayload['scanner-action'],
+      knownBotsDetailsPayload.scannerAction
+    ),
+    crawler: resolveBiometricDetail(
+      knownBotsDetailsPayload.crawler_status,
+      knownBotsDetailsPayload['crawler-status'],
+      knownBotsDetailsPayload.crawler
+    ),
+    crawlerAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.crawler_action,
+      knownBotsDetailsPayload['crawler-action'],
+      knownBotsDetailsPayload.crawlerAction
+    ),
+    knownEngines: resolveBiometricDetail(
+      knownBotsDetailsPayload.known_engines_status,
+      knownBotsDetailsPayload['known-engines-status'],
+      knownBotsDetailsPayload.knownEngines
+    ),
+    knownEnginesAction: resolveBiometricDetail(
+      knownBotsDetailsPayload.known_engines_action,
+      knownBotsDetailsPayload['known-engines-action'],
+      knownBotsDetailsPayload.knownEnginesAction
+    )
+  }
+  const isEnabledValue = (value) =>
+    ['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(String(value ?? '').trim().toLowerCase())
+  const knownBotsHasEnabledControl = [
+    knownBotsDetails.dos,
+    knownBotsDetails.spam,
+    knownBotsDetails.trojan,
+    knownBotsDetails.scanner,
+    knownBotsDetails.crawler,
+    knownBotsDetails.knownEngines
+  ].some(isEnabledValue)
+  const botMitigationFeatures = [
+    {
+      name: 'Biometric Based Detection',
+      status: biometricHasValues ? 'Enabled' : 'Unknown',
+      details: biometricDetails
+    },
+    {
+      name: 'Threshold Based Detection',
+      status: thresholdHasValues ? 'Enabled' : 'Unknown',
+      details: thresholdDetails
+    },
+    {
+      name: 'Known-Bot',
+      status: knownBotsHasEnabledControl ? 'Enabled' : 'Unknown',
+      details: knownBotsDetails
     }
   ]
   const accessFeatures = [
@@ -750,6 +962,202 @@ function FullDetailsPage({ policy }) {
                         <tr>
                           <th scope="row">Action</th>
                           <td>{feature.details.action}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="details-section">
+          <header className="details-section-head">
+            <h4>Bot Mitigation</h4>
+          </header>
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {botMitigationFeatures.map((feature) => (
+              <article
+                key={feature.name}
+                className={`details-feature-card ${feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot' ? 'details-feature-card-clickable' : ''}`}
+                onClick={
+                  feature.name === 'Biometric Based Detection'
+                    ? () => setBiometricDetectionExpanded((current) => !current)
+                    : feature.name === 'Threshold Based Detection'
+                      ? () => setThresholdDetectionExpanded((current) => !current)
+                      : feature.name === 'Known-Bot'
+                        ? () => setKnownBotExpanded((current) => !current)
+                      : undefined
+                }
+                role={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot' ? 'button' : undefined}
+                tabIndex={feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot' ? 0 : undefined}
+                onKeyDown={
+                  feature.name === 'Biometric Based Detection' || feature.name === 'Threshold Based Detection' || feature.name === 'Known-Bot'
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          if (feature.name === 'Biometric Based Detection') {
+                            setBiometricDetectionExpanded((current) => !current)
+                          } else if (feature.name === 'Threshold Based Detection') {
+                            setThresholdDetectionExpanded((current) => !current)
+                          } else {
+                            setKnownBotExpanded((current) => !current)
+                          }
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <div className="details-article-row">
+                  <p>{feature.name}</p>
+                  <span className={`details-feature-status ${feature.status.toLowerCase()}`}>
+                    <span>{feature.status}</span>
+                  </span>
+                </div>
+                {feature.name === 'Biometric Based Detection' && biometricDetectionExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Action</th>
+                          <td>{feature.details.action}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Host</th>
+                          <td>{feature.details.host}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Mouse movement</th>
+                          <td>{feature.details.mouseMovement}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Page focus</th>
+                          <td>{feature.details.pageFocus}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Keyboard</th>
+                          <td>{feature.details.keyboard}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Screen touch</th>
+                          <td>{feature.details.screenTouch}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Scroll</th>
+                          <td>{feature.details.scroll}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot traits</th>
+                          <td>{feature.details.botTraits}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot traits num</th>
+                          <td>{feature.details.botTraitsNum}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {feature.name === 'Threshold Based Detection' && thresholdDetectionExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Bot confirmation</th>
+                          <td>{feature.details.botConfirmation}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Bot recognition</th>
+                          <td>{feature.details.botRecognition}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler detection</th>
+                          <td>{feature.details.crawlerDetection}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler action</th>
+                          <td>{feature.details.crawlerAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler occurrence num</th>
+                          <td>{feature.details.crawlerOccurrenceNum}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler within</th>
+                          <td>{feature.details.crawlerWithin}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack detection</th>
+                          <td>{feature.details.slowAttackDetection}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack action</th>
+                          <td>{feature.details.slowAttackAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack occurrence num</th>
+                          <td>{feature.details.slowAttackOccurrenceNum}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Slow attack within</th>
+                          <td>{feature.details.slowAttackWithin}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {feature.name === 'Known-Bot' && knownBotExpanded ? (
+                  <div className="details-sub-table-wrap">
+                    <table className="details-sub-table">
+                      <tbody>
+                        <tr>
+                          <th scope="row">Dos</th>
+                          <td>{feature.details.dos}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Dos action</th>
+                          <td>{feature.details.dosAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Spam</th>
+                          <td>{feature.details.spam}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Spam action</th>
+                          <td>{feature.details.spamAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Trojan</th>
+                          <td>{feature.details.trojan}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Trojan action</th>
+                          <td>{feature.details.trojanAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Scanner</th>
+                          <td>{feature.details.scanner}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Scanner action</th>
+                          <td>{feature.details.scannerAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler</th>
+                          <td>{feature.details.crawler}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Crawler action</th>
+                          <td>{feature.details.crawlerAction}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Known engines</th>
+                          <td>{feature.details.knownEngines}</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Known engines action</th>
+                          <td>{feature.details.knownEnginesAction}</td>
                         </tr>
                       </tbody>
                     </table>
