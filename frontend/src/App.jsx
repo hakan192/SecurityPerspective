@@ -861,6 +861,12 @@ function FullDetailsPage({ policy }) {
     )
   }
 
+  const recentCriticalChanges = [
+    'Enabled strict JSON schema validation for sensitive API endpoints.',
+    'Tightened HTTP flood prevention thresholds for suspicious traffic bursts.',
+    'Updated known bot signatures and action profiles for improved mitigation.'
+  ]
+
   return (
     <section className="full-details-page">
       <div className="full-details-head">
@@ -882,6 +888,20 @@ function FullDetailsPage({ policy }) {
         </div>
         <p>Detailed view of selected policy configuration.</p>
       </div>
+
+      <section className="details-section details-section-recent-changes">
+        {renderSectionHeader('Recent Changes')}
+        <article className="details-feature-card details-recent-changes-card">
+          <div className="details-article-row">
+            <p>Critical changes in the last 7 days</p>
+          </div>
+          <ul className="details-sub-list">
+            {recentCriticalChanges.map((change) => (
+              <li key={change}>{change}</li>
+            ))}
+          </ul>
+        </article>
+      </section>
 
       <div className="details-sections">
         <section className="details-section">
