@@ -845,6 +845,7 @@ function FullDetailsPage({ policy }) {
       link: '#'
     }
   }
+  const recentChanges = Array.isArray(policy._recentChanges) ? policy._recentChanges : []
 
   const renderSectionHeader = (title) => {
     const meta = fullDetailsSectionMeta[title]
@@ -891,23 +892,7 @@ function FullDetailsPage({ policy }) {
         <section className="details-section">
           {renderSectionHeader('Recent Changes')}
           <div className="details-feature-grid details-feature-grid-stacked">
-            {[
-              {
-                title: 'WAF policy baseline updated',
-                happenedOn: '2 days ago',
-                summary: 'Signature and protocol validation baselines were refreshed for the active server policy.'
-              },
-              {
-                title: 'Bot mitigation thresholds tuned',
-                happenedOn: '4 days ago',
-                summary: 'Threshold-based bot detection sensitivity was adjusted to reduce false positives.'
-              },
-              {
-                title: 'Critical IP blocklist expanded',
-                happenedOn: '6 days ago',
-                summary: 'High-risk source ranges were added to improve protection against repeated attack traffic.'
-              }
-            ].map((change) => (
+            {recentChanges.map((change) => (
               <article key={change.title} className="details-feature-card recent-change-card">
                 <div className="details-article-row recent-change-head">
                   <p>{change.title}</p>
@@ -916,6 +901,11 @@ function FullDetailsPage({ policy }) {
                 <p className="recent-change-summary">{change.summary}</p>
               </article>
             ))}
+            {recentChanges.length === 0 ? (
+              <article className="details-feature-card recent-change-card">
+                <p className="recent-change-summary">No critical configuration differences were detected in the last 7 days.</p>
+              </article>
+            ) : null}
           </div>
         </section>
 
@@ -1495,6 +1485,7 @@ function FullDetailsPage({ policy }) {
 }
 
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
+  const POLICY_HISTORY_KEY = 'security-perspective-policy-history'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
   const [settingsExpanded, setSettingsExpanded] = useState(false)
@@ -1530,6 +1521,60 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const menuRef = useRef(null)
 
   const username = useMemo(() => session?.username || 'admin', [session])
+  const getRecentChangesFromHistory = (policy) => {
+    if (!policy || !policy.server_policy_name) return []
+    const policyKey = `${policy._deviceName || 'unknown-device'}::${policy.server_policy_name}`
+    const now = Date.now()
+    let historyIndex = {}
+    try {
+      historyIndex = JSON.parse(window.localStorage.getItem(POLICY_HISTORY_KEY) || '{}')
+    } catch {
+      historyIndex = {}
+    }
+
+    const trackedFields = [
+      { key: 'monitor_mode', label: 'Monitor Mode' },
+      { key: 'signature', label: 'Signature Rule Status' },
+      { key: 'http_rfc', label: 'HTTP RFC Validation' },
+      { key: 'http2_rfc_control', label: 'HTTP2 RFC Validation' },
+      { key: 'allow_method', label: 'Allowed HTTP Methods' },
+      { key: 'ip', label: 'Server IP' },
+      { key: 'traffic_mirror', label: 'Traffic Mirror' },
+      { key: 'tls_v12', label: 'TLS v1.2' },
+      { key: 'tls_v13', label: 'TLS v1.3' },
+      { key: 'http2', label: 'HTTP/2' }
+    ]
+
+    const previousEntry = historyIndex[policyKey]
+    const nextSnapshot = {
+      capturedAt: now,
+      values: trackedFields.reduce((acc, field) => {
+        acc[field.key] = policy[field.key] ?? policy[field.key.replace('_', '-')] ?? ''
+        return acc
+      }, {})
+    }
+    historyIndex[policyKey] = nextSnapshot
+    window.localStorage.setItem(POLICY_HISTORY_KEY, JSON.stringify(historyIndex))
+
+    if (!previousEntry?.values) return []
+    const withinWeekMs = 7 * 24 * 60 * 60 * 1000
+    if (now - Number(previousEntry.capturedAt || 0) > withinWeekMs) return []
+
+    const changes = trackedFields
+      .map((field) => {
+        const before = String(previousEntry.values[field.key] ?? '-')
+        const after = String(nextSnapshot.values[field.key] ?? '-')
+        if (before === after) return null
+        return {
+          title: `${field.label} changed`,
+          happenedOn: new Date(Number(nextSnapshot.capturedAt)).toLocaleString(),
+          summary: `${field.label} changed from "${before}" to "${after}" after latest fetch.`
+        }
+      })
+      .filter(Boolean)
+
+    return changes.slice(0, 8)
+  }
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
   const wafDevices = useMemo(() => {
     const devices = wafResponse?.devices
@@ -1563,7 +1608,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
         return policies.map((policy) => ({
           ...policy,
           _deviceName: device.device_name,
-          _deviceLocation: deviceRegionByName[device.device_name] || device.location || device.region || 'Unknown'
+          _deviceLocation: deviceRegionByName[device.device_name] || device.location || device.region || 'Unknown',
+          _recentChanges: getRecentChangesFromHistory({
+            ...policy,
+            _deviceName: device.device_name
+          })
         }))
       }),
     [deviceRegionByName, wafDevices]
