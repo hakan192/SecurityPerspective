@@ -1,10 +1,12 @@
+import json
+import os
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
@@ -48,11 +50,33 @@ def backup_database_snapshot() -> str:
     ]
     environment = None
     if password:
-        import os
         environment = os.environ.copy()
         environment["PGPASSWORD"] = password
-    subprocess.run(command, check=True, env=environment)
-    return str(backup_file)
+    try:
+        subprocess.run(command, check=True, env=environment)
+        return str(backup_file)
+    except FileNotFoundError:
+        fallback_backup_file = backup_dir / f"{settings.database_backup_prefix}_{timestamp}.json"
+        _backup_database_as_json(fallback_backup_file)
+        return str(fallback_backup_file)
+
+
+def _backup_database_as_json(backup_file: Path) -> None:
+    inspector = inspect(engine)
+    table_names = inspector.get_table_names()
+    snapshot = {
+        "created_at_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "database_url_scheme": urlparse(settings.database_url).scheme,
+        "tables": {},
+    }
+
+    with engine.connect() as connection:
+        for table_name in table_names:
+            result = connection.execute(text(f'SELECT * FROM "{table_name}"'))
+            rows = [dict(row._mapping) for row in result]
+            snapshot["tables"][table_name] = rows
+
+    backup_file.write_text(json.dumps(snapshot, indent=2, default=str), encoding="utf-8")
 
 
 def get_db():
