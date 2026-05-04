@@ -13,6 +13,15 @@ from app.config import settings
 BACKUP_DIR = Path("backups")
 logger = logging.getLogger(__name__)
 
+def _build_unique_backup_path(database_name: str, timestamp: str) -> Path:
+    base_name = f"{database_name}_backup_{timestamp}"
+    candidate = BACKUP_DIR / f"{base_name}.sql"
+    suffix = 1
+    while candidate.exists():
+        candidate = BACKUP_DIR / f"{base_name}_{suffix}.sql"
+        suffix += 1
+    return candidate
+
 
 def backup_database() -> Path | None:
     """Create a readable SQL backup of the configured PostgreSQL database."""
@@ -21,9 +30,8 @@ def backup_database() -> Path | None:
         raise RuntimeError("Database backups are only supported for PostgreSQL")
 
     timestamp = datetime.utcnow().strftime("%d_%m_%y_%H")
-    backup_name = f"{url.database}_backup_{timestamp}.sql"
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    backup_path = BACKUP_DIR / backup_name
+    backup_path = _build_unique_backup_path(url.database or "postgres", timestamp)
 
     env = os.environ.copy()
     if url.password:
