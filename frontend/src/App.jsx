@@ -9,6 +9,7 @@ const API_BASE =
     : configuredApiBase || `http://${resolvedHost}:8000`
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
+const SERVER_POLICY_RECENT_CHANGES_ENDPOINT = '/fortiweb/server-policy/recent-changes'
 
 const navItems = [
   {
@@ -1485,7 +1486,6 @@ function FullDetailsPage({ policy }) {
 }
 
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
-  const POLICY_HISTORY_KEY = 'security-perspective-policy-history'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
   const [settingsExpanded, setSettingsExpanded] = useState(false)
@@ -1496,6 +1496,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [wafResponse, setWafResponse] = useState(null)
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
+  const [recentChangesByPolicy, setRecentChangesByPolicy] = useState({})
   const [selectedLocation, setSelectedLocation] = useState('All')
   const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
   const [wafSearch, setWafSearch] = useState('')
@@ -1521,73 +1522,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const menuRef = useRef(null)
 
   const username = useMemo(() => session?.username || 'admin', [session])
-  const getRecentChangesFromHistory = (policy) => {
-    if (!policy || !policy.server_policy_name) return []
-    const policyKey = `${policy._deviceName || 'unknown-device'}::${policy.server_policy_name}`
-    const now = Date.now()
-    let historyIndex = {}
-    try {
-      historyIndex = JSON.parse(window.localStorage.getItem(POLICY_HISTORY_KEY) || '{}')
-    } catch {
-      historyIndex = {}
-    }
-
-    const certificateDetails = policy.client_certificate_details || {}
-    const trackedFields = [
-      { key: 'signature', label: 'Signature Protection', type: 'security' },
-      { key: 'http_rfc', label: 'HTTP RFC Validation', type: 'security' },
-      { key: 'http2_rfc_control', label: 'HTTP2 RFC Validation', type: 'security' },
-      { key: 'allow_method', label: 'Allowed HTTP Methods', type: 'security' },
-      { key: 'xml_validation_enable_signature_detection', label: 'XML Signature Detection', type: 'security' },
-      { key: 'json_validation_enable_attack_signatures', label: 'JSON Attack Signatures', type: 'security' },
-      { key: 'monitor_mode', label: 'Monitor Mode', type: 'security' },
-      { key: 'certificate_subject', label: 'Certificate Subject', type: 'certificate' },
-      { key: 'certificate_issuer', label: 'Certificate Issuer', type: 'certificate' },
-      { key: 'certificate_valid_to', label: 'Certificate Expiry Date', type: 'certificate' },
-      { key: 'certificate_days_left', label: 'Certificate Days Left', type: 'certificate' }
-    ]
-
-    const previousEntry = historyIndex[policyKey]
-    const nextSnapshot = {
-      capturedAt: now,
-      values: trackedFields.reduce((acc, field) => {
-        if (field.key === 'certificate_subject') acc[field.key] = certificateDetails.subject ?? ''
-        else if (field.key === 'certificate_issuer') acc[field.key] = certificateDetails.issuer ?? ''
-        else if (field.key === 'certificate_valid_to') acc[field.key] = certificateDetails.valid_to ?? ''
-        else if (field.key === 'certificate_days_left') acc[field.key] = certificateDetails.days_left ?? ''
-        else acc[field.key] = policy[field.key] ?? policy[field.key.replace('_', '-')] ?? ''
-        return acc
-      }, {})
-    }
-    historyIndex[policyKey] = nextSnapshot
-    window.localStorage.setItem(POLICY_HISTORY_KEY, JSON.stringify(historyIndex))
-
-    if (!previousEntry?.values) return []
-    const withinWeekMs = 7 * 24 * 60 * 60 * 1000
-    if (now - Number(previousEntry.capturedAt || 0) > withinWeekMs) return []
-
-    const changes = trackedFields
-      .map((field) => {
-        const before = String(previousEntry.values[field.key] ?? '-')
-        const after = String(nextSnapshot.values[field.key] ?? '-')
-        if (before === after) return null
-        const happenedOn = new Date(Number(nextSnapshot.capturedAt)).toLocaleString()
-        if (field.type === 'certificate') {
-          return {
-            title: 'Certificate renewal or update detected',
-            happenedOn,
-            summary: `${field.label} changed from "${before}" to "${after}".`
-          }
-        }
-        return {
-          title: `Security feature ${String(after).toLowerCase().includes('enable') ? 'enabled/strengthened' : 'changed'}`,
-          happenedOn,
-          summary: `${field.label} changed from "${before}" to "${after}".`
-        }
-      })
-      .filter(Boolean)
-
-    return changes.slice(0, 8)
+  const getPolicyRecentChanges = (policy) => {
+    const policyKey = `${policy._deviceName || 'unknown-device'}::${policy.server_policy_name || ''}`
+    return recentChangesByPolicy[policyKey] || []
   }
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
   const wafDevices = useMemo(() => {
@@ -1623,13 +1560,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
           ...policy,
           _deviceName: device.device_name,
           _deviceLocation: deviceRegionByName[device.device_name] || device.location || device.region || 'Unknown',
-          _recentChanges: getRecentChangesFromHistory({
+          _recentChanges: getPolicyRecentChanges({
             ...policy,
             _deviceName: device.device_name
           })
         }))
       }),
-    [deviceRegionByName, wafDevices]
+    [deviceRegionByName, recentChangesByPolicy, wafDevices]
   )
   const filteredWafPolicies = useMemo(() => {
     const query = wafSearch.trim().toLowerCase()
@@ -1685,6 +1622,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
       const data = await res.json()
       setWafResponse(data.payload)
+      const changesResponse = await fetch(`${API_BASE}${SERVER_POLICY_RECENT_CHANGES_ENDPOINT}`)
+      if (changesResponse.ok) {
+        const changesData = await changesResponse.json()
+        setRecentChangesByPolicy(changesData?.payload?.changes || {})
+      } else {
+        setRecentChangesByPolicy({})
+      }
     } catch (err) {
       setWafError(err.message)
     } finally {
@@ -1703,6 +1647,13 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
       const data = await response.json()
       setWafResponse(data.payload)
+      const changesResponse = await fetch(`${API_BASE}${SERVER_POLICY_RECENT_CHANGES_ENDPOINT}`)
+      if (changesResponse.ok) {
+        const changesData = await changesResponse.json()
+        setRecentChangesByPolicy(changesData?.payload?.changes || {})
+      } else {
+        setRecentChangesByPolicy({})
+      }
     } catch (err) {
       setWafError(err.message)
     } finally {

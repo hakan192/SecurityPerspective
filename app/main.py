@@ -14,7 +14,7 @@ from app.database import Base, SessionLocal, engine, get_db
 from app.models import ManagedDevice
 from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
-from app.services import fetch_and_store_server_policies_by_device, load_server_policies_from_db
+from app.services import fetch_and_store_server_policies_by_device, load_recent_policy_changes_from_backups, load_server_policies_from_db
 
 app = FastAPI(title=settings.app_name)
 scheduler = BackgroundScheduler()
@@ -1041,6 +1041,15 @@ def latest_fortiweb_server_policy(
     _: Annotated[str, Depends(require_role)] = "viewer",
 ):
     return {"payload": load_server_policies_from_db(db)}
+
+
+@app.get("/fortiweb/server-policy/recent-changes")
+def recent_fortiweb_server_policy_changes(
+    days: int = 7,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    return {"payload": load_recent_policy_changes_from_backups(db, days=days)}
 
 
 @app.get("/devices", response_model=list[ManagedDeviceOut])

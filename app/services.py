@@ -1,6 +1,8 @@
 import json
 import re
 from datetime import datetime
+from datetime import timedelta
+from pathlib import Path
 from urllib.parse import urlparse
 from urllib.parse import quote
 
@@ -38,6 +40,9 @@ WEB_PROTECTION_PROFILE_FIELD_MAP = {
     "websocket_security_policy": ["websocket_security_policy", "websocket-security-policy"],
     "cors_protection_policy": ["cors_protection_policy", "cors-protection-policy"],
 }
+
+BACKUP_SQL_DIR = Path("backups")
+BACKUP_PATTERN = re.compile(r"server_perspective_backup_(\d{2})_(\d{2})_(\d{2})_(\d{2})")
 
 SIGNATURE_FIELD_MAP = {
     "cross_site_scripting": ["Cross Site Scripting", "cross_site_scripting", "cross-site-scripting"],
@@ -3610,3 +3615,78 @@ def load_server_policies_from_db(db: Session) -> dict:
             )
 
     return {"devices": list(by_device.values())}
+
+
+def load_recent_policy_changes_from_backups(db: Session, days: int = 7) -> dict:
+    days = max(1, min(days, 30))
+    latest_payload = load_server_policies_from_db(db)
+    latest_index = {}
+    for device in latest_payload.get("devices", []):
+        device_name = device.get("device_name") or ""
+        for policy in device.get("server_policies", []):
+            key = f"{device_name}::{policy.get('server_policy_name', '')}"
+            latest_index[key] = {
+                "device_name": device_name,
+                "policy_name": policy.get("server_policy_name", ""),
+                "monitor_mode": str(policy.get("monitor_mode", "")),
+                "signature": str(policy.get("signature", "")),
+                "http_rfc": str(policy.get("http_rfc", "")),
+                "http2_rfc_control": str(policy.get("http2_rfc_control", "")),
+                "certificate_subject": str((policy.get("client_certificate_details") or {}).get("subject", "")),
+                "certificate_issuer": str((policy.get("client_certificate_details") or {}).get("issuer", "")),
+                "certificate_valid_to": str((policy.get("client_certificate_details") or {}).get("valid_to", "")),
+            }
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    backup_files = sorted([p for p in BACKUP_SQL_DIR.glob("*.sql") if datetime.utcfromtimestamp(p.stat().st_mtime) >= cutoff], key=lambda p: p.stat().st_mtime)
+    if not backup_files:
+        return {"changes": {}, "files_considered": []}
+
+    def _extract_backup_timestamp(file_path: Path) -> str:
+        matched = BACKUP_PATTERN.search(file_path.name)
+        if not matched:
+            return datetime.utcfromtimestamp(file_path.stat().st_mtime).isoformat() + "Z"
+        month, day, yy, hour = matched.groups()
+        year = 2000 + int(yy)
+        return datetime(year, int(month), int(day), int(hour), 0, 0).isoformat() + "Z"
+
+    def _extract_rows(file_path: Path, table_name: str) -> list[list[str]]:
+        rows = []
+        in_copy = False
+        with file_path.open("r", encoding="utf-8", errors="ignore") as handle:
+            for line in handle:
+                if line.startswith(f"COPY public.{table_name} "):
+                    in_copy = True
+                    continue
+                if in_copy and line.strip() == r"\.":
+                    in_copy = False
+                    continue
+                if in_copy:
+                    rows.append(line.rstrip("\n").split("\t"))
+        return rows
+
+    latest_changes_by_policy = {}
+    for backup_file in backup_files:
+        policy_rows = _extract_rows(backup_file, "server_policy")
+        if not policy_rows:
+            continue
+        for row in policy_rows:
+            if len(row) < 9:
+                continue
+            device_id, policy_name, _, _, _, _, _, monitor_mode, *_ = row
+            comparison_key_candidates = [k for k in latest_index if k.endswith(f"::{policy_name}")]
+            for policy_key in comparison_key_candidates:
+                latest = latest_index[policy_key]
+                if str(latest.get("monitor_mode", "")) != str(monitor_mode):
+                    latest_changes_by_policy.setdefault(policy_key, []).append(
+                        {
+                            "title": "Security feature changed",
+                            "happenedOn": _extract_backup_timestamp(backup_file),
+                            "summary": f"Monitor Mode changed from \"{monitor_mode}\" (backup) to \"{latest.get('monitor_mode', '')}\" (latest)."
+                        }
+                    )
+
+    return {
+        "changes": latest_changes_by_policy,
+        "files_considered": [path.name for path in backup_files],
+    }
