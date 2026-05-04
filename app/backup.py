@@ -1,4 +1,6 @@
+import logging
 import os
+import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -9,9 +11,10 @@ from app.config import settings
 
 
 BACKUP_DIR = Path("backups")
+logger = logging.getLogger(__name__)
 
 
-def backup_database() -> Path:
+def backup_database() -> Path | None:
     """Create a readable SQL backup of the configured PostgreSQL database."""
     url = make_url(settings.database_url)
     if not url.drivername.startswith("postgresql"):
@@ -41,5 +44,13 @@ def backup_database() -> Path:
         "-f",
         str(backup_path),
     ]
-    subprocess.run(cmd, check=True, env=env)
-    return backup_path
+    if shutil.which("pg_dump") is None:
+        logger.warning("Skipping DB backup: pg_dump is not installed in runtime container")
+        return None
+
+    try:
+        subprocess.run(cmd, check=True, env=env)
+        return backup_path
+    except subprocess.CalledProcessError as exc:
+        logger.warning("DB backup command failed; continuing collection without blocking: %s", exc)
+        return None
