@@ -1532,24 +1532,30 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       historyIndex = {}
     }
 
+    const certificateDetails = policy.client_certificate_details || {}
     const trackedFields = [
-      { key: 'monitor_mode', label: 'Monitor Mode' },
-      { key: 'signature', label: 'Signature Rule Status' },
-      { key: 'http_rfc', label: 'HTTP RFC Validation' },
-      { key: 'http2_rfc_control', label: 'HTTP2 RFC Validation' },
-      { key: 'allow_method', label: 'Allowed HTTP Methods' },
-      { key: 'ip', label: 'Server IP' },
-      { key: 'traffic_mirror', label: 'Traffic Mirror' },
-      { key: 'tls_v12', label: 'TLS v1.2' },
-      { key: 'tls_v13', label: 'TLS v1.3' },
-      { key: 'http2', label: 'HTTP/2' }
+      { key: 'signature', label: 'Signature Protection', type: 'security' },
+      { key: 'http_rfc', label: 'HTTP RFC Validation', type: 'security' },
+      { key: 'http2_rfc_control', label: 'HTTP2 RFC Validation', type: 'security' },
+      { key: 'allow_method', label: 'Allowed HTTP Methods', type: 'security' },
+      { key: 'xml_validation_enable_signature_detection', label: 'XML Signature Detection', type: 'security' },
+      { key: 'json_validation_enable_attack_signatures', label: 'JSON Attack Signatures', type: 'security' },
+      { key: 'monitor_mode', label: 'Monitor Mode', type: 'security' },
+      { key: 'certificate_subject', label: 'Certificate Subject', type: 'certificate' },
+      { key: 'certificate_issuer', label: 'Certificate Issuer', type: 'certificate' },
+      { key: 'certificate_valid_to', label: 'Certificate Expiry Date', type: 'certificate' },
+      { key: 'certificate_days_left', label: 'Certificate Days Left', type: 'certificate' }
     ]
 
     const previousEntry = historyIndex[policyKey]
     const nextSnapshot = {
       capturedAt: now,
       values: trackedFields.reduce((acc, field) => {
-        acc[field.key] = policy[field.key] ?? policy[field.key.replace('_', '-')] ?? ''
+        if (field.key === 'certificate_subject') acc[field.key] = certificateDetails.subject ?? ''
+        else if (field.key === 'certificate_issuer') acc[field.key] = certificateDetails.issuer ?? ''
+        else if (field.key === 'certificate_valid_to') acc[field.key] = certificateDetails.valid_to ?? ''
+        else if (field.key === 'certificate_days_left') acc[field.key] = certificateDetails.days_left ?? ''
+        else acc[field.key] = policy[field.key] ?? policy[field.key.replace('_', '-')] ?? ''
         return acc
       }, {})
     }
@@ -1565,10 +1571,18 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
         const before = String(previousEntry.values[field.key] ?? '-')
         const after = String(nextSnapshot.values[field.key] ?? '-')
         if (before === after) return null
+        const happenedOn = new Date(Number(nextSnapshot.capturedAt)).toLocaleString()
+        if (field.type === 'certificate') {
+          return {
+            title: 'Certificate renewal or update detected',
+            happenedOn,
+            summary: `${field.label} changed from "${before}" to "${after}".`
+          }
+        }
         return {
-          title: `${field.label} changed`,
-          happenedOn: new Date(Number(nextSnapshot.capturedAt)).toLocaleString(),
-          summary: `${field.label} changed from "${before}" to "${after}" after latest fetch.`
+          title: `Security feature ${String(after).toLowerCase().includes('enable') ? 'enabled/strengthened' : 'changed'}`,
+          happenedOn,
+          summary: `${field.label} changed from "${before}" to "${after}".`
         }
       })
       .filter(Boolean)
