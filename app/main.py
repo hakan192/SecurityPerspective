@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import Base, SessionLocal, engine, get_db
+from app.database import Base, SessionLocal, backup_database_snapshot, engine, get_db
 from app.models import ManagedDevice
 from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
@@ -33,6 +33,7 @@ app.add_middleware(
 
 
 def run_collection_job():
+    backup_database_snapshot()
     db = SessionLocal()
     try:
         devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
@@ -1027,6 +1028,7 @@ def collect_fortiweb_server_policy(
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
+    backup_database_snapshot()
     devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
     fetch_and_store_server_policies_by_device(db, devices)
     return {"payload": load_server_policies_from_db(db)}

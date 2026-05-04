@@ -1,11 +1,12 @@
 from app.celery_app import celery_app
-from app.database import SessionLocal
+from app.database import SessionLocal, backup_database_snapshot
 from app.models import ManagedDevice
 from app.services import fetch_and_store_server_policies_by_device
 
 
 @celery_app.task(name="fortiweb.collect_snapshot")
 def collect_snapshot_task() -> int:
+    backup_database_snapshot()
     db = SessionLocal()
     try:
         devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()

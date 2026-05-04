@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     environment: str = "dev"
 
     database_url: str = "postgresql+psycopg2://postgres:postgres@db:5432/security_perspective"
+    database_backup_path: str = "./backups"
+    database_backup_prefix: str = "security_perspective"
     redis_url: str = "redis://redis:6379/0"
 
     celery_broker_url: str = "redis://redis:6379/1"
