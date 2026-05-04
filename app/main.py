@@ -980,7 +980,10 @@ def startup_event():
         db.close()
 
     if settings.scheduler_enabled:
-        scheduler.add_job(run_collection_job, "interval", minutes=settings.scheduler_minutes)
+        if settings.scheduler_hour is None:
+            scheduler.add_job(run_collection_job, "interval", minutes=settings.scheduler_minutes)
+        else:
+            scheduler.add_job(run_collection_job, "cron", hour=settings.scheduler_hour, minute=settings.scheduler_minute)
         scheduler.start()
 
 

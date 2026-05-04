@@ -8,6 +8,7 @@ import requests
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.backup import backup_database
 from app.config import settings
 from app.models import ManagedDevice
 
@@ -2598,6 +2599,7 @@ def _fetch_and_upsert_signature(
 
 
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
+    backup_database()
     per_device = []
     endpoint = settings.fortiweb_server_policy_endpoint
 

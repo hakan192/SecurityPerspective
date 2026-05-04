@@ -17,8 +17,10 @@ class Settings(BaseSettings):
     fortiweb_config_endpoint: str = "/api/v2.0/cmdb/waf"
     fortiweb_server_policy_endpoint: str = "/api/v2.0/cmdb/server-policy/policy"
 
-    scheduler_enabled: bool = False
+    scheduler_enabled: bool = True
     scheduler_minutes: int = 60
+    scheduler_hour: int | None = None
+    scheduler_minute: int = 0
 
     ldap_enabled: bool = False
     ldap_server_uri: str = "ldap://ldap.example.local:389"
