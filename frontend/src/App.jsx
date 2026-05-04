@@ -812,6 +812,10 @@ function FullDetailsPage({ policy }) {
     }
   ]
   const fullDetailsSectionMeta = {
+    'Recent Changes': {
+      summary: 'Critical updates that happened within the past week. This is currently frontend-only data.',
+      link: '#'
+    },
     'Standard Protection': {
       summary: 'Baseline defenses for signatures, web attacks, and protocol validation to stop common threats.',
       link: '#'
@@ -884,6 +888,37 @@ function FullDetailsPage({ policy }) {
       </div>
 
       <div className="details-sections">
+        <section className="details-section">
+          {renderSectionHeader('Recent Changes')}
+          <div className="details-feature-grid details-feature-grid-stacked">
+            {[
+              {
+                title: 'WAF policy baseline updated',
+                happenedOn: '2 days ago',
+                summary: 'Signature and protocol validation baselines were refreshed for the active server policy.'
+              },
+              {
+                title: 'Bot mitigation thresholds tuned',
+                happenedOn: '4 days ago',
+                summary: 'Threshold-based bot detection sensitivity was adjusted to reduce false positives.'
+              },
+              {
+                title: 'Critical IP blocklist expanded',
+                happenedOn: '6 days ago',
+                summary: 'High-risk source ranges were added to improve protection against repeated attack traffic.'
+              }
+            ].map((change) => (
+              <article key={change.title} className="details-feature-card recent-change-card">
+                <div className="details-article-row recent-change-head">
+                  <p>{change.title}</p>
+                  <span className="recent-change-time">{change.happenedOn}</span>
+                </div>
+                <p className="recent-change-summary">{change.summary}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className="details-section">
           {renderSectionHeader('Standard Protection')}
           <div className="details-feature-grid">
