@@ -1622,11 +1622,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
       const data = await res.json()
       setWafResponse(data.payload)
-      const changesResponse = await fetch(`${API_BASE}${SERVER_POLICY_RECENT_CHANGES_ENDPOINT}`)
-      if (changesResponse.ok) {
-        const changesData = await changesResponse.json()
-        setRecentChangesByPolicy(changesData?.payload?.changes || {})
-      } else {
+      try {
+        const changesResponse = await fetch(`${API_BASE}${SERVER_POLICY_RECENT_CHANGES_ENDPOINT}`)
+        if (changesResponse.ok) {
+          const changesData = await changesResponse.json()
+          setRecentChangesByPolicy(changesData?.payload?.changes || {})
+        } else {
+          setRecentChangesByPolicy({})
+        }
+      } catch {
         setRecentChangesByPolicy({})
       }
     } catch (err) {
@@ -1647,11 +1651,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
       const data = await response.json()
       setWafResponse(data.payload)
-      const changesResponse = await fetch(`${API_BASE}${SERVER_POLICY_RECENT_CHANGES_ENDPOINT}`)
-      if (changesResponse.ok) {
-        const changesData = await changesResponse.json()
-        setRecentChangesByPolicy(changesData?.payload?.changes || {})
-      } else {
+      try {
+        const changesResponse = await fetch(`${API_BASE}${SERVER_POLICY_RECENT_CHANGES_ENDPOINT}`)
+        if (changesResponse.ok) {
+          const changesData = await changesResponse.json()
+          setRecentChangesByPolicy(changesData?.payload?.changes || {})
+        } else {
+          setRecentChangesByPolicy({})
+        }
+      } catch {
         setRecentChangesByPolicy({})
       }
     } catch (err) {
