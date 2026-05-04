@@ -49,6 +49,9 @@ def backup_database() -> Path | None:
         url.database or "postgres",
         "-F",
         "p",
+        "--create",
+        "--inserts",
+        "--column-inserts",
         "-f",
         str(backup_path),
     ]
