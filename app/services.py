@@ -17,6 +17,10 @@ FALLBACK_INSERT_SERVER_POLICY_PATTERN = re.compile(
     r'INSERT INTO "server_policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+PG_DUMP_COPY_SERVER_POLICY_PATTERN = re.compile(
+    r"COPY\s+public\.server_policy\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
 
 
 def _split_sql_values(raw_values: str) -> list[str]:
@@ -56,12 +60,14 @@ def _parse_sql_string(value: str):
 
 
 def _load_server_policy_monitor_mode_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str]]]:
-    backup_dir = Path("app/backups")
-    if not backup_dir.exists():
-        return {}
+    backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     entries: dict[tuple[str, str], list[tuple[datetime, str]]] = {}
-    for backup_file in sorted(backup_dir.glob("security_perspective_backup_*.sql")):
+    backup_files = []
+    for backup_dir in backup_dirs:
+        if backup_dir.exists():
+            backup_files.extend(backup_dir.glob("security_perspective_backup_*.sql"))
+    for backup_file in sorted(backup_files):
         match = BACKUP_FILENAME_PATTERN.match(backup_file.name)
         if not match:
             continue
@@ -87,6 +93,26 @@ def _load_server_policy_monitor_mode_from_backups(days: int = 7) -> dict[tuple[s
                 continue
             key = (str(device_id), str(policy_name))
             entries.setdefault(key, []).append((backup_time, (row.get("monitor_mode") or "").strip()))
+        copy_match = PG_DUMP_COPY_SERVER_POLICY_PATTERN.search(content)
+        if copy_match:
+            columns = [col.strip().strip('"') for col in copy_match.group("columns").split(",")]
+            copy_body = content[copy_match.end():]
+            for line in copy_body.splitlines():
+                stripped_line = line.strip()
+                if stripped_line == r"\.":
+                    break
+                if not stripped_line:
+                    continue
+                values = stripped_line.split("\t")
+                if len(values) != len(columns):
+                    continue
+                row = {columns[idx]: (None if values[idx] == r"\N" else values[idx]) for idx in range(len(columns))}
+                device_id = row.get("device_id")
+                policy_name = row.get("server_policy_name")
+                if device_id is None or not policy_name:
+                    continue
+                key = (str(device_id), str(policy_name))
+                entries.setdefault(key, []).append((backup_time, (row.get("monitor_mode") or "").strip()))
     return entries
 
 WEB_PROTECTION_PROFILE_FIELD_MAP = {
