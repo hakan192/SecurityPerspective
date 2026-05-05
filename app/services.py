@@ -1,6 +1,7 @@
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import urlparse
 from urllib.parse import quote
 
@@ -10,6 +11,83 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import ManagedDevice
+
+BACKUP_FILENAME_PATTERN = re.compile(r"security_perspective_backup_(\d{2}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.sql$")
+FALLBACK_INSERT_SERVER_POLICY_PATTERN = re.compile(
+    r'INSERT INTO "server_policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+
+
+def _split_sql_values(raw_values: str) -> list[str]:
+    parts = []
+    token = []
+    in_string = False
+    i = 0
+    while i < len(raw_values):
+        char = raw_values[i]
+        if char == "'":
+            token.append(char)
+            if in_string and i + 1 < len(raw_values) and raw_values[i + 1] == "'":
+                token.append(raw_values[i + 1])
+                i += 2
+                continue
+            in_string = not in_string
+            i += 1
+            continue
+        if char == "," and not in_string:
+            parts.append("".join(token).strip())
+            token = []
+        else:
+            token.append(char)
+        i += 1
+    if token:
+        parts.append("".join(token).strip())
+    return parts
+
+
+def _parse_sql_string(value: str):
+    stripped = value.strip()
+    if stripped.upper() == "NULL":
+        return None
+    if stripped.startswith("'") and stripped.endswith("'"):
+        return stripped[1:-1].replace("''", "'")
+    return stripped
+
+
+def _load_server_policy_monitor_mode_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str]]]:
+    backup_dir = Path("app/backups")
+    if not backup_dir.exists():
+        return {}
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    entries: dict[tuple[str, str], list[tuple[datetime, str]]] = {}
+    for backup_file in sorted(backup_dir.glob("security_perspective_backup_*.sql")):
+        match = BACKUP_FILENAME_PATTERN.match(backup_file.name)
+        if not match:
+            continue
+        try:
+            backup_time = datetime.strptime(match.group(1), "%d_%m_%y_%H_%M_%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if backup_time < cutoff:
+            continue
+        try:
+            content = backup_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for insert_match in FALLBACK_INSERT_SERVER_POLICY_PATTERN.finditer(content):
+            columns = [col.strip().strip('"') for col in insert_match.group("columns").split(",")]
+            values = _split_sql_values(insert_match.group("values"))
+            if len(columns) != len(values):
+                continue
+            row = {columns[idx]: _parse_sql_string(values[idx]) for idx in range(len(columns))}
+            device_id = row.get("device_id")
+            policy_name = row.get("server_policy_name")
+            if device_id is None or not policy_name:
+                continue
+            key = (str(device_id), str(policy_name))
+            entries.setdefault(key, []).append((backup_time, (row.get("monitor_mode") or "").strip()))
+    return entries
 
 WEB_PROTECTION_PROFILE_FIELD_MAP = {
     "signature_rule": ["signature_rule", "signature-rule"],
@@ -3351,6 +3429,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             "known_engines_action": row["known_engines_action"],
         }
 
+    backup_monitor_modes_by_policy = _load_server_policy_monitor_mode_from_backups(days=7)
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3452,6 +3531,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "xml-validation-enable-signature-detection": xml_enable_signature_detection,
                     "json_validation_enable_attack_signatures": json_enable_attack_signatures,
                     "json-validation-enable-attack-signatures": json_enable_attack_signatures,
+                    "recent_changes": [],
                     "syntax_based_attack_detection_details": {
                         "xss_html_tag_based_status": row["xss_html_tag_based_status"],
                         "xss_html_attribute_based_status": row["xss_html_attribute_based_status"],
@@ -3606,5 +3686,20 @@ def load_server_policies_from_db(db: Session) -> dict:
                     },
                 }
             )
+            latest_policy = by_device[device_id]["server_policies"][-1]
+            current_monitor_mode = (row["monitor_mode"] or "").strip()
+            backup_key = (str(device_id), row["server_policy_name"])
+            backup_events = sorted(backup_monitor_modes_by_policy.get(backup_key, []), key=lambda item: item[0])
+            for event_time, backup_monitor_mode in backup_events:
+                if backup_monitor_mode != current_monitor_mode:
+                    latest_policy["recent_changes"].append(
+                        {
+                            "id": f"monitor-mode-{int(event_time.timestamp())}",
+                            "title": "Server policy status changed",
+                            "summary": "Server policy status differs from latest fetched configuration.",
+                            "time": event_time.isoformat(),
+                            "type": "Server Policy",
+                        }
+                    )
 
     return {"devices": list(by_device.values())}
