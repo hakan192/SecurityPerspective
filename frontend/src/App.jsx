@@ -811,29 +811,15 @@ function FullDetailsPage({ policy }) {
       )
     }
   ]
-  const recentChanges = [
-    {
-      id: 'chg-1',
-      title: 'Scheduled collection time updated',
-      summary: 'Automatic configuration collection is now planned for 01:00 every day.',
-      time: 'Today 01:00',
-      type: 'Schedule'
-    },
-    {
-      id: 'chg-2',
-      title: 'Pre-fetch backup check',
-      summary: 'A database backup is created before each automatic configuration fetch.',
-      time: 'Today 01:00',
-      type: 'Safety'
-    },
-    {
-      id: 'chg-3',
-      title: 'Policy sync completed',
-      summary: 'Mock sync result: 3 devices processed with no fetch failures.',
-      time: 'Today 01:02',
-      type: 'Sync'
-    }
-  ]
+  const recentChanges = Array.isArray(policy.recent_changes) && policy.recent_changes.length > 0
+    ? policy.recent_changes
+    : [{
+        id: 'no-critical-changes',
+        title: 'No Critical Changes',
+        summary: 'No server policy status changes were detected in the last 7 days of backups.',
+        time: '-',
+        type: 'Server Policy'
+      }]
   const fullDetailsSectionMeta = {
     'Recent Changes': {
       summary: 'Latest configuration and collection activity for this policy (frontend mock data).',
