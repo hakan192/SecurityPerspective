@@ -1,4 +1,5 @@
 from app.celery_app import celery_app
+from app.backup import backup_database
 from app.database import SessionLocal
 from app.models import ManagedDevice
 from app.services import fetch_and_store_server_policies_by_device
@@ -8,6 +9,7 @@ from app.services import fetch_and_store_server_policies_by_device
 def collect_snapshot_task() -> int:
     db = SessionLocal()
     try:
+        backup_database()
         devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
         payload = fetch_and_store_server_policies_by_device(db, devices)
         return len(payload.get("devices", []))

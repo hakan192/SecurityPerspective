@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     scheduler_enabled: bool = False
     scheduler_minutes: int = 60
+    scheduler_hour: int = 2
+    scheduler_minute: int = 0
 
     ldap_enabled: bool = False
     ldap_server_uri: str = "ldap://ldap.example.local:389"

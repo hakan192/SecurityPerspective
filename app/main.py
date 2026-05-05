@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
+from app.backup import backup_database
 from app.models import ManagedDevice
 from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
@@ -35,6 +36,7 @@ app.add_middleware(
 def run_collection_job():
     db = SessionLocal()
     try:
+        backup_database()
         devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
         fetch_and_store_server_policies_by_device(db, devices)
     finally:
@@ -980,7 +982,12 @@ def startup_event():
         db.close()
 
     if settings.scheduler_enabled:
-        scheduler.add_job(run_collection_job, "interval", minutes=settings.scheduler_minutes)
+        scheduler.add_job(
+            run_collection_job,
+            "cron",
+            hour=settings.scheduler_hour,
+            minute=settings.scheduler_minute,
+        )
         scheduler.start()
 
 
@@ -1027,6 +1034,7 @@ def collect_fortiweb_server_policy(
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
+    backup_database()
     devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
     fetch_and_store_server_policies_by_device(db, devices)
     return {"payload": load_server_policies_from_db(db)}
