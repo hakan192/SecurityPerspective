@@ -334,3 +334,32 @@ def test_build_recent_policy_changes_can_list_status_and_certificate_changes():
         "Policy Status changed to Monitoring",
         "Certificate changed or renewed",
     ]
+
+
+def test_build_recent_policy_changes_lists_simultaneous_status_and_new_certificate_changes():
+    from datetime import datetime, timezone
+
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Monitoring",
+        "NEW-SERIAL",
+        [(latest_change, "Blocking", None)],
+    )
+
+    assert changes == [
+        {
+            "id": f"policy-status-{int(latest_change.timestamp())}",
+            "title": "Policy Status changed to Monitoring",
+            "summary": "The policy is now running in Monitoring mode.",
+            "time": "05/05",
+            "type": "Server Policy",
+        },
+        {
+            "id": f"certificate-serial-{int(latest_change.timestamp())}",
+            "title": "Certificate changed or renewed",
+            "summary": "The client certificate serial number changed to NEW-SERIAL.",
+            "time": "05/05",
+            "type": "Certificate",
+        },
+    ]

@@ -371,7 +371,10 @@ def _build_recent_policy_changes(
         )
 
     normalized_current_serial = _normalize_optional_text(current_certificate_serial)
-    if backup_certificate_serial and backup_certificate_serial != normalized_current_serial:
+    normalized_backup_serial = _normalize_optional_text(backup_certificate_serial)
+    serial_changed = normalized_backup_serial != normalized_current_serial
+    serial_present = normalized_backup_serial or normalized_current_serial
+    if serial_changed and serial_present:
         changes.append(
             {
                 "id": f"certificate-serial-{int(event_time.timestamp())}",
