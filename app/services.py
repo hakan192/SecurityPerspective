@@ -49,6 +49,14 @@ FALLBACK_INSERT_ALLOW_METHOD_POLICY_PATTERN = re.compile(
     r'INSERT INTO "allow-method-policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_IP_LIST_POLICY_PATTERN = re.compile(
+    r'INSERT INTO "?ip_list_policy"?\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_GEO_IP_PATTERN = re.compile(
+    r'INSERT INTO "?geo_ip"?\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
     r'INSERT INTO "application-layer-dos-prevention"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
@@ -103,6 +111,14 @@ PG_DUMP_COPY_CUSTOM_ACCESS_POLICY_PATTERN = re.compile(
 )
 PG_DUMP_COPY_ALLOW_METHOD_POLICY_PATTERN = re.compile(
     r'COPY\s+public\."allow-method-policy"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_IP_LIST_POLICY_PATTERN = re.compile(
+    r'COPY\s+public\.ip_list_policy\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_GEO_IP_PATTERN = re.compile(
+    r'COPY\s+public\.geo_ip\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
     re.IGNORECASE,
 )
 PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
@@ -216,6 +232,10 @@ BOT_MITIGATION_FEATURES = {
 }
 ACCESS_FEATURES = {
     "allow_method": "Allow method",
+}
+IP_PROTECTION_FEATURES = {
+    "ip_list": "IP List",
+    "geo_location": "Geo Location",
 }
 BIOMETRIC_BASED_DETECTION_STATUS_FIELDS = (
     "mouse_movement",
@@ -338,10 +358,17 @@ def _build_access_state(allow_method_policy_row: dict | None) -> dict[str, str]:
     return {"allow_method": _presence_status(allow_method_policy_row.get("allow_method"))}
 
 
-def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]]:
+def _build_ip_protection_state(ip_list_policy_rows: list[dict] | None, geo_ip_rows: list[dict] | None) -> dict[str, str]:
+    return {
+        "ip_list": "enabled" if ip_list_policy_rows else "unknown",
+        "geo_location": "enabled" if geo_ip_rows else "unknown",
+    }
+
+
+def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]] = {}
+    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]] = {}
     backup_files = []
     for backup_dir in backup_dirs:
         if backup_dir.exists():
@@ -433,6 +460,22 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             for row in allow_method_policy_rows
             if row.get("device_id") is not None and row.get("allow_method_policy_name")
         }
+        ip_list_policy_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_IP_LIST_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_IP_LIST_POLICY_PATTERN),
+        ]
+        ip_list_policies = {}
+        for row in ip_list_policy_rows:
+            if row.get("device_id") is not None and row.get("name"):
+                ip_list_policies.setdefault((str(row.get("device_id")), str(row.get("name"))), []).append(row)
+        geo_ip_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_GEO_IP_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_GEO_IP_PATTERN),
+        ]
+        geo_ip_policies = {}
+        for row in geo_ip_rows:
+            if row.get("device_id") is not None and row.get("name"):
+                geo_ip_policies.setdefault((str(row.get("device_id")), str(row.get("name"))), []).append(row)
         application_dos_rows = [
             *_extract_fallback_insert_rows(content, FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
             *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
@@ -507,6 +550,10 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             bot_mitigation_state = _build_bot_mitigation_state(biometric_row, threshold_row, known_bots_row)
             allow_method_policy_row = allow_method_policies.get((str(device_id), str(web_profile.get("allow_method_policy"))), {})
             access_state = _build_access_state(allow_method_policy_row)
+            ip_protection_state = _build_ip_protection_state(
+                ip_list_policies.get((str(device_id), str(web_profile.get("ip_list_policy"))), []),
+                geo_ip_policies.get((str(device_id), str(web_profile.get("geo_block_list_policy"))), []),
+            )
             key = (str(device_id), str(policy_name))
             entries.setdefault(key, []).append(
                 (
@@ -518,6 +565,7 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
                     application_dos_protection_state,
                     bot_mitigation_state,
                     access_state,
+                    ip_protection_state,
                 )
             )
     return entries
@@ -716,6 +764,8 @@ def _append_policy_state_changes(
     next_bot_mitigation: dict[str, str] | None = None,
     previous_access: dict[str, str] | None = None,
     next_access: dict[str, str] | None = None,
+    previous_ip_protection: dict[str, str] | None = None,
+    next_ip_protection: dict[str, str] | None = None,
 ) -> None:
     event_timestamp = int(event_time.timestamp())
     if previous_status != next_status:
@@ -832,6 +882,24 @@ def _append_policy_state_changes(
                 }
             )
 
+    previous_ip_protection = previous_ip_protection or {}
+    next_ip_protection = next_ip_protection or {}
+    for feature_key, feature_name in IP_PROTECTION_FEATURES.items():
+        if feature_key not in previous_ip_protection and feature_key not in next_ip_protection:
+            continue
+        previous_feature_status = str(previous_ip_protection.get(feature_key) or "unknown").strip().lower()
+        next_feature_status = str(next_ip_protection.get(feature_key) or "unknown").strip().lower()
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"ip-protection-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"IP Protection: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "IP Protection",
+                }
+            )
+
 
 def _build_recent_policy_changes(
     current_status: str,
@@ -842,6 +910,7 @@ def _build_recent_policy_changes(
     current_application_dos_protection: dict[str, str] | None = None,
     current_bot_mitigation: dict[str, str] | None = None,
     current_access: dict[str, str] | None = None,
+    current_ip_protection: dict[str, str] | None = None,
     current_time: datetime | None = None,
 ) -> list[dict]:
     sorted_events = sorted(backup_events, key=lambda item: item[0])
@@ -849,17 +918,19 @@ def _build_recent_policy_changes(
         return []
 
     def unpack_event(event):
+        if len(event) >= 9:
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7], event[8]
         if len(event) >= 8:
-            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7]
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7], {}
         if len(event) >= 7:
-            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], {}
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], {}, {}
         if len(event) >= 6:
-            return event[0], event[1], event[2], event[3], event[4], event[5], {}, {}
+            return event[0], event[1], event[2], event[3], event[4], event[5], {}, {}, {}
         if len(event) >= 5:
-            return event[0], event[1], event[2], event[3], event[4], {}, {}, {}
+            return event[0], event[1], event[2], event[3], event[4], {}, {}, {}, {}
         if len(event) >= 4:
-            return event[0], event[1], event[2], event[3], {}, {}, {}, {}
-        return event[0], event[1], event[2], {}, {}, {}, {}, {}
+            return event[0], event[1], event[2], event[3], {}, {}, {}, {}, {}
+        return event[0], event[1], event[2], {}, {}, {}, {}, {}, {}
 
     changes = []
     (
@@ -871,6 +942,7 @@ def _build_recent_policy_changes(
         previous_application_dos_protection,
         previous_bot_mitigation,
         previous_access,
+        previous_ip_protection,
     ) = unpack_event(sorted_events[0])
     for event in sorted_events[1:]:
         (
@@ -882,6 +954,7 @@ def _build_recent_policy_changes(
             backup_application_dos_protection,
             backup_bot_mitigation,
             backup_access,
+            backup_ip_protection,
         ) = unpack_event(event)
         _append_policy_state_changes(
             changes,
@@ -900,6 +973,8 @@ def _build_recent_policy_changes(
             backup_bot_mitigation,
             previous_access,
             backup_access,
+            previous_ip_protection,
+            backup_ip_protection,
         )
         previous_status = backup_status
         previous_certificate_serial = backup_certificate_serial
@@ -908,6 +983,7 @@ def _build_recent_policy_changes(
         previous_application_dos_protection = backup_application_dos_protection
         previous_bot_mitigation = backup_bot_mitigation
         previous_access = backup_access
+        previous_ip_protection = backup_ip_protection
 
     _append_policy_state_changes(
         changes,
@@ -926,6 +1002,8 @@ def _build_recent_policy_changes(
         current_bot_mitigation,
         previous_access,
         current_access,
+        previous_ip_protection,
+        current_ip_protection,
     )
     return changes
 
@@ -4427,6 +4505,10 @@ def load_server_policies_from_db(db: Session) -> dict:
                     },
                 ),
                 {"allow_method": _presence_status(row["allow_method_value"])},
+                _build_ip_protection_state(
+                    ip_list_policy_by_name.get((device_id, row["ip_list_policy"]), []),
+                    geo_ip_by_name.get((device_id, row["geo_block_list_policy"]), []),
+                ),
             )
 
     return {"devices": list(by_device.values())}
