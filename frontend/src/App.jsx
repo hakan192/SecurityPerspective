@@ -2289,7 +2289,6 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                             <div className="policy-summary-head automation-summary-head">
                               <div>
                                 <h4>Definition</h4>
-                                <p className="policy-summary-subtitle">Open details to configure this automation workflow.</p>
                               </div>
                               <button
                                 type="button"
