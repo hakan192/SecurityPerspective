@@ -302,7 +302,7 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
                 "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-b', '10.0.0.1', 'cert-b');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-a', 'OLD-A');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-b', 'OLD-B');",
-                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\", \"syntax_based_attack_detection\", \"custom_access_policy\", \"application_layer_dos_prevention\", \"bot_mitigate_policy\", \"allow_method_policy\", \"ip_list_policy\", \"geo_block_list_policy\") VALUES (1, 'profile-b', 'sig-b', 'syntax-b', 'custom-b', 'dos-b', 'bot-b', 'allow-b', 'ip-list-b', 'geo-b');",
+                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\", \"syntax_based_attack_detection\", \"custom_access_policy\", \"application_layer_dos_prevention\", \"bot_mitigate_policy\", \"allow_method_policy\", \"ip_list_policy\", \"geo_block_list_policy\", \"xml_validation_policy\", \"json_validation_policy\") VALUES (1, 'profile-b', 'sig-b', 'syntax-b', 'custom-b', 'dos-b', 'bot-b', 'allow-b', 'ip-list-b', 'geo-b', 'xml-b', 'json-b');",
                 "INSERT INTO \"signature\" (\"device_id\", \"signature_set_name\", \"cross_site_scripting\", \"sql_injection\") VALUES (1, 'sig-b', 'enable', 'enable');",
                 "INSERT INTO \"syntax-based-attack-detection\" (\"device_id\", \"name\", \"xss_html_tag_based_status\", \"sql_stacked_queries_status\") VALUES (1, 'syntax-b', 'enable', 'enable');",
                 "INSERT INTO \"custom-access-policy\" (\"device_id\", \"custom_access_policy_name\", \"rule_names\") VALUES (1, 'custom-b', '{rule-a}');",
@@ -314,6 +314,8 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
                 "INSERT INTO \"allow-method-policy\" (\"device_id\", \"allow_method_policy_name\", \"allow_method\") VALUES (1, 'allow-b', 'GET POST');",
                 "INSERT INTO ip_list_policy (\"device_id\", \"name\", \"seq\", \"type\", \"ip\") VALUES (1, 'ip-list-b', 1, 'trust', '192.0.2.10');",
                 "INSERT INTO geo_ip (\"device_id\", \"name\", \"action\", \"country_name\") VALUES (1, 'geo-b', 'block', 'Exampleland');",
+                "INSERT INTO \"xml-validation-policy\" (\"device_id\", \"xml_validation_name\", \"enable_signature_detection\") VALUES (1, 'xml-b', 'enable');",
+                "INSERT INTO \"json-validation-policy\" (\"device_id\", \"json_validation_name\", \"enable_attack_signatures\") VALUES (1, 'json-b', 'disable');",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-a', 'pool-a', 'enable', NULL);",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-b', 'pool-b', 'enable', 'profile-b');",
             ]
@@ -350,6 +352,10 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
     assert states[("1", "policy-b")][0][8] == {
         "ip_list": "enabled",
         "geo_location": "enabled",
+    }
+    assert states[("1", "policy-b")][0][9] == {
+        "xml_validation_policy": "enabled",
+        "json_validation_policy": "disabled",
     }
 
 
@@ -816,5 +822,73 @@ def test_build_recent_policy_changes_keeps_historical_ip_protection_changes():
             "summary": "IP Protection: Geo Location changed to Enabled.",
             "time": "03/05",
             "type": "IP Protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_adds_api_security_feature_change():
+    from datetime import datetime, timezone
+
+    backup_time = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [(backup_time, "Blocking", "SERIAL-A", {}, {}, {}, {}, {}, {}, {"xml_validation_policy": "unknown"})],
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"xml_validation_policy": "enabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"api-security-xml_validation_policy-{int(current_time.timestamp())}",
+            "title": "XMLValidation Policy control enabled",
+            "summary": "API Security: XMLValidation Policy changed to Enabled.",
+            "time": "06/05",
+            "type": "API Security",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_api_security_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    disabled_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [
+            (first_backup, "Blocking", "SERIAL-A", {}, {}, {}, {}, {}, {}, {"json_validation_policy": "enabled"}),
+            (disabled_backup, "Blocking", "SERIAL-A", {}, {}, {}, {}, {}, {}, {"json_validation_policy": "disabled"}),
+            (latest_backup, "Blocking", "SERIAL-A", {}, {}, {}, {}, {}, {}, {"json_validation_policy": "disabled"}),
+        ],
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"json_validation_policy": "disabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"api-security-json_validation_policy-{int(disabled_backup.timestamp())}",
+            "title": "JSON Validation Policy control disabled",
+            "summary": "API Security: JSON Validation Policy changed to Disabled.",
+            "time": "03/05",
+            "type": "API Security",
         }
     ]

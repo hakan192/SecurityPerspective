@@ -57,6 +57,14 @@ FALLBACK_INSERT_GEO_IP_PATTERN = re.compile(
     r'INSERT INTO "?geo_ip"?\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_XML_VALIDATION_POLICY_PATTERN = re.compile(
+    r'INSERT INTO "xml-validation-policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_JSON_VALIDATION_POLICY_PATTERN = re.compile(
+    r'INSERT INTO "json-validation-policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
     r'INSERT INTO "application-layer-dos-prevention"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
@@ -119,6 +127,14 @@ PG_DUMP_COPY_IP_LIST_POLICY_PATTERN = re.compile(
 )
 PG_DUMP_COPY_GEO_IP_PATTERN = re.compile(
     r'COPY\s+public\.geo_ip\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_XML_VALIDATION_POLICY_PATTERN = re.compile(
+    r'COPY\s+public\."xml-validation-policy"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_JSON_VALIDATION_POLICY_PATTERN = re.compile(
+    r'COPY\s+public\."json-validation-policy"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
     re.IGNORECASE,
 )
 PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
@@ -236,6 +252,10 @@ ACCESS_FEATURES = {
 IP_PROTECTION_FEATURES = {
     "ip_list": "IP List",
     "geo_location": "Geo Location",
+}
+API_SECURITY_FEATURES = {
+    "xml_validation_policy": "XMLValidation Policy",
+    "json_validation_policy": "JSON Validation Policy",
 }
 BIOMETRIC_BASED_DETECTION_STATUS_FIELDS = (
     "mouse_movement",
@@ -365,10 +385,28 @@ def _build_ip_protection_state(ip_list_policy_rows: list[dict] | None, geo_ip_ro
     }
 
 
-def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]]:
+def _format_api_security_state(value) -> str:
+    normalized = _as_enable_disable(value)
+    if normalized == "enable":
+        return "enabled"
+    if normalized == "disable":
+        return "disabled"
+    return "unknown"
+
+
+def _build_api_security_state(xml_validation_policy_row: dict | None, json_validation_policy_row: dict | None) -> dict[str, str]:
+    xml_validation_policy_row = xml_validation_policy_row or {}
+    json_validation_policy_row = json_validation_policy_row or {}
+    return {
+        "xml_validation_policy": _format_api_security_state(xml_validation_policy_row.get("enable_signature_detection")),
+        "json_validation_policy": _format_api_security_state(json_validation_policy_row.get("enable_attack_signatures")),
+    }
+
+
+def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]] = {}
+    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]] = {}
     backup_files = []
     for backup_dir in backup_dirs:
         if backup_dir.exists():
@@ -476,6 +514,24 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
         for row in geo_ip_rows:
             if row.get("device_id") is not None and row.get("name"):
                 geo_ip_policies.setdefault((str(row.get("device_id")), str(row.get("name"))), []).append(row)
+        xml_validation_policy_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_XML_VALIDATION_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_XML_VALIDATION_POLICY_PATTERN),
+        ]
+        xml_validation_policies = {
+            (str(row.get("device_id")), str(row.get("xml_validation_name"))): row
+            for row in xml_validation_policy_rows
+            if row.get("device_id") is not None and row.get("xml_validation_name")
+        }
+        json_validation_policy_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_JSON_VALIDATION_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_JSON_VALIDATION_POLICY_PATTERN),
+        ]
+        json_validation_policies = {
+            (str(row.get("device_id")), str(row.get("json_validation_name"))): row
+            for row in json_validation_policy_rows
+            if row.get("device_id") is not None and row.get("json_validation_name")
+        }
         application_dos_rows = [
             *_extract_fallback_insert_rows(content, FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
             *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
@@ -554,6 +610,10 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
                 ip_list_policies.get((str(device_id), str(web_profile.get("ip_list_policy"))), []),
                 geo_ip_policies.get((str(device_id), str(web_profile.get("geo_block_list_policy"))), []),
             )
+            api_security_state = _build_api_security_state(
+                xml_validation_policies.get((str(device_id), str(web_profile.get("xml_validation_policy"))), {}),
+                json_validation_policies.get((str(device_id), str(web_profile.get("json_validation_policy"))), {}),
+            )
             key = (str(device_id), str(policy_name))
             entries.setdefault(key, []).append(
                 (
@@ -566,6 +626,7 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
                     bot_mitigation_state,
                     access_state,
                     ip_protection_state,
+                    api_security_state,
                 )
             )
     return entries
@@ -766,6 +827,8 @@ def _append_policy_state_changes(
     next_access: dict[str, str] | None = None,
     previous_ip_protection: dict[str, str] | None = None,
     next_ip_protection: dict[str, str] | None = None,
+    previous_api_security: dict[str, str] | None = None,
+    next_api_security: dict[str, str] | None = None,
 ) -> None:
     event_timestamp = int(event_time.timestamp())
     if previous_status != next_status:
@@ -900,6 +963,24 @@ def _append_policy_state_changes(
                 }
             )
 
+    previous_api_security = previous_api_security or {}
+    next_api_security = next_api_security or {}
+    for feature_key, feature_name in API_SECURITY_FEATURES.items():
+        if feature_key not in previous_api_security and feature_key not in next_api_security:
+            continue
+        previous_feature_status = str(previous_api_security.get(feature_key) or "unknown").strip().lower()
+        next_feature_status = str(next_api_security.get(feature_key) or "unknown").strip().lower()
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"api-security-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"API Security: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "API Security",
+                }
+            )
+
 
 def _build_recent_policy_changes(
     current_status: str,
@@ -911,6 +992,7 @@ def _build_recent_policy_changes(
     current_bot_mitigation: dict[str, str] | None = None,
     current_access: dict[str, str] | None = None,
     current_ip_protection: dict[str, str] | None = None,
+    current_api_security: dict[str, str] | None = None,
     current_time: datetime | None = None,
 ) -> list[dict]:
     sorted_events = sorted(backup_events, key=lambda item: item[0])
@@ -918,19 +1000,21 @@ def _build_recent_policy_changes(
         return []
 
     def unpack_event(event):
+        if len(event) >= 10:
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7], event[8], event[9]
         if len(event) >= 9:
-            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7], event[8]
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7], event[8], {}
         if len(event) >= 8:
-            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7], {}
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7], {}, {}
         if len(event) >= 7:
-            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], {}, {}
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], {}, {}, {}
         if len(event) >= 6:
-            return event[0], event[1], event[2], event[3], event[4], event[5], {}, {}, {}
+            return event[0], event[1], event[2], event[3], event[4], event[5], {}, {}, {}, {}
         if len(event) >= 5:
-            return event[0], event[1], event[2], event[3], event[4], {}, {}, {}, {}
+            return event[0], event[1], event[2], event[3], event[4], {}, {}, {}, {}, {}
         if len(event) >= 4:
-            return event[0], event[1], event[2], event[3], {}, {}, {}, {}, {}
-        return event[0], event[1], event[2], {}, {}, {}, {}, {}, {}
+            return event[0], event[1], event[2], event[3], {}, {}, {}, {}, {}, {}
+        return event[0], event[1], event[2], {}, {}, {}, {}, {}, {}, {}
 
     changes = []
     (
@@ -943,6 +1027,7 @@ def _build_recent_policy_changes(
         previous_bot_mitigation,
         previous_access,
         previous_ip_protection,
+        previous_api_security,
     ) = unpack_event(sorted_events[0])
     for event in sorted_events[1:]:
         (
@@ -955,6 +1040,7 @@ def _build_recent_policy_changes(
             backup_bot_mitigation,
             backup_access,
             backup_ip_protection,
+            backup_api_security,
         ) = unpack_event(event)
         _append_policy_state_changes(
             changes,
@@ -975,6 +1061,8 @@ def _build_recent_policy_changes(
             backup_access,
             previous_ip_protection,
             backup_ip_protection,
+            previous_api_security,
+            backup_api_security,
         )
         previous_status = backup_status
         previous_certificate_serial = backup_certificate_serial
@@ -984,6 +1072,7 @@ def _build_recent_policy_changes(
         previous_bot_mitigation = backup_bot_mitigation
         previous_access = backup_access
         previous_ip_protection = backup_ip_protection
+        previous_api_security = backup_api_security
 
     _append_policy_state_changes(
         changes,
@@ -1004,6 +1093,8 @@ def _build_recent_policy_changes(
         current_access,
         previous_ip_protection,
         current_ip_protection,
+        previous_api_security,
+        current_api_security,
     )
     return changes
 
@@ -4508,6 +4599,10 @@ def load_server_policies_from_db(db: Session) -> dict:
                 _build_ip_protection_state(
                     ip_list_policy_by_name.get((device_id, row["ip_list_policy"]), []),
                     geo_ip_by_name.get((device_id, row["geo_block_list_policy"]), []),
+                ),
+                _build_api_security_state(
+                    {"enable_signature_detection": xml_enable_signature_detection},
+                    {"enable_attack_signatures": json_enable_attack_signatures},
                 ),
             )
 
