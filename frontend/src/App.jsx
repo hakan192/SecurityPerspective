@@ -29,6 +29,46 @@ const navItems = [
 ]
 
 const MAIN_WAF_TAB_ID = 'waf-main-tab'
+const MAIN_AUTOMATION_TAB_ID = 'automation-main-tab'
+
+const automationCards = [
+  {
+    id: 'server-policy-disable',
+    title: 'Server Policy Disable',
+    definition: 'Disables configured server policy enforcement and bypasses the policy chain for matching traffic.',
+    objective: 'Temporarily disable a selected server policy while preserving the current rule set for rollback.',
+    fields: [
+      { label: 'Target policy', value: 'Select FortiWeb server policy' },
+      { label: 'Execution mode', value: 'Approval required' },
+      { label: 'Rollback timer', value: '30 minutes' },
+      { label: 'Change record', value: 'Required before execution' }
+    ],
+    steps: [
+      'Validate the target policy and attached protected host.',
+      'Capture the current enabled state for audit and rollback.',
+      'Disable policy enforcement only after approval is recorded.',
+      'Schedule an automatic verification and rollback check.'
+    ]
+  },
+  {
+    id: 'recaptcha-disable',
+    title: 'Recaptcha Disable',
+    definition: 'Turns off CAPTCHA challenge checks, allowing requests to pass without Recaptcha validation.',
+    objective: 'Disable Recaptcha challenge enforcement for a controlled exception window.',
+    fields: [
+      { label: 'Protected host', value: 'Select host or application' },
+      { label: 'Exception scope', value: 'Bot mitigation profile' },
+      { label: 'Expiration window', value: '15 minutes' },
+      { label: 'Notification channel', value: 'Security operations' }
+    ],
+    steps: [
+      'Confirm the protected host and active bot mitigation profile.',
+      'Record the exception reason and required expiration time.',
+      'Disable Recaptcha checks for the scoped profile only.',
+      'Notify operations and restore enforcement when the window ends.'
+    ]
+  }
+]
 
 const formatRecentChangeTime = (value) => {
   if (!value || value === '-') return '-'
@@ -1498,6 +1538,55 @@ function FullDetailsPage({ policy }) {
   )
 }
 
+
+function AutomationDetailsPage({ automation }) {
+  if (!automation) {
+    return <div className="hero-text muted">Select an automation to view configuration details.</div>
+  }
+
+  return (
+    <section className="automation-detail-page" aria-label={`${automation.title} configuration details`}>
+      <div className="automation-detail-hero">
+        <div>
+          <p className="policy-label">Automation Configuration</p>
+          <h2>{automation.title}</h2>
+          <p>{automation.objective}</p>
+        </div>
+        <span className="automation-detail-badge">Ready to configure</span>
+      </div>
+
+      <div className="automation-detail-grid">
+        <article className="automation-config-card">
+          <div className="automation-config-card-head">
+            <h3>Configuration Detail</h3>
+            <span>Guided setup</span>
+          </div>
+          <div className="automation-config-fields">
+            {automation.fields.map((field) => (
+              <label key={field.label} className="automation-config-field">
+                <span>{field.label}</span>
+                <input type="text" value={field.value} readOnly />
+              </label>
+            ))}
+          </div>
+        </article>
+
+        <article className="automation-config-card">
+          <div className="automation-config-card-head">
+            <h3>Execution Plan</h3>
+            <span>Controlled workflow</span>
+          </div>
+          <ol className="automation-step-list">
+            {automation.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </article>
+      </div>
+    </section>
+  )
+}
+
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
@@ -1515,6 +1604,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [wafTabs, setWafTabs] = useState([{ id: MAIN_WAF_TAB_ID, title: 'WAF Configuration', type: 'main' }])
   const [activeWafTabId, setActiveWafTabId] = useState(MAIN_WAF_TAB_ID)
   const [expandedAutomationCard, setExpandedAutomationCard] = useState('')
+  const [automationTabs, setAutomationTabs] = useState([{ id: MAIN_AUTOMATION_TAB_ID, title: 'Automation', type: 'main' }])
+  const [activeAutomationTabId, setActiveAutomationTabId] = useState(MAIN_AUTOMATION_TAB_ID)
   const [devices, setDevices] = useState([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
@@ -1812,7 +1903,31 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     })
   }
 
+  const openAutomationTab = (automation) => {
+    const tabId = `automation::${automation.id}`
+
+    setAutomationTabs((prev) => {
+      if (prev.some((tab) => tab.id === tabId)) return prev
+      return [...prev, { id: tabId, title: automation.title, type: 'automation', automation }]
+    })
+    setActiveAutomationTabId(tabId)
+  }
+
+  const closeAutomationTab = (tabId) => {
+    if (tabId === MAIN_AUTOMATION_TAB_ID) return
+    setAutomationTabs((prev) => {
+      const next = prev.filter((tab) => tab.id !== tabId)
+      if (activeAutomationTabId === tabId) {
+        const closedIndex = prev.findIndex((tab) => tab.id === tabId)
+        const fallback = next[Math.max(0, closedIndex - 1)] || next[0] || { id: MAIN_AUTOMATION_TAB_ID }
+        setActiveAutomationTabId(fallback.id)
+      }
+      return next
+    })
+  }
+
   const activeWafTab = wafTabs.find((tab) => tab.id === activeWafTabId) || wafTabs[0]
+  const activeAutomationTab = automationTabs.find((tab) => tab.id === activeAutomationTabId) || automationTabs[0]
 
   return (
     <div className={`dashboard-page ${darkMode ? 'dark' : 'light'}`}>
@@ -2121,49 +2236,85 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             )}
 
             {activeNav === 'automation' && (
-              <section className="waf-panel modern-waf">
-                <div className="waf-card-grid">
-                  {[
-                    {
-                      id: 'server-policy-disable',
-                      title: 'Server Policy Disable',
-                      definition: 'Disables configured server policy enforcement and bypasses the policy chain for matching traffic.'
-                    },
-                    {
-                      id: 'recaptcha-disable',
-                      title: 'Recaptcha Disable',
-                      definition: 'Turns off CAPTCHA challenge checks, allowing requests to pass without Recaptcha validation.'
-                    }
-                  ].map((card) => (
-                    <article
-                      key={card.id}
-                      className={`policy-card ${expandedAutomationCard === card.id ? 'selected' : ''}`}
-                      onClick={() => setExpandedAutomationCard((prev) => (prev === card.id ? '' : card.id))}
+              <section className="waf-panel modern-waf automation-workspace">
+                <div className="workspace-tab-bar" role="tablist" aria-label="Automation workspace tabs">
+                  {automationTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeAutomationTabId === tab.id}
+                      className={`workspace-tab ${activeAutomationTabId === tab.id ? 'active' : ''}`}
+                      onClick={() => setActiveAutomationTabId(tab.id)}
                     >
-                      <div className="policy-top-row">
-                        <div>
-                          <p className="policy-label">Automation</p>
-                          <p className="policy-name">{card.title}</p>
-                        </div>
-                        <div className="policy-status-wrap">
-                          <span className={`policy-expand-icon ${expandedAutomationCard === card.id ? 'expanded' : ''}`} aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="m6 9 6 6 6-6" />
-                            </svg>
-                          </span>
-                        </div>
-                      </div>
-                      {expandedAutomationCard === card.id && (
-                        <section className="policy-summary automation-definition" aria-label={`${card.title} definition`}>
-                          <div className="policy-summary-head">
-                            <h4>Definition</h4>
-                          </div>
-                          <p>{card.definition}</p>
-                        </section>
+                      <span className="workspace-tab-label">{tab.title}</span>
+                      {tab.id !== MAIN_AUTOMATION_TAB_ID && (
+                        <span
+                          className="workspace-tab-close"
+                          role="button"
+                          aria-label={`Close ${tab.title}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            closeAutomationTab(tab.id)
+                          }}
+                        >×</span>
                       )}
-                    </article>
+                    </button>
                   ))}
                 </div>
+
+                {activeAutomationTab?.type === 'main' ? (
+                  <div className="waf-card-grid">
+                    {automationCards.map((card) => (
+                      <article
+                        key={card.id}
+                        className={`policy-card ${expandedAutomationCard === card.id ? 'selected' : ''}`}
+                        onClick={() => setExpandedAutomationCard((prev) => (prev === card.id ? '' : card.id))}
+                      >
+                        <div className="policy-top-row">
+                          <div>
+                            <p className="policy-label">Automation</p>
+                            <p className="policy-name">{card.title}</p>
+                          </div>
+                          <div className="policy-status-wrap">
+                            <span className={`policy-expand-icon ${expandedAutomationCard === card.id ? 'expanded' : ''}`} aria-hidden="true">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </span>
+                          </div>
+                        </div>
+                        {expandedAutomationCard === card.id && (
+                          <section className="policy-summary automation-definition" aria-label={`${card.title} definition`}>
+                            <div className="policy-summary-head automation-summary-head">
+                              <div>
+                                <h4>Definition</h4>
+                                <p className="policy-summary-subtitle">Open details to configure this automation workflow.</p>
+                              </div>
+                              <button
+                                type="button"
+                                className="policy-full-details-btn automation-details-btn"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  openAutomationTab(card)
+                                }}
+                              >
+                                <span>Details</span>
+                                <svg className="policy-full-details-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                  <path d="M7 7h10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M7 17 17 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                            </div>
+                            <p>{card.definition}</p>
+                          </section>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <AutomationDetailsPage automation={activeAutomationTab?.automation} />
+                )}
               </section>
             )}
 
