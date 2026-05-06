@@ -17,8 +17,72 @@ FALLBACK_INSERT_SERVER_POLICY_PATTERN = re.compile(
     r'INSERT INTO "server_policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_SERVER_POOL_PATTERN = re.compile(
+    r'INSERT INTO "server_pool"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_CERTIFICATE_LOCAL_PATTERN = re.compile(
+    r'INSERT INTO "certificate_local"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_WEB_PROTECTION_PROFILE_PATTERN = re.compile(
+    r'INSERT INTO "web_protection_profiles"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_SIGNATURE_PATTERN = re.compile(
+    r'INSERT INTO "signature"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN = re.compile(
+    r'INSERT INTO "http_protocol_parameter_restriction"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_SYNTAX_BASED_ATTACK_DETECTION_PATTERN = re.compile(
+    r'INSERT INTO "syntax-based-attack-detection"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_CUSTOM_ACCESS_POLICY_PATTERN = re.compile(
+    r'INSERT INTO "custom-access-policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
+    r'INSERT INTO "application-layer-dos-prevention"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 PG_DUMP_COPY_SERVER_POLICY_PATTERN = re.compile(
     r"COPY\s+public\.server_policy\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_SERVER_POOL_PATTERN = re.compile(
+    r"COPY\s+public\.server_pool\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_CERTIFICATE_LOCAL_PATTERN = re.compile(
+    r"COPY\s+public\.certificate_local\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_WEB_PROTECTION_PROFILE_PATTERN = re.compile(
+    r"COPY\s+public\.web_protection_profiles\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_SIGNATURE_PATTERN = re.compile(
+    r"COPY\s+public\.signature\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN = re.compile(
+    r"COPY\s+public\.http_protocol_parameter_restriction\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_SYNTAX_BASED_ATTACK_DETECTION_PATTERN = re.compile(
+    r'COPY\s+public\."syntax-based-attack-detection"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_CUSTOM_ACCESS_POLICY_PATTERN = re.compile(
+    r'COPY\s+public\."custom-access-policy"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
+    r'COPY\s+public\."application-layer-dos-prevention"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
     re.IGNORECASE,
 )
 
@@ -59,10 +123,112 @@ def _parse_sql_string(value: str):
     return stripped
 
 
-def _load_server_policy_monitor_mode_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str]]]:
+def _extract_fallback_insert_rows(content: str, pattern: re.Pattern) -> list[dict]:
+    rows = []
+    for insert_match in pattern.finditer(content):
+        columns = [col.strip().strip('"') for col in insert_match.group("columns").split(",")]
+        values = _split_sql_values(insert_match.group("values"))
+        if len(columns) != len(values):
+            continue
+        rows.append({columns[idx]: _parse_sql_string(values[idx]) for idx in range(len(columns))})
+    return rows
+
+
+def _extract_pg_dump_copy_rows(content: str, pattern: re.Pattern) -> list[dict]:
+    copy_match = pattern.search(content)
+    if not copy_match:
+        return []
+
+    rows = []
+    columns = [col.strip().strip('"') for col in copy_match.group("columns").split(",")]
+    copy_body = content[copy_match.end():]
+    for line in copy_body.splitlines():
+        stripped_line = line.strip()
+        if stripped_line == r"\.":
+            break
+        if not stripped_line:
+            continue
+        values = stripped_line.split("\t")
+        if len(values) != len(columns):
+            continue
+        rows.append({columns[idx]: (None if values[idx] == r"\N" else values[idx]) for idx in range(len(columns))})
+    return rows
+
+
+STANDARD_PROTECTION_FEATURES = {
+    "signature": "Signature",
+    "http_rfc": "HTTP RFC",
+    "http2_rfc_control": "HTTP/2 RFC control",
+}
+ADVANCED_PROTECTION_FEATURES = {
+    "syntax_based_detection": "Syntax Based Detection",
+    "custom_access_rules": "Custom Access Rules",
+}
+APPLICATION_DOS_PROTECTION_FEATURES = {
+    "http_flood_prevention": "HTTP Flood Prevention",
+    "http_access_limit": "HTTP Access Limit",
+    "tcp_flood_prevention": "TCP Flood Prevention",
+}
+
+
+def _format_standard_protection_state(value) -> str:
+    return "enabled" if _as_enable_disable(value) == "enable" or str(value).strip().lower() == "enabled" else "disabled"
+
+
+def _build_standard_protection_state(signature_row: dict, http_rfc_row: dict, http2_enabled) -> dict[str, str]:
+    http2_row = {**http_rfc_row, "http2": http2_enabled}
+    return {
+        "signature": _build_signature_set_status(signature_row)["status"],
+        "http_rfc": _build_http_rfc_control_status(http_rfc_row)["status"],
+        "http2_rfc_control": _build_http2_rfc_control_status(http2_row)["status"],
+    }
+
+
+def _parse_backup_array_value(value) -> list[str]:
+    normalized = _normalize_optional_text(value)
+    if not normalized:
+        return []
+    if normalized in {"{}", "[]"}:
+        return []
+    if normalized.startswith("{") and normalized.endswith("}"):
+        return [item.strip().strip('"') for item in normalized[1:-1].split(",") if item.strip()]
+    if normalized.startswith("[") and normalized.endswith("]"):
+        return [item.strip().strip("'").strip('"') for item in normalized[1:-1].split(",") if item.strip()]
+    return [normalized]
+
+
+def _build_syntax_based_detection_status(row: dict) -> str:
+    selected_count = sum(
+        1
+        for field in SYNTAX_BASED_ATTACK_DETECTION_FIELDS
+        if field.endswith("_status") and _is_signature_attribute_selected(row.get(field))
+    )
+    return "enabled" if selected_count >= 2 else "disabled"
+
+
+def _build_advanced_protection_state(syntax_row: dict, custom_access_policy_row: dict) -> dict[str, str]:
+    return {
+        "syntax_based_detection": _build_syntax_based_detection_status(syntax_row),
+        "custom_access_rules": "enabled" if _parse_backup_array_value(custom_access_policy_row.get("rule_names")) else "unknown",
+    }
+
+
+def _presence_status(value) -> str:
+    return "enabled" if _normalize_optional_text(value) else "unknown"
+
+
+def _build_application_dos_protection_state(application_dos_row: dict) -> dict[str, str]:
+    return {
+        "http_flood_prevention": _presence_status(application_dos_row.get("http_request_flood_prevention_rule")),
+        "http_access_limit": _presence_status(application_dos_row.get("layer4_access_limit_rule")),
+        "tcp_flood_prevention": _presence_status(application_dos_row.get("layer4_connection_flood_check_rule")),
+    }
+
+
+def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str]]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    entries: dict[tuple[str, str], list[tuple[datetime, str]]] = {}
+    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str]]]] = {}
     backup_files = []
     for backup_dir in backup_dirs:
         if backup_dir.exists():
@@ -81,38 +247,112 @@ def _load_server_policy_monitor_mode_from_backups(days: int = 7) -> dict[tuple[s
             content = backup_file.read_text(encoding="utf-8")
         except OSError:
             continue
-        for insert_match in FALLBACK_INSERT_SERVER_POLICY_PATTERN.finditer(content):
-            columns = [col.strip().strip('"') for col in insert_match.group("columns").split(",")]
-            values = _split_sql_values(insert_match.group("values"))
-            if len(columns) != len(values):
-                continue
-            row = {columns[idx]: _parse_sql_string(values[idx]) for idx in range(len(columns))}
+
+        server_pool_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POOL_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SERVER_POOL_PATTERN),
+        ]
+        server_pools = {
+            (str(row.get("device_id")), str(row.get("server_pool_name"))): row
+            for row in server_pool_rows
+            if row.get("device_id") is not None and row.get("server_pool_name")
+        }
+        certificate_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_CERTIFICATE_LOCAL_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_CERTIFICATE_LOCAL_PATTERN),
+        ]
+        certificate_serials = {
+            (str(row.get("device_id")), str(row.get("certificate_name"))): _normalize_optional_text(row.get("serial_number"))
+            for row in certificate_rows
+            if row.get("device_id") is not None and row.get("certificate_name")
+        }
+        web_protection_profile_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_WEB_PROTECTION_PROFILE_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_WEB_PROTECTION_PROFILE_PATTERN),
+        ]
+        web_protection_profiles = {
+            (str(row.get("device_id")), str(row.get("web_protection_profile_name"))): row
+            for row in web_protection_profile_rows
+            if row.get("device_id") is not None and row.get("web_protection_profile_name")
+        }
+        signature_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SIGNATURE_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SIGNATURE_PATTERN),
+        ]
+        signatures = {
+            (str(row.get("device_id")), str(row.get("signature_set_name"))): row
+            for row in signature_rows
+            if row.get("device_id") is not None and row.get("signature_set_name")
+        }
+        http_rfc_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN),
+        ]
+        http_rfc_profiles = {
+            (str(row.get("device_id")), str(row.get("name"))): row
+            for row in http_rfc_rows
+            if row.get("device_id") is not None and row.get("name")
+        }
+        syntax_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SYNTAX_BASED_ATTACK_DETECTION_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SYNTAX_BASED_ATTACK_DETECTION_PATTERN),
+        ]
+        syntax_profiles = {
+            (str(row.get("device_id")), str(row.get("name"))): row
+            for row in syntax_rows
+            if row.get("device_id") is not None and row.get("name")
+        }
+        custom_access_policy_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_CUSTOM_ACCESS_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_CUSTOM_ACCESS_POLICY_PATTERN),
+        ]
+        custom_access_policies = {
+            (str(row.get("device_id")), str(row.get("custom_access_policy_name"))): row
+            for row in custom_access_policy_rows
+            if row.get("device_id") is not None and row.get("custom_access_policy_name")
+        }
+        application_dos_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
+        ]
+        application_dos_policies = {
+            (str(row.get("device_id")), str(row.get("name"))): row
+            for row in application_dos_rows
+            if row.get("device_id") is not None and row.get("name")
+        }
+        server_policy_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SERVER_POLICY_PATTERN),
+        ]
+        for row in server_policy_rows:
             device_id = row.get("device_id")
             policy_name = row.get("server_policy_name")
             if device_id is None or not policy_name:
                 continue
+            pool_key = (str(device_id), str(row.get("server_pool_name")))
+            pool_row = server_pools.get(pool_key, {})
+            certificate_name = _normalize_optional_text(pool_row.get("client_certificate")) or _normalize_optional_text(pool_row.get("certificate_name"))
+            certificate_serial = certificate_serials.get((str(device_id), str(certificate_name))) if certificate_name else None
+            web_profile = web_protection_profiles.get((str(device_id), str(row.get("web_protection_profile_name"))), {})
+            signature_row = signatures.get((str(device_id), str(web_profile.get("signature_rule"))), {})
+            http_rfc_row = http_rfc_profiles.get((str(device_id), str(web_profile.get("http_protocol_parameter_restriction"))), {})
+            standard_protection_state = _build_standard_protection_state(signature_row, http_rfc_row, pool_row.get("http2"))
+            syntax_row = syntax_profiles.get((str(device_id), str(web_profile.get("syntax_based_attack_detection"))), {})
+            custom_access_policy_row = custom_access_policies.get((str(device_id), str(web_profile.get("custom_access_policy"))), {})
+            advanced_protection_state = _build_advanced_protection_state(syntax_row, custom_access_policy_row)
+            application_dos_row = application_dos_policies.get((str(device_id), str(web_profile.get("application_layer_dos_prevention"))), {})
+            application_dos_protection_state = _build_application_dos_protection_state(application_dos_row)
             key = (str(device_id), str(policy_name))
-            entries.setdefault(key, []).append((backup_time, (row.get("monitor_mode") or "").strip()))
-        copy_match = PG_DUMP_COPY_SERVER_POLICY_PATTERN.search(content)
-        if copy_match:
-            columns = [col.strip().strip('"') for col in copy_match.group("columns").split(",")]
-            copy_body = content[copy_match.end():]
-            for line in copy_body.splitlines():
-                stripped_line = line.strip()
-                if stripped_line == r"\.":
-                    break
-                if not stripped_line:
-                    continue
-                values = stripped_line.split("\t")
-                if len(values) != len(columns):
-                    continue
-                row = {columns[idx]: (None if values[idx] == r"\N" else values[idx]) for idx in range(len(columns))}
-                device_id = row.get("device_id")
-                policy_name = row.get("server_policy_name")
-                if device_id is None or not policy_name:
-                    continue
-                key = (str(device_id), str(policy_name))
-                entries.setdefault(key, []).append((backup_time, (row.get("monitor_mode") or "").strip()))
+            entries.setdefault(key, []).append(
+                (
+                    backup_time,
+                    _format_policy_status_label(row.get("monitor_mode"), pool_row.get("ip")),
+                    certificate_serial,
+                    standard_protection_state,
+                    advanced_protection_state,
+                    application_dos_protection_state,
+                )
+            )
     return entries
 
 WEB_PROTECTION_PROFILE_FIELD_MAP = {
@@ -249,7 +489,7 @@ def _as_bool(value):
     if isinstance(value, (int, float)):
         return value != 0
     if isinstance(value, str):
-        return value.lower() in {"true", "1", "yes", "on", "enable", "enabled"}
+        return value.strip().lower() in {"true", "t", "1", "yes", "on", "enable", "enabled"}
     return None
 
 
@@ -262,12 +502,205 @@ def _as_enable_disable(value):
         return "enable" if value != 0 else "disable"
     if isinstance(value, str):
         normalized = value.strip().lower()
-        if normalized in {"true", "1", "yes", "on", "enable", "enabled"}:
+        if normalized in {"true", "t", "1", "yes", "on", "enable", "enabled"}:
             return "enable"
-        if normalized in {"false", "0", "no", "off", "disable", "disabled"}:
+        if normalized in {"false", "f", "0", "no", "off", "disable", "disabled"}:
             return "disable"
         return normalized or None
     return str(value).strip().lower() or None
+
+
+def _format_policy_status_label(monitor_mode, policy_ip):
+    if not _normalize_optional_text(policy_ip):
+        return "Not Protected"
+    return "Monitoring" if _as_enable_disable(monitor_mode) == "enable" else "Blocking"
+
+
+def _format_recent_change_date(value: datetime) -> str:
+    return value.strftime("%d/%m")
+
+
+def _format_policy_status_change_summary(status: str) -> str:
+    if status == "Not Protected":
+        return "The policy is not protected because no server pool IP is configured."
+    return f"The policy is now running in {status} mode."
+
+
+def _format_certificate_change_summary(certificate_serial: str | None) -> str:
+    if certificate_serial:
+        return f"The client certificate serial number changed to {certificate_serial}."
+    return "The client certificate serial number changed."
+
+
+def _append_policy_state_changes(
+    changes: list[dict],
+    event_time: datetime,
+    previous_status: str,
+    next_status: str,
+    previous_certificate_serial: str | None,
+    next_certificate_serial: str | None,
+    previous_standard_protection: dict[str, str] | None = None,
+    next_standard_protection: dict[str, str] | None = None,
+    previous_advanced_protection: dict[str, str] | None = None,
+    next_advanced_protection: dict[str, str] | None = None,
+    previous_application_dos_protection: dict[str, str] | None = None,
+    next_application_dos_protection: dict[str, str] | None = None,
+) -> None:
+    event_timestamp = int(event_time.timestamp())
+    if previous_status != next_status:
+        changes.append(
+            {
+                "id": f"policy-status-{event_timestamp}",
+                "title": f"Policy Status changed to {next_status}",
+                "summary": _format_policy_status_change_summary(next_status),
+                "time": _format_recent_change_date(event_time),
+                "type": "Server Policy",
+            }
+        )
+
+    normalized_previous_serial = _normalize_optional_text(previous_certificate_serial)
+    normalized_next_serial = _normalize_optional_text(next_certificate_serial)
+    serial_changed = normalized_previous_serial != normalized_next_serial
+    serial_present = normalized_previous_serial or normalized_next_serial
+    if serial_changed and serial_present:
+        changes.append(
+            {
+                "id": f"certificate-serial-{event_timestamp}",
+                "title": "Certificate changed or renewed",
+                "summary": _format_certificate_change_summary(normalized_next_serial),
+                "time": _format_recent_change_date(event_time),
+                "type": "Certificate",
+            }
+        )
+
+    previous_standard_protection = previous_standard_protection or {}
+    next_standard_protection = next_standard_protection or {}
+    for feature_key, feature_name in STANDARD_PROTECTION_FEATURES.items():
+        previous_feature_status = _format_standard_protection_state(previous_standard_protection.get(feature_key))
+        next_feature_status = _format_standard_protection_state(next_standard_protection.get(feature_key))
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"standard-protection-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"Standard Protection: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "Standard Protection",
+                }
+            )
+
+    previous_advanced_protection = previous_advanced_protection or {}
+    next_advanced_protection = next_advanced_protection or {}
+    for feature_key, feature_name in ADVANCED_PROTECTION_FEATURES.items():
+        if feature_key not in previous_advanced_protection and feature_key not in next_advanced_protection:
+            continue
+        previous_feature_status = str(previous_advanced_protection.get(feature_key) or "unknown").strip().lower()
+        next_feature_status = str(next_advanced_protection.get(feature_key) or "unknown").strip().lower()
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"advanced-protection-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"Advance Protection: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "Advance Protection",
+                }
+            )
+
+    previous_application_dos_protection = previous_application_dos_protection or {}
+    next_application_dos_protection = next_application_dos_protection or {}
+    for feature_key, feature_name in APPLICATION_DOS_PROTECTION_FEATURES.items():
+        if feature_key not in previous_application_dos_protection and feature_key not in next_application_dos_protection:
+            continue
+        previous_feature_status = str(previous_application_dos_protection.get(feature_key) or "unknown").strip().lower()
+        next_feature_status = str(next_application_dos_protection.get(feature_key) or "unknown").strip().lower()
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"application-dos-protection-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"Application Dos protection: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "Application Dos protection",
+                }
+            )
+
+
+def _build_recent_policy_changes(
+    current_status: str,
+    current_certificate_serial: str | None,
+    backup_events: list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str]]] | list[tuple[datetime, str, str | None, dict[str, str], dict[str, str]]] | list[tuple[datetime, str, str | None, dict[str, str]]] | list[tuple[datetime, str, str | None]],
+    current_standard_protection: dict[str, str] | None = None,
+    current_advanced_protection: dict[str, str] | None = None,
+    current_application_dos_protection: dict[str, str] | None = None,
+    current_time: datetime | None = None,
+) -> list[dict]:
+    sorted_events = sorted(backup_events, key=lambda item: item[0])
+    if not sorted_events:
+        return []
+
+    def unpack_event(event):
+        if len(event) >= 6:
+            return event[0], event[1], event[2], event[3], event[4], event[5]
+        if len(event) >= 5:
+            return event[0], event[1], event[2], event[3], event[4], {}
+        if len(event) >= 4:
+            return event[0], event[1], event[2], event[3], {}, {}
+        return event[0], event[1], event[2], {}, {}, {}
+
+    changes = []
+    (
+        _,
+        previous_status,
+        previous_certificate_serial,
+        previous_standard_protection,
+        previous_advanced_protection,
+        previous_application_dos_protection,
+    ) = unpack_event(sorted_events[0])
+    for event in sorted_events[1:]:
+        (
+            event_time,
+            backup_status,
+            backup_certificate_serial,
+            backup_standard_protection,
+            backup_advanced_protection,
+            backup_application_dos_protection,
+        ) = unpack_event(event)
+        _append_policy_state_changes(
+            changes,
+            event_time,
+            previous_status,
+            backup_status,
+            previous_certificate_serial,
+            backup_certificate_serial,
+            previous_standard_protection,
+            backup_standard_protection,
+            previous_advanced_protection,
+            backup_advanced_protection,
+            previous_application_dos_protection,
+            backup_application_dos_protection,
+        )
+        previous_status = backup_status
+        previous_certificate_serial = backup_certificate_serial
+        previous_standard_protection = backup_standard_protection
+        previous_advanced_protection = backup_advanced_protection
+        previous_application_dos_protection = backup_application_dos_protection
+
+    _append_policy_state_changes(
+        changes,
+        current_time or datetime.now(timezone.utc),
+        previous_status,
+        current_status,
+        previous_certificate_serial,
+        current_certificate_serial,
+        previous_standard_protection,
+        current_standard_protection,
+        previous_advanced_protection,
+        current_advanced_protection,
+        previous_application_dos_protection,
+        current_application_dos_protection,
+    )
+    return changes
 
 
 def _normalize_optional_text(value):
@@ -3455,7 +3888,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             "known_engines_action": row["known_engines_action"],
         }
 
-    backup_monitor_modes_by_policy = _load_server_policy_monitor_mode_from_backups(days=7)
+    backup_states_by_policy = _load_server_policy_state_from_backups(days=7)
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3713,19 +4146,26 @@ def load_server_policies_from_db(db: Session) -> dict:
                 }
             )
             latest_policy = by_device[device_id]["server_policies"][-1]
-            current_monitor_mode = (row["monitor_mode"] or "").strip()
+            current_status = _format_policy_status_label(row["monitor_mode"], row["server_pool_ip"])
             backup_key = (str(device_id), row["server_policy_name"])
-            backup_events = sorted(backup_monitor_modes_by_policy.get(backup_key, []), key=lambda item: item[0])
-            for event_time, backup_monitor_mode in backup_events:
-                if backup_monitor_mode != current_monitor_mode:
-                    latest_policy["recent_changes"].append(
-                        {
-                            "id": f"monitor-mode-{int(event_time.timestamp())}",
-                            "title": "Server policy status changed",
-                            "summary": "Server policy status differs from latest fetched configuration.",
-                            "time": event_time.isoformat(),
-                            "type": "Server Policy",
-                        }
-                    )
+            latest_policy["recent_changes"] = _build_recent_policy_changes(
+                current_status,
+                row["client_certificate_serial_number"],
+                backup_states_by_policy.get(backup_key, []),
+                {
+                    "signature": signature_set_status["status"],
+                    "http_rfc": http_rfc_control_status["status"],
+                    "http2_rfc_control": http2_rfc_control_status["status"],
+                },
+                {
+                    "syntax_based_detection": _build_syntax_based_detection_status(row),
+                    "custom_access_rules": "enabled" if custom_access_rule_details else "unknown",
+                },
+                {
+                    "http_flood_prevention": _presence_status(row["http_request_flood_prevention_rule"]),
+                    "http_access_limit": _presence_status(row["layer4_access_limit_rule"]),
+                    "tcp_flood_prevention": _presence_status(row["layer4_connection_flood_check_rule"]),
+                },
+            )
 
     return {"devices": list(by_device.values())}

@@ -2,11 +2,15 @@ from app.services import (
     _build_device_base_url,
     _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
+    _build_recent_policy_changes,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
     _extract_server_pool_row,
     _format_allow_method_value,
+    _format_policy_status_label,
+    _format_recent_change_date,
+    _load_server_policy_state_from_backups,
 )
 
 
@@ -213,3 +217,395 @@ def test_format_allow_method_value_handles_all_methods_keyword():
 
     assert parsed["methods"] == ["ALL"]
     assert parsed["display"] == "All methods"
+
+
+def test_format_policy_status_label_matches_policy_card_copy():
+    assert _format_policy_status_label("enable", "10.0.0.1") == "Monitoring"
+    assert _format_policy_status_label("disable", "10.0.0.1") == "Blocking"
+    assert _format_policy_status_label("enable", None) == "Not Protected"
+
+
+def test_format_recent_change_date_uses_day_month_without_year():
+    from datetime import datetime, timezone
+
+    assert _format_recent_change_date(datetime(2026, 5, 4, 14, 30, tzinfo=timezone.utc)) == "04/05"
+
+
+def test_build_recent_policy_changes_keeps_backup_changes_within_window():
+    from datetime import datetime, timezone
+
+    older_status = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    newer_status = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "CURRENT-SERIAL",
+        [(older_status, "Monitoring", "CURRENT-SERIAL"), (newer_status, "Blocking", "CURRENT-SERIAL")],
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"policy-status-{int(newer_status.timestamp())}",
+            "title": "Policy Status changed to Blocking",
+            "summary": "The policy is now running in Blocking mode.",
+            "time": "05/05",
+            "type": "Server Policy",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_returns_backup_and_current_status_changes():
+    from datetime import datetime, timezone
+
+    older_change = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Not Protected",
+        "CURRENT-SERIAL",
+        [(older_change, "Monitoring", "CURRENT-SERIAL"), (latest_change, "Blocking", "CURRENT-SERIAL")],
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"policy-status-{int(latest_change.timestamp())}",
+            "title": "Policy Status changed to Blocking",
+            "summary": "The policy is now running in Blocking mode.",
+            "time": "05/05",
+            "type": "Server Policy",
+        },
+        {
+            "id": f"policy-status-{int(current_time.timestamp())}",
+            "title": "Policy Status changed to Not Protected",
+            "summary": "The policy is not protected because no server pool IP is configured.",
+            "time": "06/05",
+            "type": "Server Policy",
+        },
+    ]
+
+
+def test_load_server_policy_state_from_backups_includes_not_protected_and_certificate_serial(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    backup_time = datetime.now(timezone.utc)
+    backup_file = backup_dir / f"security_perspective_backup_{backup_time.strftime('%d_%m_%y_%H_%M_%S')}.sql"
+    backup_file.write_text(
+        '\n'.join(
+            [
+                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-a', NULL, 'cert-a');",
+                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-b', '10.0.0.1', 'cert-b');",
+                "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-a', 'OLD-A');",
+                "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-b', 'OLD-B');",
+                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\", \"syntax_based_attack_detection\", \"custom_access_policy\", \"application_layer_dos_prevention\") VALUES (1, 'profile-b', 'sig-b', 'syntax-b', 'custom-b', 'dos-b');",
+                "INSERT INTO \"signature\" (\"device_id\", \"signature_set_name\", \"cross_site_scripting\", \"sql_injection\") VALUES (1, 'sig-b', 'enable', 'enable');",
+                "INSERT INTO \"syntax-based-attack-detection\" (\"device_id\", \"name\", \"xss_html_tag_based_status\", \"sql_stacked_queries_status\") VALUES (1, 'syntax-b', 'enable', 'enable');",
+                "INSERT INTO \"custom-access-policy\" (\"device_id\", \"custom_access_policy_name\", \"rule_names\") VALUES (1, 'custom-b', '{rule-a}');",
+                "INSERT INTO \"application-layer-dos-prevention\" (\"device_id\", \"name\", \"http_request_flood_prevention_rule\", \"layer4_access_limit_rule\", \"layer4_connection_flood_check_rule\") VALUES (1, 'dos-b', 'http-flood-b', 'access-limit-b', 'tcp-flood-b');",
+                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-a', 'pool-a', 'enable', NULL);",
+                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-b', 'pool-b', 'enable', 'profile-b');",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    states = _load_server_policy_state_from_backups(days=7)
+
+    assert states[("1", "policy-a")][0][1:3] == ("Not Protected", "OLD-A")
+    assert states[("1", "policy-b")][0][1:3] == ("Monitoring", "OLD-B")
+    assert states[("1", "policy-a")][0][3] == {
+        "signature": "disabled",
+        "http_rfc": "disabled",
+        "http2_rfc_control": "disabled",
+    }
+    assert states[("1", "policy-b")][0][3]["signature"] == "enabled"
+    assert states[("1", "policy-b")][0][4] == {
+        "syntax_based_detection": "enabled",
+        "custom_access_rules": "enabled",
+    }
+    assert states[("1", "policy-b")][0][5] == {
+        "http_flood_prevention": "enabled",
+        "http_access_limit": "enabled",
+        "tcp_flood_prevention": "enabled",
+    }
+
+
+def test_build_recent_policy_changes_adds_certificate_change():
+    from datetime import datetime, timezone
+
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "NEW-SERIAL",
+        [(latest_change, "Blocking", "OLD-SERIAL")],
+        current_time=latest_change,
+    )
+
+    assert changes == [
+        {
+            "id": f"certificate-serial-{int(latest_change.timestamp())}",
+            "title": "Certificate changed or renewed",
+            "summary": "The client certificate serial number changed to NEW-SERIAL.",
+            "time": "05/05",
+            "type": "Certificate",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_can_list_status_and_certificate_changes():
+    from datetime import datetime, timezone
+
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Monitoring",
+        "NEW-SERIAL",
+        [(latest_change, "Blocking", "OLD-SERIAL")],
+        current_time=latest_change,
+    )
+
+    assert [change["title"] for change in changes] == [
+        "Policy Status changed to Monitoring",
+        "Certificate changed or renewed",
+    ]
+
+
+def test_build_recent_policy_changes_lists_simultaneous_status_and_new_certificate_changes():
+    from datetime import datetime, timezone
+
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Monitoring",
+        "NEW-SERIAL",
+        [(latest_change, "Blocking", None)],
+        current_time=latest_change,
+    )
+
+    assert changes == [
+        {
+            "id": f"policy-status-{int(latest_change.timestamp())}",
+            "title": "Policy Status changed to Monitoring",
+            "summary": "The policy is now running in Monitoring mode.",
+            "time": "05/05",
+            "type": "Server Policy",
+        },
+        {
+            "id": f"certificate-serial-{int(latest_change.timestamp())}",
+            "title": "Certificate changed or renewed",
+            "summary": "The client certificate serial number changed to NEW-SERIAL.",
+            "time": "05/05",
+            "type": "Certificate",
+        },
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_certificate_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    renewed_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-B",
+        [
+            (first_backup, "Blocking", "SERIAL-A"),
+            (renewed_backup, "Blocking", "SERIAL-B"),
+            (latest_backup, "Blocking", "SERIAL-B"),
+        ],
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"certificate-serial-{int(renewed_backup.timestamp())}",
+            "title": "Certificate changed or renewed",
+            "summary": "The client certificate serial number changed to SERIAL-B.",
+            "time": "03/05",
+            "type": "Certificate",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_adds_standard_protection_feature_change():
+    from datetime import datetime, timezone
+
+    backup_time = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [(backup_time, "Blocking", "SERIAL-A", {"signature": "enabled"})],
+        {"signature": "disabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"standard-protection-signature-{int(current_time.timestamp())}",
+            "title": "Signature control disabled",
+            "summary": "Standard Protection: Signature changed to Disabled.",
+            "time": "06/05",
+            "type": "Standard Protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_standard_protection_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    disabled_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [
+            (first_backup, "Blocking", "SERIAL-A", {"signature": "enabled"}),
+            (disabled_backup, "Blocking", "SERIAL-A", {"signature": "disabled"}),
+            (latest_backup, "Blocking", "SERIAL-A", {"signature": "disabled"}),
+        ],
+        {"signature": "disabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"standard-protection-signature-{int(disabled_backup.timestamp())}",
+            "title": "Signature control disabled",
+            "summary": "Standard Protection: Signature changed to Disabled.",
+            "time": "03/05",
+            "type": "Standard Protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_adds_advanced_protection_feature_change():
+    from datetime import datetime, timezone
+
+    backup_time = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [(backup_time, "Blocking", "SERIAL-A", {}, {"syntax_based_detection": "enabled"})],
+        {},
+        {"syntax_based_detection": "disabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"advanced-protection-syntax_based_detection-{int(current_time.timestamp())}",
+            "title": "Syntax Based Detection control disabled",
+            "summary": "Advance Protection: Syntax Based Detection changed to Disabled.",
+            "time": "06/05",
+            "type": "Advance Protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_advanced_protection_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    enabled_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [
+            (first_backup, "Blocking", "SERIAL-A", {}, {"custom_access_rules": "unknown"}),
+            (enabled_backup, "Blocking", "SERIAL-A", {}, {"custom_access_rules": "enabled"}),
+            (latest_backup, "Blocking", "SERIAL-A", {}, {"custom_access_rules": "enabled"}),
+        ],
+        {},
+        {"custom_access_rules": "enabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"advanced-protection-custom_access_rules-{int(enabled_backup.timestamp())}",
+            "title": "Custom Access Rules control enabled",
+            "summary": "Advance Protection: Custom Access Rules changed to Enabled.",
+            "time": "03/05",
+            "type": "Advance Protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_adds_application_dos_feature_change():
+    from datetime import datetime, timezone
+
+    backup_time = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [(backup_time, "Blocking", "SERIAL-A", {}, {}, {"http_flood_prevention": "enabled"})],
+        {},
+        {},
+        {"http_flood_prevention": "unknown"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"application-dos-protection-http_flood_prevention-{int(current_time.timestamp())}",
+            "title": "HTTP Flood Prevention control unknown",
+            "summary": "Application Dos protection: HTTP Flood Prevention changed to Unknown.",
+            "time": "06/05",
+            "type": "Application Dos protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_application_dos_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    enabled_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [
+            (first_backup, "Blocking", "SERIAL-A", {}, {}, {"tcp_flood_prevention": "unknown"}),
+            (enabled_backup, "Blocking", "SERIAL-A", {}, {}, {"tcp_flood_prevention": "enabled"}),
+            (latest_backup, "Blocking", "SERIAL-A", {}, {}, {"tcp_flood_prevention": "enabled"}),
+        ],
+        {},
+        {},
+        {"tcp_flood_prevention": "enabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"application-dos-protection-tcp_flood_prevention-{int(enabled_backup.timestamp())}",
+            "title": "TCP Flood Prevention control enabled",
+            "summary": "Application Dos protection: TCP Flood Prevention changed to Enabled.",
+            "time": "03/05",
+            "type": "Application Dos protection",
+        }
+    ]
