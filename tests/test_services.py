@@ -302,8 +302,10 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
                 "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-b', '10.0.0.1', 'cert-b');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-a', 'OLD-A');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-b', 'OLD-B');",
-                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\") VALUES (1, 'policy-a', 'pool-a', 'enable');",
-                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\") VALUES (1, 'policy-b', 'pool-b', 'enable');",
+                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\") VALUES (1, 'profile-b', 'sig-b');",
+                "INSERT INTO \"signature\" (\"device_id\", \"signature_set_name\", \"cross_site_scripting\", \"sql_injection\") VALUES (1, 'sig-b', 'enable', 'enable');",
+                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-a', 'pool-a', 'enable', NULL);",
+                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-b', 'pool-b', 'enable', 'profile-b');",
             ]
         ),
         encoding="utf-8",
@@ -312,8 +314,14 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
 
     states = _load_server_policy_state_from_backups(days=7)
 
-    assert states[("1", "policy-a")][0][1:] == ("Not Protected", "OLD-A")
-    assert states[("1", "policy-b")][0][1:] == ("Monitoring", "OLD-B")
+    assert states[("1", "policy-a")][0][1:3] == ("Not Protected", "OLD-A")
+    assert states[("1", "policy-b")][0][1:3] == ("Monitoring", "OLD-B")
+    assert states[("1", "policy-a")][0][3] == {
+        "signature": "disabled",
+        "http_rfc": "disabled",
+        "http2_rfc_control": "disabled",
+    }
+    assert states[("1", "policy-b")][0][3]["signature"] == "enabled"
 
 
 def test_build_recent_policy_changes_adds_certificate_change():
@@ -413,5 +421,61 @@ def test_build_recent_policy_changes_keeps_historical_certificate_changes():
             "summary": "The client certificate serial number changed to SERIAL-B.",
             "time": "03/05",
             "type": "Certificate",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_adds_standard_protection_feature_change():
+    from datetime import datetime, timezone
+
+    backup_time = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [(backup_time, "Blocking", "SERIAL-A", {"signature": "enabled"})],
+        {"signature": "disabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"standard-protection-signature-{int(current_time.timestamp())}",
+            "title": "Signature control disabled",
+            "summary": "Standard Protection: Signature changed to Disabled.",
+            "time": "06/05",
+            "type": "Standard Protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_standard_protection_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    disabled_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [
+            (first_backup, "Blocking", "SERIAL-A", {"signature": "enabled"}),
+            (disabled_backup, "Blocking", "SERIAL-A", {"signature": "disabled"}),
+            (latest_backup, "Blocking", "SERIAL-A", {"signature": "disabled"}),
+        ],
+        {"signature": "disabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"standard-protection-signature-{int(disabled_backup.timestamp())}",
+            "title": "Signature control disabled",
+            "summary": "Standard Protection: Signature changed to Disabled.",
+            "time": "03/05",
+            "type": "Standard Protection",
         }
     ]

@@ -25,6 +25,18 @@ FALLBACK_INSERT_CERTIFICATE_LOCAL_PATTERN = re.compile(
     r'INSERT INTO "certificate_local"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_WEB_PROTECTION_PROFILE_PATTERN = re.compile(
+    r'INSERT INTO "web_protection_profiles"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_SIGNATURE_PATTERN = re.compile(
+    r'INSERT INTO "signature"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN = re.compile(
+    r'INSERT INTO "http_protocol_parameter_restriction"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 PG_DUMP_COPY_SERVER_POLICY_PATTERN = re.compile(
     r"COPY\s+public\.server_policy\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
     re.IGNORECASE,
@@ -35,6 +47,18 @@ PG_DUMP_COPY_SERVER_POOL_PATTERN = re.compile(
 )
 PG_DUMP_COPY_CERTIFICATE_LOCAL_PATTERN = re.compile(
     r"COPY\s+public\.certificate_local\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_WEB_PROTECTION_PROFILE_PATTERN = re.compile(
+    r"COPY\s+public\.web_protection_profiles\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_SIGNATURE_PATTERN = re.compile(
+    r"COPY\s+public\.signature\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN = re.compile(
+    r"COPY\s+public\.http_protocol_parameter_restriction\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
     re.IGNORECASE,
 )
 
@@ -107,10 +131,30 @@ def _extract_pg_dump_copy_rows(content: str, pattern: re.Pattern) -> list[dict]:
     return rows
 
 
-def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None]]]:
+STANDARD_PROTECTION_FEATURES = {
+    "signature": "Signature",
+    "http_rfc": "HTTP RFC",
+    "http2_rfc_control": "HTTP/2 RFC control",
+}
+
+
+def _format_standard_protection_state(value) -> str:
+    return "enabled" if _as_enable_disable(value) == "enable" or str(value).strip().lower() == "enabled" else "disabled"
+
+
+def _build_standard_protection_state(signature_row: dict, http_rfc_row: dict, http2_enabled) -> dict[str, str]:
+    http2_row = {**http_rfc_row, "http2": http2_enabled}
+    return {
+        "signature": _build_signature_set_status(signature_row)["status"],
+        "http_rfc": _build_http_rfc_control_status(http_rfc_row)["status"],
+        "http2_rfc_control": _build_http2_rfc_control_status(http2_row)["status"],
+    }
+
+
+def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str]]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None]]] = {}
+    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str]]]] = {}
     backup_files = []
     for backup_dir in backup_dirs:
         if backup_dir.exists():
@@ -148,6 +192,33 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             for row in certificate_rows
             if row.get("device_id") is not None and row.get("certificate_name")
         }
+        web_protection_profile_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_WEB_PROTECTION_PROFILE_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_WEB_PROTECTION_PROFILE_PATTERN),
+        ]
+        web_protection_profiles = {
+            (str(row.get("device_id")), str(row.get("web_protection_profile_name"))): row
+            for row in web_protection_profile_rows
+            if row.get("device_id") is not None and row.get("web_protection_profile_name")
+        }
+        signature_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SIGNATURE_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SIGNATURE_PATTERN),
+        ]
+        signatures = {
+            (str(row.get("device_id")), str(row.get("signature_set_name"))): row
+            for row in signature_rows
+            if row.get("device_id") is not None and row.get("signature_set_name")
+        }
+        http_rfc_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_HTTP_PROTOCOL_PARAMETER_RESTRICTION_PATTERN),
+        ]
+        http_rfc_profiles = {
+            (str(row.get("device_id")), str(row.get("name"))): row
+            for row in http_rfc_rows
+            if row.get("device_id") is not None and row.get("name")
+        }
         server_policy_rows = [
             *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POLICY_PATTERN),
             *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SERVER_POLICY_PATTERN),
@@ -161,12 +232,17 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             pool_row = server_pools.get(pool_key, {})
             certificate_name = _normalize_optional_text(pool_row.get("client_certificate")) or _normalize_optional_text(pool_row.get("certificate_name"))
             certificate_serial = certificate_serials.get((str(device_id), str(certificate_name))) if certificate_name else None
+            web_profile = web_protection_profiles.get((str(device_id), str(row.get("web_protection_profile_name"))), {})
+            signature_row = signatures.get((str(device_id), str(web_profile.get("signature_rule"))), {})
+            http_rfc_row = http_rfc_profiles.get((str(device_id), str(web_profile.get("http_protocol_parameter_restriction"))), {})
+            standard_protection_state = _build_standard_protection_state(signature_row, http_rfc_row, pool_row.get("http2"))
             key = (str(device_id), str(policy_name))
             entries.setdefault(key, []).append(
                 (
                     backup_time,
                     _format_policy_status_label(row.get("monitor_mode"), pool_row.get("ip")),
                     certificate_serial,
+                    standard_protection_state,
                 )
             )
     return entries
@@ -305,7 +381,7 @@ def _as_bool(value):
     if isinstance(value, (int, float)):
         return value != 0
     if isinstance(value, str):
-        return value.lower() in {"true", "1", "yes", "on", "enable", "enabled"}
+        return value.strip().lower() in {"true", "t", "1", "yes", "on", "enable", "enabled"}
     return None
 
 
@@ -318,9 +394,9 @@ def _as_enable_disable(value):
         return "enable" if value != 0 else "disable"
     if isinstance(value, str):
         normalized = value.strip().lower()
-        if normalized in {"true", "1", "yes", "on", "enable", "enabled"}:
+        if normalized in {"true", "t", "1", "yes", "on", "enable", "enabled"}:
             return "enable"
-        if normalized in {"false", "0", "no", "off", "disable", "disabled"}:
+        if normalized in {"false", "f", "0", "no", "off", "disable", "disabled"}:
             return "disable"
         return normalized or None
     return str(value).strip().lower() or None
@@ -355,6 +431,8 @@ def _append_policy_state_changes(
     next_status: str,
     previous_certificate_serial: str | None,
     next_certificate_serial: str | None,
+    previous_standard_protection: dict[str, str] | None = None,
+    next_standard_protection: dict[str, str] | None = None,
 ) -> None:
     event_timestamp = int(event_time.timestamp())
     if previous_status != next_status:
@@ -383,20 +461,43 @@ def _append_policy_state_changes(
             }
         )
 
+    previous_standard_protection = previous_standard_protection or {}
+    next_standard_protection = next_standard_protection or {}
+    for feature_key, feature_name in STANDARD_PROTECTION_FEATURES.items():
+        previous_feature_status = _format_standard_protection_state(previous_standard_protection.get(feature_key))
+        next_feature_status = _format_standard_protection_state(next_standard_protection.get(feature_key))
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"standard-protection-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"Standard Protection: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "Standard Protection",
+                }
+            )
+
 
 def _build_recent_policy_changes(
     current_status: str,
     current_certificate_serial: str | None,
-    backup_events: list[tuple[datetime, str, str | None]],
+    backup_events: list[tuple[datetime, str, str | None, dict[str, str]]] | list[tuple[datetime, str, str | None]],
+    current_standard_protection: dict[str, str] | None = None,
     current_time: datetime | None = None,
 ) -> list[dict]:
     sorted_events = sorted(backup_events, key=lambda item: item[0])
     if not sorted_events:
         return []
 
+    def unpack_event(event):
+        if len(event) >= 4:
+            return event[0], event[1], event[2], event[3]
+        return event[0], event[1], event[2], {}
+
     changes = []
-    _, previous_status, previous_certificate_serial = sorted_events[0]
-    for event_time, backup_status, backup_certificate_serial in sorted_events[1:]:
+    _, previous_status, previous_certificate_serial, previous_standard_protection = unpack_event(sorted_events[0])
+    for event in sorted_events[1:]:
+        event_time, backup_status, backup_certificate_serial, backup_standard_protection = unpack_event(event)
         _append_policy_state_changes(
             changes,
             event_time,
@@ -404,9 +505,12 @@ def _build_recent_policy_changes(
             backup_status,
             previous_certificate_serial,
             backup_certificate_serial,
+            previous_standard_protection,
+            backup_standard_protection,
         )
         previous_status = backup_status
         previous_certificate_serial = backup_certificate_serial
+        previous_standard_protection = backup_standard_protection
 
     _append_policy_state_changes(
         changes,
@@ -415,6 +519,8 @@ def _build_recent_policy_changes(
         current_status,
         previous_certificate_serial,
         current_certificate_serial,
+        previous_standard_protection,
+        current_standard_protection,
     )
     return changes
 
@@ -3868,6 +3974,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                 current_status,
                 row["client_certificate_serial_number"],
                 backup_states_by_policy.get(backup_key, []),
+                {
+                    "signature": signature_set_status["status"],
+                    "http_rfc": http_rfc_control_status["status"],
+                    "http2_rfc_control": http2_rfc_control_status["status"],
+                },
             )
 
     return {"devices": list(by_device.values())}
