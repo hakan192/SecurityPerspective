@@ -2,6 +2,7 @@ from app.services import (
     _build_device_base_url,
     _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
+    _build_recent_policy_status_changes,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
@@ -9,6 +10,7 @@ from app.services import (
     _format_allow_method_value,
     _format_policy_status_label,
     _format_recent_change_date,
+    _load_server_policy_status_from_backups,
 )
 
 
@@ -218,12 +220,74 @@ def test_format_allow_method_value_handles_all_methods_keyword():
 
 
 def test_format_policy_status_label_matches_policy_card_copy():
-    assert _format_policy_status_label("enable") == "Monitoring"
-    assert _format_policy_status_label("disable") == "Blocking"
-    assert _format_policy_status_label(None) == "Blocking"
+    assert _format_policy_status_label("enable", "10.0.0.1") == "Monitoring"
+    assert _format_policy_status_label("disable", "10.0.0.1") == "Blocking"
+    assert _format_policy_status_label("enable", None) == "Not Protected"
 
 
 def test_format_recent_change_date_uses_day_month_without_year():
     from datetime import datetime, timezone
 
     assert _format_recent_change_date(datetime(2026, 5, 4, 14, 30, tzinfo=timezone.utc)) == "04/05"
+
+
+def test_build_recent_policy_status_changes_uses_only_latest_backup_status():
+    from datetime import datetime, timezone
+
+    older_change = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    latest_same_status = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_status_changes(
+        "Blocking",
+        [(older_change, "Monitoring"), (latest_same_status, "Blocking")],
+    )
+
+    assert changes == []
+
+
+def test_build_recent_policy_status_changes_returns_latest_change_only():
+    from datetime import datetime, timezone
+
+    older_change = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_status_changes(
+        "Not Protected",
+        [(older_change, "Monitoring"), (latest_change, "Blocking")],
+    )
+
+    assert changes == [
+        {
+            "id": f"policy-status-{int(latest_change.timestamp())}",
+            "title": "Policy Status changed to Not Protected",
+            "summary": "The policy is not protected because no server pool IP is configured.",
+            "time": "05/05",
+            "type": "Server Policy",
+        }
+    ]
+
+
+def test_load_server_policy_status_from_backups_includes_not_protected(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    backup_time = datetime.now(timezone.utc)
+    backup_file = backup_dir / f"security_perspective_backup_{backup_time.strftime('%d_%m_%y_%H_%M_%S')}.sql"
+    backup_file.write_text(
+        '\n'.join(
+            [
+                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\") VALUES (1, 'pool-a', NULL);",
+                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\") VALUES (1, 'pool-b', '10.0.0.1');",
+                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\") VALUES (1, 'policy-a', 'pool-a', 'enable');",
+                "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\") VALUES (1, 'policy-b', 'pool-b', 'enable');",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    statuses = _load_server_policy_status_from_backups(days=7)
+
+    assert statuses[("1", "policy-a")][0][1] == "Not Protected"
+    assert statuses[("1", "policy-b")][0][1] == "Monitoring"

@@ -17,8 +17,16 @@ FALLBACK_INSERT_SERVER_POLICY_PATTERN = re.compile(
     r'INSERT INTO "server_policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_SERVER_POOL_PATTERN = re.compile(
+    r'INSERT INTO "server_pool"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 PG_DUMP_COPY_SERVER_POLICY_PATTERN = re.compile(
     r"COPY\s+public\.server_policy\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_SERVER_POOL_PATTERN = re.compile(
+    r"COPY\s+public\.server_pool\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
     re.IGNORECASE,
 )
 
@@ -59,7 +67,39 @@ def _parse_sql_string(value: str):
     return stripped
 
 
-def _load_server_policy_monitor_mode_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str]]]:
+def _extract_fallback_insert_rows(content: str, pattern: re.Pattern) -> list[dict]:
+    rows = []
+    for insert_match in pattern.finditer(content):
+        columns = [col.strip().strip('"') for col in insert_match.group("columns").split(",")]
+        values = _split_sql_values(insert_match.group("values"))
+        if len(columns) != len(values):
+            continue
+        rows.append({columns[idx]: _parse_sql_string(values[idx]) for idx in range(len(columns))})
+    return rows
+
+
+def _extract_pg_dump_copy_rows(content: str, pattern: re.Pattern) -> list[dict]:
+    copy_match = pattern.search(content)
+    if not copy_match:
+        return []
+
+    rows = []
+    columns = [col.strip().strip('"') for col in copy_match.group("columns").split(",")]
+    copy_body = content[copy_match.end():]
+    for line in copy_body.splitlines():
+        stripped_line = line.strip()
+        if stripped_line == r"\.":
+            break
+        if not stripped_line:
+            continue
+        values = stripped_line.split("\t")
+        if len(values) != len(columns):
+            continue
+        rows.append({columns[idx]: (None if values[idx] == r"\N" else values[idx]) for idx in range(len(columns))})
+    return rows
+
+
+def _load_server_policy_status_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     entries: dict[tuple[str, str], list[tuple[datetime, str]]] = {}
@@ -81,38 +121,33 @@ def _load_server_policy_monitor_mode_from_backups(days: int = 7) -> dict[tuple[s
             content = backup_file.read_text(encoding="utf-8")
         except OSError:
             continue
-        for insert_match in FALLBACK_INSERT_SERVER_POLICY_PATTERN.finditer(content):
-            columns = [col.strip().strip('"') for col in insert_match.group("columns").split(",")]
-            values = _split_sql_values(insert_match.group("values"))
-            if len(columns) != len(values):
-                continue
-            row = {columns[idx]: _parse_sql_string(values[idx]) for idx in range(len(columns))}
+
+        server_pool_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POOL_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SERVER_POOL_PATTERN),
+        ]
+        server_pool_ips = {
+            (str(row.get("device_id")), str(row.get("server_pool_name"))): row.get("ip")
+            for row in server_pool_rows
+            if row.get("device_id") is not None and row.get("server_pool_name")
+        }
+        server_policy_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SERVER_POLICY_PATTERN),
+        ]
+        for row in server_policy_rows:
             device_id = row.get("device_id")
             policy_name = row.get("server_policy_name")
             if device_id is None or not policy_name:
                 continue
+            pool_key = (str(device_id), str(row.get("server_pool_name")))
             key = (str(device_id), str(policy_name))
-            entries.setdefault(key, []).append((backup_time, (row.get("monitor_mode") or "").strip()))
-        copy_match = PG_DUMP_COPY_SERVER_POLICY_PATTERN.search(content)
-        if copy_match:
-            columns = [col.strip().strip('"') for col in copy_match.group("columns").split(",")]
-            copy_body = content[copy_match.end():]
-            for line in copy_body.splitlines():
-                stripped_line = line.strip()
-                if stripped_line == r"\.":
-                    break
-                if not stripped_line:
-                    continue
-                values = stripped_line.split("\t")
-                if len(values) != len(columns):
-                    continue
-                row = {columns[idx]: (None if values[idx] == r"\N" else values[idx]) for idx in range(len(columns))}
-                device_id = row.get("device_id")
-                policy_name = row.get("server_policy_name")
-                if device_id is None or not policy_name:
-                    continue
-                key = (str(device_id), str(policy_name))
-                entries.setdefault(key, []).append((backup_time, (row.get("monitor_mode") or "").strip()))
+            entries.setdefault(key, []).append(
+                (
+                    backup_time,
+                    _format_policy_status_label(row.get("monitor_mode"), server_pool_ips.get(pool_key)),
+                )
+            )
     return entries
 
 WEB_PROTECTION_PROFILE_FIELD_MAP = {
@@ -270,12 +305,40 @@ def _as_enable_disable(value):
     return str(value).strip().lower() or None
 
 
-def _format_policy_status_label(monitor_mode):
+def _format_policy_status_label(monitor_mode, policy_ip):
+    if not _normalize_optional_text(policy_ip):
+        return "Not Protected"
     return "Monitoring" if _as_enable_disable(monitor_mode) == "enable" else "Blocking"
 
 
 def _format_recent_change_date(value: datetime) -> str:
     return value.strftime("%d/%m")
+
+
+def _format_policy_status_change_summary(status: str) -> str:
+    if status == "Not Protected":
+        return "The policy is not protected because no server pool IP is configured."
+    return f"The policy is now running in {status} mode."
+
+
+def _build_recent_policy_status_changes(current_status: str, backup_status_events: list[tuple[datetime, str]]) -> list[dict]:
+    latest_event = next(iter(sorted(backup_status_events, key=lambda item: item[0], reverse=True)), None)
+    if not latest_event:
+        return []
+
+    event_time, backup_status = latest_event
+    if backup_status == current_status:
+        return []
+
+    return [
+        {
+            "id": f"policy-status-{int(event_time.timestamp())}",
+            "title": f"Policy Status changed to {current_status}",
+            "summary": _format_policy_status_change_summary(current_status),
+            "time": _format_recent_change_date(event_time),
+            "type": "Server Policy",
+        }
+    ]
 
 
 def _normalize_optional_text(value):
@@ -3463,7 +3526,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             "known_engines_action": row["known_engines_action"],
         }
 
-    backup_monitor_modes_by_policy = _load_server_policy_monitor_mode_from_backups(days=7)
+    backup_statuses_by_policy = _load_server_policy_status_from_backups(days=7)
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3721,20 +3784,11 @@ def load_server_policies_from_db(db: Session) -> dict:
                 }
             )
             latest_policy = by_device[device_id]["server_policies"][-1]
-            current_monitor_mode = (row["monitor_mode"] or "").strip()
+            current_status = _format_policy_status_label(row["monitor_mode"], row["server_pool_ip"])
             backup_key = (str(device_id), row["server_policy_name"])
-            backup_events = sorted(backup_monitor_modes_by_policy.get(backup_key, []), key=lambda item: item[0])
-            for event_time, backup_monitor_mode in backup_events:
-                if backup_monitor_mode != current_monitor_mode:
-                    policy_status = _format_policy_status_label(current_monitor_mode)
-                    latest_policy["recent_changes"].append(
-                        {
-                            "id": f"monitor-mode-{int(event_time.timestamp())}",
-                            "title": f"Policy Status changed to {policy_status}",
-                            "summary": f"The policy is now running in {policy_status} mode.",
-                            "time": _format_recent_change_date(event_time),
-                            "type": "Server Policy",
-                        }
-                    )
+            latest_policy["recent_changes"] = _build_recent_policy_status_changes(
+                current_status,
+                backup_statuses_by_policy.get(backup_key, []),
+            )
 
     return {"devices": list(by_device.values())}
