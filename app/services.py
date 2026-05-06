@@ -348,42 +348,74 @@ def _format_certificate_change_summary(certificate_serial: str | None) -> str:
     return "The client certificate serial number changed."
 
 
-def _build_recent_policy_changes(
-    current_status: str,
-    current_certificate_serial: str | None,
-    backup_events: list[tuple[datetime, str, str | None]],
-) -> list[dict]:
-    latest_event = next(iter(sorted(backup_events, key=lambda item: item[0], reverse=True)), None)
-    if not latest_event:
-        return []
-
-    event_time, backup_status, backup_certificate_serial = latest_event
-    changes = []
-    if backup_status != current_status:
+def _append_policy_state_changes(
+    changes: list[dict],
+    event_time: datetime,
+    previous_status: str,
+    next_status: str,
+    previous_certificate_serial: str | None,
+    next_certificate_serial: str | None,
+) -> None:
+    event_timestamp = int(event_time.timestamp())
+    if previous_status != next_status:
         changes.append(
             {
-                "id": f"policy-status-{int(event_time.timestamp())}",
-                "title": f"Policy Status changed to {current_status}",
-                "summary": _format_policy_status_change_summary(current_status),
+                "id": f"policy-status-{event_timestamp}",
+                "title": f"Policy Status changed to {next_status}",
+                "summary": _format_policy_status_change_summary(next_status),
                 "time": _format_recent_change_date(event_time),
                 "type": "Server Policy",
             }
         )
 
-    normalized_current_serial = _normalize_optional_text(current_certificate_serial)
-    normalized_backup_serial = _normalize_optional_text(backup_certificate_serial)
-    serial_changed = normalized_backup_serial != normalized_current_serial
-    serial_present = normalized_backup_serial or normalized_current_serial
+    normalized_previous_serial = _normalize_optional_text(previous_certificate_serial)
+    normalized_next_serial = _normalize_optional_text(next_certificate_serial)
+    serial_changed = normalized_previous_serial != normalized_next_serial
+    serial_present = normalized_previous_serial or normalized_next_serial
     if serial_changed and serial_present:
         changes.append(
             {
-                "id": f"certificate-serial-{int(event_time.timestamp())}",
+                "id": f"certificate-serial-{event_timestamp}",
                 "title": "Certificate changed or renewed",
-                "summary": _format_certificate_change_summary(normalized_current_serial),
+                "summary": _format_certificate_change_summary(normalized_next_serial),
                 "time": _format_recent_change_date(event_time),
                 "type": "Certificate",
             }
         )
+
+
+def _build_recent_policy_changes(
+    current_status: str,
+    current_certificate_serial: str | None,
+    backup_events: list[tuple[datetime, str, str | None]],
+    current_time: datetime | None = None,
+) -> list[dict]:
+    sorted_events = sorted(backup_events, key=lambda item: item[0])
+    if not sorted_events:
+        return []
+
+    changes = []
+    _, previous_status, previous_certificate_serial = sorted_events[0]
+    for event_time, backup_status, backup_certificate_serial in sorted_events[1:]:
+        _append_policy_state_changes(
+            changes,
+            event_time,
+            previous_status,
+            backup_status,
+            previous_certificate_serial,
+            backup_certificate_serial,
+        )
+        previous_status = backup_status
+        previous_certificate_serial = backup_certificate_serial
+
+    _append_policy_state_changes(
+        changes,
+        current_time or datetime.now(timezone.utc),
+        previous_status,
+        current_status,
+        previous_certificate_serial,
+        current_certificate_serial,
+    )
     return changes
 
 

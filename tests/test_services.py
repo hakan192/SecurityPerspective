@@ -231,41 +231,60 @@ def test_format_recent_change_date_uses_day_month_without_year():
     assert _format_recent_change_date(datetime(2026, 5, 4, 14, 30, tzinfo=timezone.utc)) == "04/05"
 
 
-def test_build_recent_policy_changes_uses_only_latest_backup_status():
+def test_build_recent_policy_changes_keeps_backup_changes_within_window():
     from datetime import datetime, timezone
 
-    older_change = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
-    latest_same_status = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    older_status = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    newer_status = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
 
     changes = _build_recent_policy_changes(
         "Blocking",
         "CURRENT-SERIAL",
-        [(older_change, "Monitoring", "CURRENT-SERIAL"), (latest_same_status, "Blocking", "CURRENT-SERIAL")],
+        [(older_status, "Monitoring", "CURRENT-SERIAL"), (newer_status, "Blocking", "CURRENT-SERIAL")],
+        current_time=current_time,
     )
 
-    assert changes == []
+    assert changes == [
+        {
+            "id": f"policy-status-{int(newer_status.timestamp())}",
+            "title": "Policy Status changed to Blocking",
+            "summary": "The policy is now running in Blocking mode.",
+            "time": "05/05",
+            "type": "Server Policy",
+        }
+    ]
 
 
-def test_build_recent_policy_changes_returns_latest_status_change_only():
+def test_build_recent_policy_changes_returns_backup_and_current_status_changes():
     from datetime import datetime, timezone
 
     older_change = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
     latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
 
     changes = _build_recent_policy_changes(
         "Not Protected",
         "CURRENT-SERIAL",
         [(older_change, "Monitoring", "CURRENT-SERIAL"), (latest_change, "Blocking", "CURRENT-SERIAL")],
+        current_time=current_time,
     )
 
     assert changes == [
         {
             "id": f"policy-status-{int(latest_change.timestamp())}",
-            "title": "Policy Status changed to Not Protected",
-            "summary": "The policy is not protected because no server pool IP is configured.",
+            "title": "Policy Status changed to Blocking",
+            "summary": "The policy is now running in Blocking mode.",
             "time": "05/05",
             "type": "Server Policy",
-        }
+        },
+        {
+            "id": f"policy-status-{int(current_time.timestamp())}",
+            "title": "Policy Status changed to Not Protected",
+            "summary": "The policy is not protected because no server pool IP is configured.",
+            "time": "06/05",
+            "type": "Server Policy",
+        },
     ]
 
 
@@ -306,6 +325,7 @@ def test_build_recent_policy_changes_adds_certificate_change():
         "Blocking",
         "NEW-SERIAL",
         [(latest_change, "Blocking", "OLD-SERIAL")],
+        current_time=latest_change,
     )
 
     assert changes == [
@@ -328,6 +348,7 @@ def test_build_recent_policy_changes_can_list_status_and_certificate_changes():
         "Monitoring",
         "NEW-SERIAL",
         [(latest_change, "Blocking", "OLD-SERIAL")],
+        current_time=latest_change,
     )
 
     assert [change["title"] for change in changes] == [
@@ -345,6 +366,7 @@ def test_build_recent_policy_changes_lists_simultaneous_status_and_new_certifica
         "Monitoring",
         "NEW-SERIAL",
         [(latest_change, "Blocking", None)],
+        current_time=latest_change,
     )
 
     assert changes == [
@@ -362,4 +384,34 @@ def test_build_recent_policy_changes_lists_simultaneous_status_and_new_certifica
             "time": "05/05",
             "type": "Certificate",
         },
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_certificate_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    renewed_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-B",
+        [
+            (first_backup, "Blocking", "SERIAL-A"),
+            (renewed_backup, "Blocking", "SERIAL-B"),
+            (latest_backup, "Blocking", "SERIAL-B"),
+        ],
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"certificate-serial-{int(renewed_backup.timestamp())}",
+            "title": "Certificate changed or renewed",
+            "summary": "The client certificate serial number changed to SERIAL-B.",
+            "time": "03/05",
+            "type": "Certificate",
+        }
     ]
