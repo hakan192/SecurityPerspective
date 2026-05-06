@@ -21,12 +21,20 @@ FALLBACK_INSERT_SERVER_POOL_PATTERN = re.compile(
     r'INSERT INTO "server_pool"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_CERTIFICATE_LOCAL_PATTERN = re.compile(
+    r'INSERT INTO "certificate_local"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 PG_DUMP_COPY_SERVER_POLICY_PATTERN = re.compile(
     r"COPY\s+public\.server_policy\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
     re.IGNORECASE,
 )
 PG_DUMP_COPY_SERVER_POOL_PATTERN = re.compile(
     r"COPY\s+public\.server_pool\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_CERTIFICATE_LOCAL_PATTERN = re.compile(
+    r"COPY\s+public\.certificate_local\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
     re.IGNORECASE,
 )
 
@@ -99,10 +107,10 @@ def _extract_pg_dump_copy_rows(content: str, pattern: re.Pattern) -> list[dict]:
     return rows
 
 
-def _load_server_policy_status_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str]]]:
+def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    entries: dict[tuple[str, str], list[tuple[datetime, str]]] = {}
+    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None]]] = {}
     backup_files = []
     for backup_dir in backup_dirs:
         if backup_dir.exists():
@@ -126,10 +134,19 @@ def _load_server_policy_status_from_backups(days: int = 7) -> dict[tuple[str, st
             *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POOL_PATTERN),
             *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SERVER_POOL_PATTERN),
         ]
-        server_pool_ips = {
-            (str(row.get("device_id")), str(row.get("server_pool_name"))): row.get("ip")
+        server_pools = {
+            (str(row.get("device_id")), str(row.get("server_pool_name"))): row
             for row in server_pool_rows
             if row.get("device_id") is not None and row.get("server_pool_name")
+        }
+        certificate_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_CERTIFICATE_LOCAL_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_CERTIFICATE_LOCAL_PATTERN),
+        ]
+        certificate_serials = {
+            (str(row.get("device_id")), str(row.get("certificate_name"))): _normalize_optional_text(row.get("serial_number"))
+            for row in certificate_rows
+            if row.get("device_id") is not None and row.get("certificate_name")
         }
         server_policy_rows = [
             *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POLICY_PATTERN),
@@ -141,11 +158,15 @@ def _load_server_policy_status_from_backups(days: int = 7) -> dict[tuple[str, st
             if device_id is None or not policy_name:
                 continue
             pool_key = (str(device_id), str(row.get("server_pool_name")))
+            pool_row = server_pools.get(pool_key, {})
+            certificate_name = _normalize_optional_text(pool_row.get("client_certificate")) or _normalize_optional_text(pool_row.get("certificate_name"))
+            certificate_serial = certificate_serials.get((str(device_id), str(certificate_name))) if certificate_name else None
             key = (str(device_id), str(policy_name))
             entries.setdefault(key, []).append(
                 (
                     backup_time,
-                    _format_policy_status_label(row.get("monitor_mode"), server_pool_ips.get(pool_key)),
+                    _format_policy_status_label(row.get("monitor_mode"), pool_row.get("ip")),
+                    certificate_serial,
                 )
             )
     return entries
@@ -321,24 +342,46 @@ def _format_policy_status_change_summary(status: str) -> str:
     return f"The policy is now running in {status} mode."
 
 
-def _build_recent_policy_status_changes(current_status: str, backup_status_events: list[tuple[datetime, str]]) -> list[dict]:
-    latest_event = next(iter(sorted(backup_status_events, key=lambda item: item[0], reverse=True)), None)
+def _format_certificate_change_summary(certificate_serial: str | None) -> str:
+    if certificate_serial:
+        return f"The client certificate serial number changed to {certificate_serial}."
+    return "The client certificate serial number changed."
+
+
+def _build_recent_policy_changes(
+    current_status: str,
+    current_certificate_serial: str | None,
+    backup_events: list[tuple[datetime, str, str | None]],
+) -> list[dict]:
+    latest_event = next(iter(sorted(backup_events, key=lambda item: item[0], reverse=True)), None)
     if not latest_event:
         return []
 
-    event_time, backup_status = latest_event
-    if backup_status == current_status:
-        return []
+    event_time, backup_status, backup_certificate_serial = latest_event
+    changes = []
+    if backup_status != current_status:
+        changes.append(
+            {
+                "id": f"policy-status-{int(event_time.timestamp())}",
+                "title": f"Policy Status changed to {current_status}",
+                "summary": _format_policy_status_change_summary(current_status),
+                "time": _format_recent_change_date(event_time),
+                "type": "Server Policy",
+            }
+        )
 
-    return [
-        {
-            "id": f"policy-status-{int(event_time.timestamp())}",
-            "title": f"Policy Status changed to {current_status}",
-            "summary": _format_policy_status_change_summary(current_status),
-            "time": _format_recent_change_date(event_time),
-            "type": "Server Policy",
-        }
-    ]
+    normalized_current_serial = _normalize_optional_text(current_certificate_serial)
+    if backup_certificate_serial and backup_certificate_serial != normalized_current_serial:
+        changes.append(
+            {
+                "id": f"certificate-serial-{int(event_time.timestamp())}",
+                "title": "Certificate changed or renewed",
+                "summary": _format_certificate_change_summary(normalized_current_serial),
+                "time": _format_recent_change_date(event_time),
+                "type": "Certificate",
+            }
+        )
+    return changes
 
 
 def _normalize_optional_text(value):
@@ -3526,7 +3569,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             "known_engines_action": row["known_engines_action"],
         }
 
-    backup_statuses_by_policy = _load_server_policy_status_from_backups(days=7)
+    backup_states_by_policy = _load_server_policy_state_from_backups(days=7)
     by_device = {}
     for row in rows:
         device_id = row["device_id"]
@@ -3786,9 +3829,10 @@ def load_server_policies_from_db(db: Session) -> dict:
             latest_policy = by_device[device_id]["server_policies"][-1]
             current_status = _format_policy_status_label(row["monitor_mode"], row["server_pool_ip"])
             backup_key = (str(device_id), row["server_policy_name"])
-            latest_policy["recent_changes"] = _build_recent_policy_status_changes(
+            latest_policy["recent_changes"] = _build_recent_policy_changes(
                 current_status,
-                backup_statuses_by_policy.get(backup_key, []),
+                row["client_certificate_serial_number"],
+                backup_states_by_policy.get(backup_key, []),
             )
 
     return {"devices": list(by_device.values())}

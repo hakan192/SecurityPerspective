@@ -2,7 +2,7 @@ from app.services import (
     _build_device_base_url,
     _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
-    _build_recent_policy_status_changes,
+    _build_recent_policy_changes,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
@@ -10,7 +10,7 @@ from app.services import (
     _format_allow_method_value,
     _format_policy_status_label,
     _format_recent_change_date,
-    _load_server_policy_status_from_backups,
+    _load_server_policy_state_from_backups,
 )
 
 
@@ -231,29 +231,31 @@ def test_format_recent_change_date_uses_day_month_without_year():
     assert _format_recent_change_date(datetime(2026, 5, 4, 14, 30, tzinfo=timezone.utc)) == "04/05"
 
 
-def test_build_recent_policy_status_changes_uses_only_latest_backup_status():
+def test_build_recent_policy_changes_uses_only_latest_backup_status():
     from datetime import datetime, timezone
 
     older_change = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
     latest_same_status = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
 
-    changes = _build_recent_policy_status_changes(
+    changes = _build_recent_policy_changes(
         "Blocking",
-        [(older_change, "Monitoring"), (latest_same_status, "Blocking")],
+        "CURRENT-SERIAL",
+        [(older_change, "Monitoring", "CURRENT-SERIAL"), (latest_same_status, "Blocking", "CURRENT-SERIAL")],
     )
 
     assert changes == []
 
 
-def test_build_recent_policy_status_changes_returns_latest_change_only():
+def test_build_recent_policy_changes_returns_latest_status_change_only():
     from datetime import datetime, timezone
 
     older_change = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
     latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
 
-    changes = _build_recent_policy_status_changes(
+    changes = _build_recent_policy_changes(
         "Not Protected",
-        [(older_change, "Monitoring"), (latest_change, "Blocking")],
+        "CURRENT-SERIAL",
+        [(older_change, "Monitoring", "CURRENT-SERIAL"), (latest_change, "Blocking", "CURRENT-SERIAL")],
     )
 
     assert changes == [
@@ -267,7 +269,7 @@ def test_build_recent_policy_status_changes_returns_latest_change_only():
     ]
 
 
-def test_load_server_policy_status_from_backups_includes_not_protected(tmp_path, monkeypatch):
+def test_load_server_policy_state_from_backups_includes_not_protected_and_certificate_serial(tmp_path, monkeypatch):
     from datetime import datetime, timezone
 
     backup_dir = tmp_path / "backups"
@@ -277,8 +279,10 @@ def test_load_server_policy_status_from_backups_includes_not_protected(tmp_path,
     backup_file.write_text(
         '\n'.join(
             [
-                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\") VALUES (1, 'pool-a', NULL);",
-                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\") VALUES (1, 'pool-b', '10.0.0.1');",
+                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-a', NULL, 'cert-a');",
+                "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-b', '10.0.0.1', 'cert-b');",
+                "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-a', 'OLD-A');",
+                "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-b', 'OLD-B');",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\") VALUES (1, 'policy-a', 'pool-a', 'enable');",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\") VALUES (1, 'policy-b', 'pool-b', 'enable');",
             ]
@@ -287,7 +291,46 @@ def test_load_server_policy_status_from_backups_includes_not_protected(tmp_path,
     )
     monkeypatch.chdir(tmp_path)
 
-    statuses = _load_server_policy_status_from_backups(days=7)
+    states = _load_server_policy_state_from_backups(days=7)
 
-    assert statuses[("1", "policy-a")][0][1] == "Not Protected"
-    assert statuses[("1", "policy-b")][0][1] == "Monitoring"
+    assert states[("1", "policy-a")][0][1:] == ("Not Protected", "OLD-A")
+    assert states[("1", "policy-b")][0][1:] == ("Monitoring", "OLD-B")
+
+
+def test_build_recent_policy_changes_adds_certificate_change():
+    from datetime import datetime, timezone
+
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "NEW-SERIAL",
+        [(latest_change, "Blocking", "OLD-SERIAL")],
+    )
+
+    assert changes == [
+        {
+            "id": f"certificate-serial-{int(latest_change.timestamp())}",
+            "title": "Certificate changed or renewed",
+            "summary": "The client certificate serial number changed to NEW-SERIAL.",
+            "time": "05/05",
+            "type": "Certificate",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_can_list_status_and_certificate_changes():
+    from datetime import datetime, timezone
+
+    latest_change = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Monitoring",
+        "NEW-SERIAL",
+        [(latest_change, "Blocking", "OLD-SERIAL")],
+    )
+
+    assert [change["title"] for change in changes] == [
+        "Policy Status changed to Monitoring",
+        "Certificate changed or renewed",
+    ]
