@@ -45,6 +45,10 @@ FALLBACK_INSERT_CUSTOM_ACCESS_POLICY_PATTERN = re.compile(
     r'INSERT INTO "custom-access-policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_ALLOW_METHOD_POLICY_PATTERN = re.compile(
+    r'INSERT INTO "allow-method-policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
     r'INSERT INTO "application-layer-dos-prevention"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
@@ -95,6 +99,10 @@ PG_DUMP_COPY_SYNTAX_BASED_ATTACK_DETECTION_PATTERN = re.compile(
 )
 PG_DUMP_COPY_CUSTOM_ACCESS_POLICY_PATTERN = re.compile(
     r'COPY\s+public\."custom-access-policy"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_ALLOW_METHOD_POLICY_PATTERN = re.compile(
+    r'COPY\s+public\."allow-method-policy"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
     re.IGNORECASE,
 )
 PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
@@ -205,6 +213,9 @@ BOT_MITIGATION_FEATURES = {
     "biometric_based_detection": "Biometric Based Detection",
     "threshold_based_detection": "Threshold Based Detection",
     "known_bot": "Known-Bot",
+}
+ACCESS_FEATURES = {
+    "allow_method": "Allow method",
 }
 BIOMETRIC_BASED_DETECTION_STATUS_FIELDS = (
     "mouse_movement",
@@ -322,10 +333,15 @@ def _build_application_dos_protection_state(application_dos_row: dict) -> dict[s
     }
 
 
-def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]]:
+def _build_access_state(allow_method_policy_row: dict | None) -> dict[str, str]:
+    allow_method_policy_row = allow_method_policy_row or {}
+    return {"allow_method": _presence_status(allow_method_policy_row.get("allow_method"))}
+
+
+def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]] = {}
+    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]] = {}
     backup_files = []
     for backup_dir in backup_dirs:
         if backup_dir.exists():
@@ -408,6 +424,15 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             for row in custom_access_policy_rows
             if row.get("device_id") is not None and row.get("custom_access_policy_name")
         }
+        allow_method_policy_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_ALLOW_METHOD_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_ALLOW_METHOD_POLICY_PATTERN),
+        ]
+        allow_method_policies = {
+            (str(row.get("device_id")), str(row.get("allow_method_policy_name"))): row
+            for row in allow_method_policy_rows
+            if row.get("device_id") is not None and row.get("allow_method_policy_name")
+        }
         application_dos_rows = [
             *_extract_fallback_insert_rows(content, FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
             *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN),
@@ -480,6 +505,8 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             threshold_row = threshold_policies.get((str(device_id), str(bot_mitigate_row.get("threshold_based_detection"))), {})
             known_bots_row = known_bots_policies.get((str(device_id), str(bot_mitigate_row.get("known_bots"))), {})
             bot_mitigation_state = _build_bot_mitigation_state(biometric_row, threshold_row, known_bots_row)
+            allow_method_policy_row = allow_method_policies.get((str(device_id), str(web_profile.get("allow_method_policy"))), {})
+            access_state = _build_access_state(allow_method_policy_row)
             key = (str(device_id), str(policy_name))
             entries.setdefault(key, []).append(
                 (
@@ -490,6 +517,7 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
                     advanced_protection_state,
                     application_dos_protection_state,
                     bot_mitigation_state,
+                    access_state,
                 )
             )
     return entries
@@ -686,6 +714,8 @@ def _append_policy_state_changes(
     next_application_dos_protection: dict[str, str] | None = None,
     previous_bot_mitigation: dict[str, str] | None = None,
     next_bot_mitigation: dict[str, str] | None = None,
+    previous_access: dict[str, str] | None = None,
+    next_access: dict[str, str] | None = None,
 ) -> None:
     event_timestamp = int(event_time.timestamp())
     if previous_status != next_status:
@@ -784,6 +814,24 @@ def _append_policy_state_changes(
                 }
             )
 
+    previous_access = previous_access or {}
+    next_access = next_access or {}
+    for feature_key, feature_name in ACCESS_FEATURES.items():
+        if feature_key not in previous_access and feature_key not in next_access:
+            continue
+        previous_feature_status = str(previous_access.get(feature_key) or "unknown").strip().lower()
+        next_feature_status = str(next_access.get(feature_key) or "unknown").strip().lower()
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"access-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"Access: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "Access",
+                }
+            )
+
 
 def _build_recent_policy_changes(
     current_status: str,
@@ -793,6 +841,7 @@ def _build_recent_policy_changes(
     current_advanced_protection: dict[str, str] | None = None,
     current_application_dos_protection: dict[str, str] | None = None,
     current_bot_mitigation: dict[str, str] | None = None,
+    current_access: dict[str, str] | None = None,
     current_time: datetime | None = None,
 ) -> list[dict]:
     sorted_events = sorted(backup_events, key=lambda item: item[0])
@@ -800,15 +849,17 @@ def _build_recent_policy_changes(
         return []
 
     def unpack_event(event):
+        if len(event) >= 8:
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], event[7]
         if len(event) >= 7:
-            return event[0], event[1], event[2], event[3], event[4], event[5], event[6]
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6], {}
         if len(event) >= 6:
-            return event[0], event[1], event[2], event[3], event[4], event[5], {}
+            return event[0], event[1], event[2], event[3], event[4], event[5], {}, {}
         if len(event) >= 5:
-            return event[0], event[1], event[2], event[3], event[4], {}, {}
+            return event[0], event[1], event[2], event[3], event[4], {}, {}, {}
         if len(event) >= 4:
-            return event[0], event[1], event[2], event[3], {}, {}, {}
-        return event[0], event[1], event[2], {}, {}, {}, {}
+            return event[0], event[1], event[2], event[3], {}, {}, {}, {}
+        return event[0], event[1], event[2], {}, {}, {}, {}, {}
 
     changes = []
     (
@@ -819,6 +870,7 @@ def _build_recent_policy_changes(
         previous_advanced_protection,
         previous_application_dos_protection,
         previous_bot_mitigation,
+        previous_access,
     ) = unpack_event(sorted_events[0])
     for event in sorted_events[1:]:
         (
@@ -829,6 +881,7 @@ def _build_recent_policy_changes(
             backup_advanced_protection,
             backup_application_dos_protection,
             backup_bot_mitigation,
+            backup_access,
         ) = unpack_event(event)
         _append_policy_state_changes(
             changes,
@@ -845,6 +898,8 @@ def _build_recent_policy_changes(
             backup_application_dos_protection,
             previous_bot_mitigation,
             backup_bot_mitigation,
+            previous_access,
+            backup_access,
         )
         previous_status = backup_status
         previous_certificate_serial = backup_certificate_serial
@@ -852,6 +907,7 @@ def _build_recent_policy_changes(
         previous_advanced_protection = backup_advanced_protection
         previous_application_dos_protection = backup_application_dos_protection
         previous_bot_mitigation = backup_bot_mitigation
+        previous_access = backup_access
 
     _append_policy_state_changes(
         changes,
@@ -868,6 +924,8 @@ def _build_recent_policy_changes(
         current_application_dos_protection,
         previous_bot_mitigation,
         current_bot_mitigation,
+        previous_access,
+        current_access,
     )
     return changes
 
@@ -4368,6 +4426,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "known_engines_status": known_bots_lookup.get("known_engines_status") or row["known_bots_known_engines_status"],
                     },
                 ),
+                {"allow_method": _presence_status(row["allow_method_value"])},
             )
 
     return {"devices": list(by_device.values())}
