@@ -302,10 +302,11 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
                 "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-b', '10.0.0.1', 'cert-b');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-a', 'OLD-A');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-b', 'OLD-B');",
-                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\", \"syntax_based_attack_detection\", \"custom_access_policy\") VALUES (1, 'profile-b', 'sig-b', 'syntax-b', 'custom-b');",
+                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\", \"syntax_based_attack_detection\", \"custom_access_policy\", \"application_layer_dos_prevention\") VALUES (1, 'profile-b', 'sig-b', 'syntax-b', 'custom-b', 'dos-b');",
                 "INSERT INTO \"signature\" (\"device_id\", \"signature_set_name\", \"cross_site_scripting\", \"sql_injection\") VALUES (1, 'sig-b', 'enable', 'enable');",
                 "INSERT INTO \"syntax-based-attack-detection\" (\"device_id\", \"name\", \"xss_html_tag_based_status\", \"sql_stacked_queries_status\") VALUES (1, 'syntax-b', 'enable', 'enable');",
                 "INSERT INTO \"custom-access-policy\" (\"device_id\", \"custom_access_policy_name\", \"rule_names\") VALUES (1, 'custom-b', '{rule-a}');",
+                "INSERT INTO \"application-layer-dos-prevention\" (\"device_id\", \"name\", \"http_request_flood_prevention_rule\", \"layer4_access_limit_rule\", \"layer4_connection_flood_check_rule\") VALUES (1, 'dos-b', 'http-flood-b', 'access-limit-b', 'tcp-flood-b');",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-a', 'pool-a', 'enable', NULL);",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-b', 'pool-b', 'enable', 'profile-b');",
             ]
@@ -327,6 +328,11 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
     assert states[("1", "policy-b")][0][4] == {
         "syntax_based_detection": "enabled",
         "custom_access_rules": "enabled",
+    }
+    assert states[("1", "policy-b")][0][5] == {
+        "http_flood_prevention": "enabled",
+        "http_access_limit": "enabled",
+        "tcp_flood_prevention": "enabled",
     }
 
 
@@ -541,5 +547,65 @@ def test_build_recent_policy_changes_keeps_historical_advanced_protection_change
             "summary": "Advance Protection: Custom Access Rules changed to Enabled.",
             "time": "03/05",
             "type": "Advance Protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_adds_application_dos_feature_change():
+    from datetime import datetime, timezone
+
+    backup_time = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [(backup_time, "Blocking", "SERIAL-A", {}, {}, {"http_flood_prevention": "enabled"})],
+        {},
+        {},
+        {"http_flood_prevention": "unknown"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"application-dos-protection-http_flood_prevention-{int(current_time.timestamp())}",
+            "title": "HTTP Flood Prevention control unknown",
+            "summary": "Application Dos protection: HTTP Flood Prevention changed to Unknown.",
+            "time": "06/05",
+            "type": "Application Dos protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_application_dos_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    enabled_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [
+            (first_backup, "Blocking", "SERIAL-A", {}, {}, {"tcp_flood_prevention": "unknown"}),
+            (enabled_backup, "Blocking", "SERIAL-A", {}, {}, {"tcp_flood_prevention": "enabled"}),
+            (latest_backup, "Blocking", "SERIAL-A", {}, {}, {"tcp_flood_prevention": "enabled"}),
+        ],
+        {},
+        {},
+        {"tcp_flood_prevention": "enabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"application-dos-protection-tcp_flood_prevention-{int(enabled_backup.timestamp())}",
+            "title": "TCP Flood Prevention control enabled",
+            "summary": "Application Dos protection: TCP Flood Prevention changed to Enabled.",
+            "time": "03/05",
+            "type": "Application Dos protection",
         }
     ]
