@@ -30,6 +30,16 @@ const navItems = [
 
 const MAIN_WAF_TAB_ID = 'waf-main-tab'
 
+const formatRecentChangeTime = (value) => {
+  if (!value || value === '-') return '-'
+  if (/^\d{2}\/\d{2}$/.test(value)) return value
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+
+  return `${String(parsed.getUTCDate()).padStart(2, '0')}/${String(parsed.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
 function ShieldCheckIcon({ className = '', size = 14 }) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -822,7 +832,7 @@ function FullDetailsPage({ policy }) {
       }]
   const fullDetailsSectionMeta = {
     'Recent Changes': {
-      summary: 'Latest configuration and collection activity for this policy (frontend mock data).',
+      summary: 'Latest server policy status changes detected from recent backups.',
       link: '#'
     },
     'Standard Protection': {
@@ -907,7 +917,7 @@ function FullDetailsPage({ policy }) {
                   <span className="details-recent-change-type">{change.type}</span>
                 </div>
                 <p className="details-recent-change-summary">{change.summary}</p>
-                <p className="details-recent-change-time">{change.time}</p>
+                <p className="details-recent-change-time">{formatRecentChangeTime(change.time)}</p>
               </article>
             ))}
           </div>

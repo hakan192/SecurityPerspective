@@ -7,6 +7,8 @@ from app.services import (
     _extract_policy_rows,
     _extract_server_pool_row,
     _format_allow_method_value,
+    _format_policy_status_label,
+    _format_recent_change_date,
 )
 
 
@@ -213,3 +215,15 @@ def test_format_allow_method_value_handles_all_methods_keyword():
 
     assert parsed["methods"] == ["ALL"]
     assert parsed["display"] == "All methods"
+
+
+def test_format_policy_status_label_matches_policy_card_copy():
+    assert _format_policy_status_label("enable") == "Monitoring"
+    assert _format_policy_status_label("disable") == "Blocking"
+    assert _format_policy_status_label(None) == "Blocking"
+
+
+def test_format_recent_change_date_uses_day_month_without_year():
+    from datetime import datetime, timezone
+
+    assert _format_recent_change_date(datetime(2026, 5, 4, 14, 30, tzinfo=timezone.utc)) == "04/05"

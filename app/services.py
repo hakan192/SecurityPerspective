@@ -270,6 +270,14 @@ def _as_enable_disable(value):
     return str(value).strip().lower() or None
 
 
+def _format_policy_status_label(monitor_mode):
+    return "Monitoring" if _as_enable_disable(monitor_mode) == "enable" else "Blocking"
+
+
+def _format_recent_change_date(value: datetime) -> str:
+    return value.strftime("%d/%m")
+
+
 def _normalize_optional_text(value):
     if value is None:
         return None
@@ -3718,12 +3726,13 @@ def load_server_policies_from_db(db: Session) -> dict:
             backup_events = sorted(backup_monitor_modes_by_policy.get(backup_key, []), key=lambda item: item[0])
             for event_time, backup_monitor_mode in backup_events:
                 if backup_monitor_mode != current_monitor_mode:
+                    policy_status = _format_policy_status_label(current_monitor_mode)
                     latest_policy["recent_changes"].append(
                         {
                             "id": f"monitor-mode-{int(event_time.timestamp())}",
-                            "title": "Server policy status changed",
-                            "summary": "Server policy status differs from latest fetched configuration.",
-                            "time": event_time.isoformat(),
+                            "title": f"Policy Status changed to {policy_status}",
+                            "summary": f"The policy is now running in {policy_status} mode.",
+                            "time": _format_recent_change_date(event_time),
                             "type": "Server Policy",
                         }
                     )
