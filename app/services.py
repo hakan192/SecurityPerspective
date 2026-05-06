@@ -49,6 +49,22 @@ FALLBACK_INSERT_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
     r'INSERT INTO "application-layer-dos-prevention"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
     re.IGNORECASE,
 )
+FALLBACK_INSERT_BOT_MITIGATE_POLICY_PATTERN = re.compile(
+    r'INSERT INTO "bot-mitigate-policy"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_BIOMETRIC_BASED_DETECTION_PATTERN = re.compile(
+    r'INSERT INTO "?biometric_based_detection"?\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_THRESHOLD_BASED_DETECTION_PATTERN = re.compile(
+    r'INSERT INTO "?threshold_based_detection"?\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
+FALLBACK_INSERT_KNOWN_BOTS_PATTERN = re.compile(
+    r'INSERT INTO "Known-bots"\s*\((?P<columns>.*?)\)\s*VALUES\s*\((?P<values>.*?)\);',
+    re.IGNORECASE,
+)
 PG_DUMP_COPY_SERVER_POLICY_PATTERN = re.compile(
     r"COPY\s+public\.server_policy\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;",
     re.IGNORECASE,
@@ -83,6 +99,22 @@ PG_DUMP_COPY_CUSTOM_ACCESS_POLICY_PATTERN = re.compile(
 )
 PG_DUMP_COPY_APPLICATION_LAYER_DOS_PREVENTION_PATTERN = re.compile(
     r'COPY\s+public\."application-layer-dos-prevention"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_BOT_MITIGATE_POLICY_PATTERN = re.compile(
+    r'COPY\s+public\."bot-mitigate-policy"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_BIOMETRIC_BASED_DETECTION_PATTERN = re.compile(
+    r'COPY\s+public\.biometric_based_detection\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_THRESHOLD_BASED_DETECTION_PATTERN = re.compile(
+    r'COPY\s+public\.threshold_based_detection\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
+    re.IGNORECASE,
+)
+PG_DUMP_COPY_KNOWN_BOTS_PATTERN = re.compile(
+    r'COPY\s+public\."Known-bots"\s*\((?P<columns>.*?)\)\s+FROM\s+stdin;',
     re.IGNORECASE,
 )
 
@@ -169,6 +201,42 @@ APPLICATION_DOS_PROTECTION_FEATURES = {
     "http_access_limit": "HTTP Access Limit",
     "tcp_flood_prevention": "TCP Flood Prevention",
 }
+BOT_MITIGATION_FEATURES = {
+    "biometric_based_detection": "Biometric Based Detection",
+    "threshold_based_detection": "Threshold Based Detection",
+    "known_bot": "Known-Bot",
+}
+BIOMETRIC_BASED_DETECTION_STATUS_FIELDS = (
+    "mouse_movement",
+    "page_focus",
+    "keyboard",
+    "screen_touch",
+    "scroll",
+    "bot_traits",
+    "bot_traits_num",
+    "action",
+    "host",
+)
+THRESHOLD_BASED_DETECTION_STATUS_FIELDS = (
+    "bot_confirmation",
+    "bot_recognition",
+    "crawler_detection",
+    "crawler_action",
+    "crawler_occurrence_num",
+    "crawler_within",
+    "slow_attack_detection",
+    "slow_attack_action",
+    "slow_attack_occurrence_num",
+    "slow_attack_within",
+)
+KNOWN_BOTS_STATUS_FIELDS = (
+    "dos_status",
+    "spam_status",
+    "trojan_status",
+    "scanner_status",
+    "crawler_status",
+    "known_engines_status",
+)
 
 
 def _format_standard_protection_state(value) -> str:
@@ -217,6 +285,35 @@ def _presence_status(value) -> str:
     return "enabled" if _normalize_optional_text(value) else "unknown"
 
 
+def _is_enabled_value(value) -> bool:
+    return str(value or "").strip().lower() in {"true", "1", "yes", "on", "enable", "enabled"}
+
+
+def _build_bot_mitigation_state(
+    biometric_row: dict | None,
+    threshold_row: dict | None,
+    known_bots_row: dict | None,
+) -> dict[str, str]:
+    biometric_row = biometric_row or {}
+    threshold_row = threshold_row or {}
+    known_bots_row = known_bots_row or {}
+    return {
+        "biometric_based_detection": (
+            "enabled"
+            if any(_normalize_optional_text(biometric_row.get(field)) for field in BIOMETRIC_BASED_DETECTION_STATUS_FIELDS)
+            else "unknown"
+        ),
+        "threshold_based_detection": (
+            "enabled"
+            if any(_normalize_optional_text(threshold_row.get(field)) for field in THRESHOLD_BASED_DETECTION_STATUS_FIELDS)
+            else "unknown"
+        ),
+        "known_bot": (
+            "enabled" if any(_is_enabled_value(known_bots_row.get(field)) for field in KNOWN_BOTS_STATUS_FIELDS) else "unknown"
+        ),
+    }
+
+
 def _build_application_dos_protection_state(application_dos_row: dict) -> dict[str, str]:
     return {
         "http_flood_prevention": _presence_status(application_dos_row.get("http_request_flood_prevention_rule")),
@@ -225,10 +322,10 @@ def _build_application_dos_protection_state(application_dos_row: dict) -> dict[s
     }
 
 
-def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str]]]]:
+def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]]:
     backup_dirs = [Path("app/backups"), Path("backups")]
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str]]]] = {}
+    entries: dict[tuple[str, str], list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str], dict[str, str]]]] = {}
     backup_files = []
     for backup_dir in backup_dirs:
         if backup_dir.exists():
@@ -320,6 +417,42 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             for row in application_dos_rows
             if row.get("device_id") is not None and row.get("name")
         }
+        bot_mitigate_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_BOT_MITIGATE_POLICY_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_BOT_MITIGATE_POLICY_PATTERN),
+        ]
+        bot_mitigate_policies = {
+            (str(row.get("device_id")), str(row.get("name"))): row
+            for row in bot_mitigate_rows
+            if row.get("device_id") is not None and row.get("name")
+        }
+        biometric_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_BIOMETRIC_BASED_DETECTION_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_BIOMETRIC_BASED_DETECTION_PATTERN),
+        ]
+        biometric_policies = {
+            (str(row.get("device_id")), str(row.get("name"))): row
+            for row in biometric_rows
+            if row.get("device_id") is not None and row.get("name")
+        }
+        threshold_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_THRESHOLD_BASED_DETECTION_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_THRESHOLD_BASED_DETECTION_PATTERN),
+        ]
+        threshold_policies = {
+            (str(row.get("device_id")), str(row.get("name"))): row
+            for row in threshold_rows
+            if row.get("device_id") is not None and row.get("name")
+        }
+        known_bots_rows = [
+            *_extract_fallback_insert_rows(content, FALLBACK_INSERT_KNOWN_BOTS_PATTERN),
+            *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_KNOWN_BOTS_PATTERN),
+        ]
+        known_bots_policies = {
+            (str(row.get("device_id")), str(row.get("known_bots_name"))): row
+            for row in known_bots_rows
+            if row.get("device_id") is not None and row.get("known_bots_name")
+        }
         server_policy_rows = [
             *_extract_fallback_insert_rows(content, FALLBACK_INSERT_SERVER_POLICY_PATTERN),
             *_extract_pg_dump_copy_rows(content, PG_DUMP_COPY_SERVER_POLICY_PATTERN),
@@ -342,6 +475,11 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
             advanced_protection_state = _build_advanced_protection_state(syntax_row, custom_access_policy_row)
             application_dos_row = application_dos_policies.get((str(device_id), str(web_profile.get("application_layer_dos_prevention"))), {})
             application_dos_protection_state = _build_application_dos_protection_state(application_dos_row)
+            bot_mitigate_row = bot_mitigate_policies.get((str(device_id), str(web_profile.get("bot_mitigate_policy"))), {})
+            biometric_row = biometric_policies.get((str(device_id), str(bot_mitigate_row.get("biometrics_based_detection"))), {})
+            threshold_row = threshold_policies.get((str(device_id), str(bot_mitigate_row.get("threshold_based_detection"))), {})
+            known_bots_row = known_bots_policies.get((str(device_id), str(bot_mitigate_row.get("known_bots"))), {})
+            bot_mitigation_state = _build_bot_mitigation_state(biometric_row, threshold_row, known_bots_row)
             key = (str(device_id), str(policy_name))
             entries.setdefault(key, []).append(
                 (
@@ -351,6 +489,7 @@ def _load_server_policy_state_from_backups(days: int = 7) -> dict[tuple[str, str
                     standard_protection_state,
                     advanced_protection_state,
                     application_dos_protection_state,
+                    bot_mitigation_state,
                 )
             )
     return entries
@@ -545,6 +684,8 @@ def _append_policy_state_changes(
     next_advanced_protection: dict[str, str] | None = None,
     previous_application_dos_protection: dict[str, str] | None = None,
     next_application_dos_protection: dict[str, str] | None = None,
+    previous_bot_mitigation: dict[str, str] | None = None,
+    next_bot_mitigation: dict[str, str] | None = None,
 ) -> None:
     event_timestamp = int(event_time.timestamp())
     if previous_status != next_status:
@@ -625,14 +766,33 @@ def _append_policy_state_changes(
                 }
             )
 
+    previous_bot_mitigation = previous_bot_mitigation or {}
+    next_bot_mitigation = next_bot_mitigation or {}
+    for feature_key, feature_name in BOT_MITIGATION_FEATURES.items():
+        if feature_key not in previous_bot_mitigation and feature_key not in next_bot_mitigation:
+            continue
+        previous_feature_status = str(previous_bot_mitigation.get(feature_key) or "unknown").strip().lower()
+        next_feature_status = str(next_bot_mitigation.get(feature_key) or "unknown").strip().lower()
+        if previous_feature_status != next_feature_status:
+            changes.append(
+                {
+                    "id": f"bot-mitigation-{feature_key}-{event_timestamp}",
+                    "title": f"{feature_name} control {next_feature_status}",
+                    "summary": f"Bot Mitigation: {feature_name} changed to {next_feature_status.title()}.",
+                    "time": _format_recent_change_date(event_time),
+                    "type": "Bot Mitigation",
+                }
+            )
+
 
 def _build_recent_policy_changes(
     current_status: str,
     current_certificate_serial: str | None,
-    backup_events: list[tuple[datetime, str, str | None, dict[str, str], dict[str, str], dict[str, str]]] | list[tuple[datetime, str, str | None, dict[str, str], dict[str, str]]] | list[tuple[datetime, str, str | None, dict[str, str]]] | list[tuple[datetime, str, str | None]],
+    backup_events: list[tuple],
     current_standard_protection: dict[str, str] | None = None,
     current_advanced_protection: dict[str, str] | None = None,
     current_application_dos_protection: dict[str, str] | None = None,
+    current_bot_mitigation: dict[str, str] | None = None,
     current_time: datetime | None = None,
 ) -> list[dict]:
     sorted_events = sorted(backup_events, key=lambda item: item[0])
@@ -640,13 +800,15 @@ def _build_recent_policy_changes(
         return []
 
     def unpack_event(event):
+        if len(event) >= 7:
+            return event[0], event[1], event[2], event[3], event[4], event[5], event[6]
         if len(event) >= 6:
-            return event[0], event[1], event[2], event[3], event[4], event[5]
+            return event[0], event[1], event[2], event[3], event[4], event[5], {}
         if len(event) >= 5:
-            return event[0], event[1], event[2], event[3], event[4], {}
+            return event[0], event[1], event[2], event[3], event[4], {}, {}
         if len(event) >= 4:
-            return event[0], event[1], event[2], event[3], {}, {}
-        return event[0], event[1], event[2], {}, {}, {}
+            return event[0], event[1], event[2], event[3], {}, {}, {}
+        return event[0], event[1], event[2], {}, {}, {}, {}
 
     changes = []
     (
@@ -656,6 +818,7 @@ def _build_recent_policy_changes(
         previous_standard_protection,
         previous_advanced_protection,
         previous_application_dos_protection,
+        previous_bot_mitigation,
     ) = unpack_event(sorted_events[0])
     for event in sorted_events[1:]:
         (
@@ -665,6 +828,7 @@ def _build_recent_policy_changes(
             backup_standard_protection,
             backup_advanced_protection,
             backup_application_dos_protection,
+            backup_bot_mitigation,
         ) = unpack_event(event)
         _append_policy_state_changes(
             changes,
@@ -679,12 +843,15 @@ def _build_recent_policy_changes(
             backup_advanced_protection,
             previous_application_dos_protection,
             backup_application_dos_protection,
+            previous_bot_mitigation,
+            backup_bot_mitigation,
         )
         previous_status = backup_status
         previous_certificate_serial = backup_certificate_serial
         previous_standard_protection = backup_standard_protection
         previous_advanced_protection = backup_advanced_protection
         previous_application_dos_protection = backup_application_dos_protection
+        previous_bot_mitigation = backup_bot_mitigation
 
     _append_policy_state_changes(
         changes,
@@ -699,6 +866,8 @@ def _build_recent_policy_changes(
         current_advanced_protection,
         previous_application_dos_protection,
         current_application_dos_protection,
+        previous_bot_mitigation,
+        current_bot_mitigation,
     )
     return changes
 
@@ -4166,6 +4335,39 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "http_access_limit": _presence_status(row["layer4_access_limit_rule"]),
                     "tcp_flood_prevention": _presence_status(row["layer4_connection_flood_check_rule"]),
                 },
+                _build_bot_mitigation_state(
+                    {
+                        "mouse_movement": biometric_lookup.get("mouse_movement") or row["biometric_mouse_movement"],
+                        "page_focus": biometric_lookup.get("page_focus") or row["biometric_page_focus"],
+                        "keyboard": biometric_lookup.get("keyboard") or row["biometric_keyboard"],
+                        "screen_touch": biometric_lookup.get("screen_touch") or row["biometric_screen_touch"],
+                        "scroll": biometric_lookup.get("scroll") or row["biometric_scroll"],
+                        "bot_traits": biometric_lookup.get("bot_traits") or row["biometric_bot_traits"],
+                        "bot_traits_num": biometric_lookup.get("bot_traits_num") or row["biometric_bot_traits_num"],
+                        "action": biometric_lookup.get("action") or row["biometric_action"],
+                        "host": biometric_lookup.get("host") or row["biometric_host"],
+                    },
+                    {
+                        "bot_confirmation": threshold_lookup.get("bot_confirmation") or row["threshold_bot_confirmation"],
+                        "bot_recognition": threshold_lookup.get("bot_recognition") or row["threshold_bot_recognition"],
+                        "crawler_detection": threshold_lookup.get("crawler_detection") or row["threshold_crawler_detection"],
+                        "crawler_action": threshold_lookup.get("crawler_action") or row["threshold_crawler_action"],
+                        "crawler_occurrence_num": threshold_lookup.get("crawler_occurrence_num") or row["threshold_crawler_occurrence_num"],
+                        "crawler_within": threshold_lookup.get("crawler_within") or row["threshold_crawler_within"],
+                        "slow_attack_detection": threshold_lookup.get("slow_attack_detection") or row["threshold_slow_attack_detection"],
+                        "slow_attack_action": threshold_lookup.get("slow_attack_action") or row["threshold_slow_attack_action"],
+                        "slow_attack_occurrence_num": threshold_lookup.get("slow_attack_occurrence_num") or row["threshold_slow_attack_occurrence_num"],
+                        "slow_attack_within": threshold_lookup.get("slow_attack_within") or row["threshold_slow_attack_within"],
+                    },
+                    {
+                        "dos_status": known_bots_lookup.get("dos_status") or row["known_bots_dos_status"],
+                        "spam_status": known_bots_lookup.get("spam_status") or row["known_bots_spam_status"],
+                        "trojan_status": known_bots_lookup.get("trojan_status") or row["known_bots_trojan_status"],
+                        "scanner_status": known_bots_lookup.get("scanner_status") or row["known_bots_scanner_status"],
+                        "crawler_status": known_bots_lookup.get("crawler_status") or row["known_bots_crawler_status"],
+                        "known_engines_status": known_bots_lookup.get("known_engines_status") or row["known_bots_known_engines_status"],
+                    },
+                ),
             )
 
     return {"devices": list(by_device.values())}

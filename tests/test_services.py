@@ -302,11 +302,15 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
                 "INSERT INTO \"server_pool\" (\"device_id\", \"server_pool_name\", \"ip\", \"client_certificate\") VALUES (1, 'pool-b', '10.0.0.1', 'cert-b');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-a', 'OLD-A');",
                 "INSERT INTO \"certificate_local\" (\"device_id\", \"certificate_name\", \"serial_number\") VALUES (1, 'cert-b', 'OLD-B');",
-                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\", \"syntax_based_attack_detection\", \"custom_access_policy\", \"application_layer_dos_prevention\") VALUES (1, 'profile-b', 'sig-b', 'syntax-b', 'custom-b', 'dos-b');",
+                "INSERT INTO \"web_protection_profiles\" (\"device_id\", \"web_protection_profile_name\", \"signature_rule\", \"syntax_based_attack_detection\", \"custom_access_policy\", \"application_layer_dos_prevention\", \"bot_mitigate_policy\") VALUES (1, 'profile-b', 'sig-b', 'syntax-b', 'custom-b', 'dos-b', 'bot-b');",
                 "INSERT INTO \"signature\" (\"device_id\", \"signature_set_name\", \"cross_site_scripting\", \"sql_injection\") VALUES (1, 'sig-b', 'enable', 'enable');",
                 "INSERT INTO \"syntax-based-attack-detection\" (\"device_id\", \"name\", \"xss_html_tag_based_status\", \"sql_stacked_queries_status\") VALUES (1, 'syntax-b', 'enable', 'enable');",
                 "INSERT INTO \"custom-access-policy\" (\"device_id\", \"custom_access_policy_name\", \"rule_names\") VALUES (1, 'custom-b', '{rule-a}');",
                 "INSERT INTO \"application-layer-dos-prevention\" (\"device_id\", \"name\", \"http_request_flood_prevention_rule\", \"layer4_access_limit_rule\", \"layer4_connection_flood_check_rule\") VALUES (1, 'dos-b', 'http-flood-b', 'access-limit-b', 'tcp-flood-b');",
+                "INSERT INTO \"bot-mitigate-policy\" (\"device_id\", \"name\", \"biometrics_based_detection\", \"threshold_based_detection\", \"known_bots\") VALUES (1, 'bot-b', 'biometric-b', 'threshold-b', 'known-b');",
+                "INSERT INTO biometric_based_detection (\"device_id\", \"name\", \"mouse_movement\") VALUES (1, 'biometric-b', 'enable');",
+                "INSERT INTO threshold_based_detection (\"device_id\", \"name\", \"crawler_detection\") VALUES (1, 'threshold-b', 'enable');",
+                "INSERT INTO \"Known-bots\" (\"device_id\", \"known_bots_name\", \"dos_status\") VALUES (1, 'known-b', 'enable');",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-a', 'pool-a', 'enable', NULL);",
                 "INSERT INTO \"server_policy\" (\"device_id\", \"server_policy_name\", \"server_pool_name\", \"monitor_mode\", \"web_protection_profile_name\") VALUES (1, 'policy-b', 'pool-b', 'enable', 'profile-b');",
             ]
@@ -333,6 +337,11 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
         "http_flood_prevention": "enabled",
         "http_access_limit": "enabled",
         "tcp_flood_prevention": "enabled",
+    }
+    assert states[("1", "policy-b")][0][6] == {
+        "biometric_based_detection": "enabled",
+        "threshold_based_detection": "enabled",
+        "known_bot": "enabled",
     }
 
 
@@ -607,5 +616,67 @@ def test_build_recent_policy_changes_keeps_historical_application_dos_changes():
             "summary": "Application Dos protection: TCP Flood Prevention changed to Enabled.",
             "time": "03/05",
             "type": "Application Dos protection",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_adds_bot_mitigation_feature_change():
+    from datetime import datetime, timezone
+
+    backup_time = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [(backup_time, "Blocking", "SERIAL-A", {}, {}, {}, {"known_bot": "unknown"})],
+        {},
+        {},
+        {},
+        {"known_bot": "enabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"bot-mitigation-known_bot-{int(current_time.timestamp())}",
+            "title": "Known-Bot control enabled",
+            "summary": "Bot Mitigation: Known-Bot changed to Enabled.",
+            "time": "06/05",
+            "type": "Bot Mitigation",
+        }
+    ]
+
+
+def test_build_recent_policy_changes_keeps_historical_bot_mitigation_changes():
+    from datetime import datetime, timezone
+
+    first_backup = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    enabled_backup = datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc)
+    latest_backup = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+    current_time = datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc)
+
+    changes = _build_recent_policy_changes(
+        "Blocking",
+        "SERIAL-A",
+        [
+            (first_backup, "Blocking", "SERIAL-A", {}, {}, {}, {"threshold_based_detection": "unknown"}),
+            (enabled_backup, "Blocking", "SERIAL-A", {}, {}, {}, {"threshold_based_detection": "enabled"}),
+            (latest_backup, "Blocking", "SERIAL-A", {}, {}, {}, {"threshold_based_detection": "enabled"}),
+        ],
+        {},
+        {},
+        {},
+        {"threshold_based_detection": "enabled"},
+        current_time=current_time,
+    )
+
+    assert changes == [
+        {
+            "id": f"bot-mitigation-threshold_based_detection-{int(enabled_backup.timestamp())}",
+            "title": "Threshold Based Detection control enabled",
+            "summary": "Bot Mitigation: Threshold Based Detection changed to Enabled.",
+            "time": "03/05",
+            "type": "Bot Mitigation",
         }
     ]
