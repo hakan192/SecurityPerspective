@@ -3,6 +3,7 @@ from app.services import (
     _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
     _build_recent_policy_changes,
+    _delete_missing_server_policy_rows,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
@@ -12,6 +13,56 @@ from app.services import (
     _format_recent_change_date,
     _load_server_policy_state_from_backups,
 )
+
+
+def test_delete_missing_server_policy_rows_removes_policies_absent_from_latest_fetch():
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE server_policy (device_id integer, server_policy_name text)"))
+        connection.execute(
+            text(
+                """
+                INSERT INTO server_policy (device_id, server_policy_name)
+                VALUES (1, 'keep-a'), (1, 'remove-b'), (2, 'other-device')
+                """
+            )
+        )
+
+    with Session(engine) as session:
+        _delete_missing_server_policy_rows(session, 1, [{"server_policy_name": "keep-a"}])
+        remaining = session.execute(
+            text("SELECT device_id, server_policy_name FROM server_policy ORDER BY device_id, server_policy_name")
+        ).all()
+
+    assert remaining == [(1, "keep-a"), (2, "other-device")]
+
+
+def test_delete_missing_server_policy_rows_clears_device_when_latest_fetch_is_empty():
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE server_policy (device_id integer, server_policy_name text)"))
+        connection.execute(
+            text(
+                """
+                INSERT INTO server_policy (device_id, server_policy_name)
+                VALUES (1, 'remove-a'), (1, 'remove-b'), (2, 'other-device')
+                """
+            )
+        )
+
+    with Session(engine) as session:
+        _delete_missing_server_policy_rows(session, 1, [])
+        remaining = session.execute(
+            text("SELECT device_id, server_policy_name FROM server_policy ORDER BY device_id, server_policy_name")
+        ).all()
+
+    assert remaining == [(2, "other-device")]
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():

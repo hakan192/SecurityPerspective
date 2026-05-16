@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from urllib.parse import quote
 
 import requests
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -2559,6 +2559,34 @@ def _build_http_rfc_control_status(row: dict) -> dict:
     }
 
 
+def _delete_missing_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
+    fetched_policy_names = sorted(
+        {str(row["server_policy_name"]) for row in rows if row.get("server_policy_name")}
+    )
+    if fetched_policy_names:
+        db.execute(
+            text(
+                """
+                DELETE FROM server_policy
+                WHERE device_id = :device_id
+                  AND server_policy_name NOT IN :fetched_policy_names
+                """
+            ).bindparams(bindparam("fetched_policy_names", expanding=True)),
+            {"device_id": device_id, "fetched_policy_names": fetched_policy_names},
+        )
+        return
+
+    db.execute(
+        text(
+            """
+            DELETE FROM server_policy
+            WHERE device_id = :device_id
+            """
+        ),
+        {"device_id": device_id},
+    )
+
+
 def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
     for row in rows:
         if row["web_protection_profile_name"]:
@@ -3763,6 +3791,7 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     _fetch_and_upsert_certificate_sni_members(db, device, sni_name, headers)
                 except Exception:
                     db.rollback()
+            _delete_missing_server_policy_rows(db, device.id, rows)
             _upsert_server_policy_rows(db, device.id, rows)
             unique_allow_hosts = {row["allow_hosts"] for row in rows if row["allow_hosts"]}
             for allow_hosts_name in unique_allow_hosts:
