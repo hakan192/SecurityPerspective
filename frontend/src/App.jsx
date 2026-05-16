@@ -2123,7 +2123,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                               const trafficMirror = typeof policy === 'string' ? '' : (policy['traffic-mirror'] ?? policy.traffic_mirror ?? '')
                               const sni = typeof policy === 'string' ? '' : policy.sni
                               const allowHostsEntries = typeof policy === 'string' ? [] : (policy.allow_hosts_entries || [])
-                              const hostname = allowHostsEntries[0]?.host || ''
+                              const hostnames = allowHostsEntries
+                                .map((entry) => entry.host || '')
+                                .filter(Boolean)
                               const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
                               const certificateCn = clientCertificateDetails.cn || clientCertificateDetails.subject || '-'
                               const certificateIssuer = clientCertificateDetails.issuer || '-'
@@ -2201,7 +2203,16 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                         <h5>Endpoint <span aria-hidden="true">✣</span></h5>
                                         <p><span>IP</span><strong>{policyIp || '-'}</strong></p>
                                         <p><span>SNI</span><strong>{sni || '-'}</strong></p>
-                                        <p><span>Hostname</span><strong>{hostname || '-'}</strong></p>
+                                        <p>
+                                          <span>Hostnames</span>
+                                          <strong className="policy-hostname-list">
+                                            {hostnames.length
+                                              ? hostnames.map((hostname, hostnameIndex) => (
+                                                <span key={`${hostname}-${hostnameIndex}`} className="policy-hostname-item">{hostname}</span>
+                                              ))
+                                              : '-'}
+                                          </strong>
+                                        </p>
                                         <p><span>Traffic Mirror</span><strong>{trafficMirror || '-'}</strong></p>
                                       </article>
                                       <article className="policy-summary-section">
