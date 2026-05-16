@@ -1562,3 +1562,6 @@ input,
     grid-template-columns: 1fr;
   }
 }
+
+@tailwind components;
+@tailwind utilities;
