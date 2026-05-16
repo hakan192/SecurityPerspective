@@ -3,6 +3,8 @@ from app.services import (
     _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
     _build_recent_policy_changes,
+    _delete_missing_server_policy_rows,
+    _extract_certificate_common_name,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
@@ -12,6 +14,56 @@ from app.services import (
     _format_recent_change_date,
     _load_server_policy_state_from_backups,
 )
+
+
+def test_delete_missing_server_policy_rows_removes_policies_absent_from_latest_fetch():
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE server_policy (device_id integer, server_policy_name text)"))
+        connection.execute(
+            text(
+                """
+                INSERT INTO server_policy (device_id, server_policy_name)
+                VALUES (1, 'keep-a'), (1, 'remove-b'), (2, 'other-device')
+                """
+            )
+        )
+
+    with Session(engine) as session:
+        _delete_missing_server_policy_rows(session, 1, [{"server_policy_name": "keep-a"}])
+        remaining = session.execute(
+            text("SELECT device_id, server_policy_name FROM server_policy ORDER BY device_id, server_policy_name")
+        ).all()
+
+    assert remaining == [(1, "keep-a"), (2, "other-device")]
+
+
+def test_delete_missing_server_policy_rows_clears_device_when_latest_fetch_is_empty():
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE server_policy (device_id integer, server_policy_name text)"))
+        connection.execute(
+            text(
+                """
+                INSERT INTO server_policy (device_id, server_policy_name)
+                VALUES (1, 'remove-a'), (1, 'remove-b'), (2, 'other-device')
+                """
+            )
+        )
+
+    with Session(engine) as session:
+        _delete_missing_server_policy_rows(session, 1, [])
+        remaining = session.execute(
+            text("SELECT device_id, server_policy_name FROM server_policy ORDER BY device_id, server_policy_name")
+        ).all()
+
+    assert remaining == [(2, "other-device")]
 
 
 def test_extract_policy_rows_parses_traffic_mirror_disabled_value():
@@ -55,6 +107,24 @@ def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate()
     assert row["sni_certificate"] == "sni-cert-01"
     assert row["sni_certificate_name"] == "sni-cert-01"
     assert row["client_certificate"] == "client-cert-01"
+
+
+def test_extract_certificate_common_name_returns_only_cn_from_distinguished_name():
+    subject = "C=TR, L=Istanbul, O=Example Org, CN=app.example.com"
+
+    assert _extract_certificate_common_name(subject) == "app.example.com"
+
+
+def test_extract_certificate_common_name_handles_slash_separated_and_escaped_values():
+    subject = r"/C=US/O=Example/CN=api\,internal.example.com/OU=Security"
+
+    assert _extract_certificate_common_name(subject) == "api,internal.example.com"
+
+
+def test_extract_certificate_common_name_returns_only_issuer_cn():
+    issuer = "C=US, O=Example Root CA, CN=Example Issuing CA"
+
+    assert _extract_certificate_common_name(issuer) == "Example Issuing CA"
 
 
 def test_extract_certificate_local_row_parses_certificate_attributes():
