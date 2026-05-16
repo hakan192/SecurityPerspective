@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import './App.css'
 
 const resolvedHost = window.location.hostname || 'localhost'
@@ -1593,6 +1594,316 @@ function AutomationDetailsPage({ automation }) {
   )
 }
 
+
+const maturityCards = [
+  {
+    id: 'overall',
+    title: 'Overall WAF Maturity Level Score',
+    score: 90,
+    series: [84, 87, 90],
+    wide: true
+  },
+  {
+    id: 'pendik',
+    title: 'Pendik WAF Maturity Level Score',
+    score: 90,
+    series: [90, 90, 90],
+    location: 'Pendik'
+  },
+  {
+    id: 'ankara',
+    title: 'Ankara WAF Maturity Level Score',
+    score: 90,
+    series: [92, 91, 90],
+    location: 'Ankara'
+  }
+]
+
+const initialTimelineRows = [
+  {
+    id: 1,
+    date: '2026-05-15',
+    domain: 'test1.garantibbva.com.tr',
+    action: 'Move from Monitoring to Blocking',
+    owner: 'WAF Operations',
+    status: 'Planned'
+  },
+  {
+    id: 2,
+    date: '2026-05-20',
+    domain: 'integration.garanti.com.tr',
+    action: 'Configure domain on WAF',
+    owner: 'Security Engineering',
+    status: 'In progress'
+  },
+  {
+    id: 3,
+    date: '2026-05-27',
+    domain: 'test3.garanti.com.tr',
+    action: 'Complete missing WAF policy configuration',
+    owner: 'Application Team',
+    status: 'Pending review'
+  }
+]
+
+const timelineStatuses = ['Planned', 'In progress', 'Pending review', 'Moved to Blocking', 'Completed']
+
+const statusToneClasses = {
+  Planned: 'bg-slate-100 text-slate-600 ring-slate-200',
+  'In progress': 'bg-amber-100 text-amber-700 ring-amber-200',
+  'Pending review': 'bg-violet-100 text-violet-700 ring-violet-200',
+  'Moved to Blocking': 'bg-emerald-100 text-emerald-700 ring-emerald-200',
+  Completed: 'bg-blue-100 text-blue-700 ring-blue-200'
+}
+
+const getTrendMeta = (series) => {
+  const delta = series[series.length - 1] - series[0]
+  if (delta > 0) return { tone: 'emerald', color: '#10b981', soft: 'rgba(16,185,129,0.16)', label: `+${delta}%`, textClass: 'text-emerald-600' }
+  if (delta < 0) return { tone: 'rose', color: '#e11d48', soft: 'rgba(225,29,72,0.14)', label: `${delta}%`, textClass: 'text-rose-600' }
+  return { tone: 'slate', color: '#64748b', soft: 'rgba(100,116,139,0.14)', label: '0%', textClass: 'text-slate-500' }
+}
+
+function TrendSparkline({ series, label }) {
+  const gradientId = useId()
+  const glowId = useId()
+  const width = 260
+  const height = 140
+  const paddingX = 18
+  const paddingY = 22
+  const min = Math.min(...series) - 2
+  const max = Math.max(...series) + 2
+  const range = Math.max(max - min, 1)
+  const points = series.map((value, index) => {
+    const x = paddingX + (index * (width - paddingX * 2)) / Math.max(series.length - 1, 1)
+    const y = height - paddingY - ((value - min) / range) * (height - paddingY * 2)
+    return { x, y }
+  })
+  const [first, middle, last] = points
+  const path = `M ${first.x} ${first.y} C ${first.x + 46} ${first.y}, ${middle.x - 46} ${middle.y}, ${middle.x} ${middle.y} S ${last.x - 46} ${last.y}, ${last.x} ${last.y}`
+  const areaPath = `${path} L ${last.x} ${height - 16} L ${first.x} ${height - 16} Z`
+  const arrowAngle = Math.atan2(last.y - middle.y, last.x - middle.x) * (180 / Math.PI)
+  const meta = getTrendMeta(series)
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-32 w-full overflow-visible" role="img" aria-label={label}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={meta.color} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={meta.color} stopOpacity="0" />
+        </linearGradient>
+        <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="5" result="blur" />
+          <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .26 0" />
+          <feMerge>
+            <feMergeNode />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <motion.path d={areaPath} fill={`url(#${gradientId})`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.25 }} />
+      <motion.path
+        d={path}
+        fill="none"
+        stroke={meta.color}
+        strokeWidth="4"
+        strokeLinecap="round"
+        filter={`url(#${glowId})`}
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 1.15, ease: 'easeInOut' }}
+      />
+      {points.map((point, index) => (
+        <motion.circle
+          key={`${point.x}-${point.y}`}
+          cx={point.x}
+          cy={point.y}
+          r={index === points.length - 1 ? 4.2 : 3.2}
+          fill="#ffffff"
+          stroke={meta.color}
+          strokeWidth="2.4"
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.28 + index * 0.12, type: 'spring', stiffness: 260, damping: 18 }}
+        />
+      ))}
+      <motion.g
+        transform={`translate(${last.x + 8} ${last.y}) rotate(${arrowAngle})`}
+        initial={{ opacity: 0, x: -4 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1.05, duration: 0.35 }}
+      >
+        <path d="M 0 -6 L 13 0 L 0 6 L 3 0 Z" fill={meta.color} />
+      </motion.g>
+    </svg>
+  )
+}
+
+function MaturityCard({ card }) {
+  const trend = getTrendMeta(card.series)
+
+  return (
+    <motion.article
+      className={`rounded-[36px] border border-white/80 bg-white/85 p-7 text-slate-950 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl ${card.wide ? 'mx-auto w-full max-w-4xl' : 'w-full'}`}
+      style={{ boxShadow: '0 20px 80px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.92), inset 0 -18px 38px rgba(248,250,252,0.68)' }}
+      whileHover={{ y: -8, scale: 1.01 }}
+      transition={{ type: 'spring', stiffness: 180, damping: 20 }}
+    >
+      <div className={`grid gap-8 ${card.wide ? 'md:grid-cols-[0.92fr_1.08fr]' : 'sm:grid-cols-[0.95fr_1.05fr]'} items-center`}>
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">Executive Overview</p>
+          <h2 className={`${card.wide ? 'text-3xl md:text-4xl' : 'text-2xl'} mt-3 font-semibold tracking-[-0.04em] text-slate-950`}>{card.title}</h2>
+          <div className="mt-8 inline-flex flex-col rounded-[30px] border border-white bg-slate-50/80 px-8 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+            <span className="text-6xl font-semibold leading-none tracking-[-0.07em] text-slate-950">{card.score}%</span>
+            <span className="mt-2 text-sm font-medium uppercase tracking-[0.2em] text-slate-400">maturity</span>
+          </div>
+        </div>
+        <div className="rounded-[30px] border border-white/80 bg-white/60 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+          {!card.wide && (
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-slate-400">3-week trend</span>
+              <span className={`text-sm font-semibold ${trend.textClass}`}>{trend.label}</span>
+            </div>
+          )}
+          <TrendSparkline series={card.series} label={`${card.title} trend`} />
+          {!card.wide && (
+            <button type="button" className="mt-4 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5 hover:bg-slate-800">
+              Deep dive policies
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.article>
+  )
+}
+
+function TimelineStatusBadge({ status }) {
+  return (
+    <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusToneClasses[status] || statusToneClasses.Planned}`}>
+      {status}
+    </span>
+  )
+}
+
+function ExecutiveOverviewPage() {
+  const [isEditing, setIsEditing] = useState(false)
+  const [timelineRows, setTimelineRows] = useState(initialTimelineRows)
+
+  const updateTimelineRow = (id, field, value) => {
+    setTimelineRows((rows) => rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)))
+  }
+
+  const addTimelineRow = () => {
+    setTimelineRows((rows) => [
+      ...rows,
+      {
+        id: Date.now(),
+        date: '2026-06-03',
+        domain: 'new-domain.garanti.com.tr',
+        action: 'Configure domain on WAF',
+        owner: 'WAF Operations',
+        status: 'Planned'
+      }
+    ])
+  }
+
+  return (
+    <section className="relative -m-4 min-h-full overflow-hidden bg-slate-100 px-6 py-12 text-slate-950 sm:px-10 lg:px-16">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-[8%] top-10 h-72 w-72 rounded-full bg-emerald-200/40 blur-3xl" />
+        <div className="absolute right-[6%] top-48 h-80 w-80 rounded-full bg-sky-200/50 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-violet-200/30 blur-3xl" />
+      </div>
+
+      <motion.div className="relative mx-auto max-w-6xl" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: 'easeOut' }}>
+        <div className="mb-14 text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-400">AI operations console</p>
+          <h1 className="mt-4 text-5xl font-semibold tracking-[-0.06em] text-slate-950 md:text-6xl">Executive Overview</h1>
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-500">Premium WAF maturity posture for leadership, focused on configuration readiness and policy movement without dense operational noise.</p>
+        </div>
+
+        <div className="space-y-8">
+          <MaturityCard card={maturityCards[0]} />
+          <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-2">
+            {maturityCards.slice(1).map((card) => <MaturityCard key={card.id} card={card} />)}
+          </div>
+        </div>
+
+        <motion.article
+          className="mx-auto mt-12 max-w-5xl rounded-[36px] border border-white/80 bg-white/85 p-7 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl md:p-9"
+          style={{ boxShadow: '0 20px 80px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.92), inset 0 -18px 38px rgba(248,250,252,0.64)' }}
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.16, ease: 'easeOut' }}
+        >
+          <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Executive timeline</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.045em] text-slate-950">Upcoming WAF Configuration Plan</h2>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-500">Shows which domains will be configured on WAF and which policies will move from Monitoring to Blocking.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {isEditing && (
+                <button type="button" onClick={addTimelineRow} className="grid h-12 w-12 place-items-center rounded-full bg-white text-2xl font-light text-slate-950 shadow-[0_14px_35px_rgba(15,23,42,0.10)] ring-1 ring-white/80 transition hover:-translate-y-0.5" aria-label="Add timeline row">+</button>
+              )}
+              <button type="button" onClick={() => setIsEditing((value) => !value)} className="rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5 hover:bg-slate-800">
+                {isEditing ? 'Save Timeline' : 'Edit as Admin'}
+              </button>
+            </div>
+          </div>
+
+          <div className="relative mt-10 pl-8">
+            <div className="absolute bottom-8 left-[15px] top-4 w-px bg-gradient-to-b from-slate-200 via-slate-300 to-transparent" />
+            <div className="space-y-5">
+              {timelineRows.map((row, index) => (
+                <motion.div
+                  key={row.id}
+                  className="relative rounded-[30px] border border-white/80 bg-white/75 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.07)] backdrop-blur-xl"
+                  initial={{ opacity: 0, x: -16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.08, duration: 0.38 }}
+                >
+                  <div className="absolute -left-11 top-6 grid h-8 w-8 place-items-center rounded-full bg-slate-950 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 ring-4 ring-white">{index + 1}</div>
+                  {isEditing ? (
+                    <div className="grid gap-4 md:grid-cols-[0.82fr_1.35fr] lg:grid-cols-[0.8fr_1.25fr_1.45fr_1fr_1fr]">
+                      <input className="rounded-xl border border-white/80 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-slate-200" type="date" value={row.date} onChange={(event) => updateTimelineRow(row.id, 'date', event.target.value)} />
+                      <input className="rounded-xl border border-white/80 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-slate-200" value={row.domain} onChange={(event) => updateTimelineRow(row.id, 'domain', event.target.value)} />
+                      <input className="rounded-xl border border-white/80 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-slate-200" value={row.action} onChange={(event) => updateTimelineRow(row.id, 'action', event.target.value)} />
+                      <input className="rounded-xl border border-white/80 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-slate-200" value={row.owner} onChange={(event) => updateTimelineRow(row.id, 'owner', event.target.value)} />
+                      <select className="rounded-xl border border-white/80 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-slate-200" value={row.status} onChange={(event) => updateTimelineRow(row.id, 'status', event.target.value)}>
+                        {timelineStatuses.map((status) => <option key={status}>{status}</option>)}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="grid gap-5 lg:grid-cols-[0.72fr_1.35fr_1.5fr_1fr_auto] lg:items-center">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Date</p>
+                        <p className="mt-1 font-semibold text-slate-800">{row.date}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Domain</p>
+                        <p className="mt-1 font-semibold text-slate-900">{row.domain}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Action</p>
+                        <p className="mt-1 leading-6 text-slate-600">{row.action}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Owner</p>
+                        <p className="mt-1 font-medium text-slate-700">{row.owner}</p>
+                      </div>
+                      <TimelineStatusBadge status={row.status} />
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </motion.article>
+      </motion.div>
+    </section>
+  )
+}
+
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
@@ -2334,7 +2645,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activeNav === 'overview' && <div className="hero-text muted">This page will be designed next.</div>}
+            {activeNav === 'overview' && <ExecutiveOverviewPage />}
             {activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
