@@ -4405,6 +4405,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                         "subject": row["client_certificate_subject"],
                         "cn": _extract_certificate_common_name(row["client_certificate_subject"]),
                         "issuer": row["client_certificate_issuer"],
+                        "issuer_cn": _extract_certificate_common_name(row["client_certificate_issuer"]),
                         "valid_from": row["client_certificate_valid_from"],
                         "valid_to": row["client_certificate_valid_to"],
                         "days_left": row["client_certificate_days_left"],

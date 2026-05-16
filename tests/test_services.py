@@ -121,6 +121,12 @@ def test_extract_certificate_common_name_handles_slash_separated_and_escaped_val
     assert _extract_certificate_common_name(subject) == "api,internal.example.com"
 
 
+def test_extract_certificate_common_name_returns_only_issuer_cn():
+    issuer = "C=US, O=Example Root CA, CN=Example Issuing CA"
+
+    assert _extract_certificate_common_name(issuer) == "Example Issuing CA"
+
+
 def test_extract_certificate_local_row_parses_certificate_attributes():
     payload = {
         "results": [

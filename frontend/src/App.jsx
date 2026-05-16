@@ -2134,7 +2134,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                 .filter(Boolean)
                               const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
                               const certificateCn = clientCertificateDetails.cn || getCertificateCommonName(clientCertificateDetails.subject) || '-'
-                              const certificateIssuer = clientCertificateDetails.issuer || '-'
+                              const certificateIssuer = clientCertificateDetails.issuer_cn || getCertificateCommonName(clientCertificateDetails.issuer) || '-'
                               const certificateExpireDate = clientCertificateDetails.expire_date || clientCertificateDetails.valid_to || '-'
                               const certificateDaysLeft = clientCertificateDetails.days_left ?? '-'
                               const tlsV10V11 = [tlsV10, tlsV11].map((value) => (value === null ? '-' : String(value))).join(' / ')
