@@ -1602,8 +1602,8 @@ const maturityCards = [
     score: 90,
     trend: '+4%',
     series: [84, 87, 90],
-    accent: 'from-emerald-400 to-cyan-500',
-    deepDive: false
+    deepDive: false,
+    summary: 'Unified maturity posture across active WAF locations.'
   },
   {
     id: 'pendik',
@@ -1611,8 +1611,8 @@ const maturityCards = [
     score: 90,
     trend: '0%',
     series: [90, 90, 90],
-    accent: 'from-blue-400 to-indigo-500',
-    deepDive: true
+    deepDive: true,
+    summary: 'Stable maturity with policy readiness maintained.'
   },
   {
     id: 'ankara',
@@ -1620,8 +1620,8 @@ const maturityCards = [
     score: 90,
     trend: '-1%',
     series: [92, 91, 90],
-    accent: 'from-violet-400 to-fuchsia-500',
-    deepDive: true
+    deepDive: true,
+    summary: 'Minor softening to watch during next policy review.'
   }
 ]
 
@@ -1662,7 +1662,7 @@ const timelineStatusClasses = {
   Completed: 'border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-200'
 }
 
-function ExecutiveTrendGraph({ series }) {
+function ExecutiveTrendGraph({ series, featured = false }) {
   const gradientId = useId()
   const min = Math.min(...series)
   const max = Math.max(...series)
@@ -1676,19 +1676,19 @@ function ExecutiveTrendGraph({ series }) {
     .join(' ')
 
   return (
-    <svg className="h-16 w-full" viewBox="0 0 120 60" fill="none" aria-label="Three week maturity trend graph">
+    <svg className={featured ? 'h-24 w-full' : 'h-16 w-full'} viewBox="0 0 120 60" fill="none" aria-label="Three week maturity trend graph">
       <defs>
         <linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0%" stopColor="#10b981" />
-          <stop offset="100%" stopColor="#06b6d4" />
+          <stop offset="0%" stopColor="#111827" />
+          <stop offset="100%" stopColor="#10b981" />
         </linearGradient>
       </defs>
       <path d="M10 50 H110" stroke="currentColor" className="text-slate-200 dark:text-slate-700" strokeWidth="1" />
-      <polyline points={points} fill="none" stroke={`url(#${gradientId})`} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={points} fill="none" stroke={`url(#${gradientId})`} strokeWidth={featured ? '4.5' : '4'} strokeLinecap="round" strokeLinejoin="round" />
       {series.map((value, index) => {
         const x = 10 + index * 50
         const y = 48 - ((value - min) / range) * 30
-        return <circle key={`${value}-${index}`} cx={x} cy={y} r="4" className="fill-white stroke-emerald-400 dark:fill-slate-950" strokeWidth="2" />
+        return <circle key={`${value}-${index}`} cx={x} cy={y} r={featured ? '4.5' : '4'} className="fill-white stroke-slate-950 dark:fill-slate-950 dark:stroke-emerald-300" strokeWidth="2" />
       })}
     </svg>
   )
@@ -1705,9 +1705,65 @@ function TrendArrow({ trend }) {
   return <span className="text-slate-400" aria-label="Flat trend">→</span>
 }
 
+function MaturityScoreCard({ card, index, featured = false }) {
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.36, delay: index * 0.06, ease: 'easeOut' }}
+      whileHover={{ y: -2 }}
+      className={`rounded-[1.6rem] border border-slate-200/80 bg-white shadow-sm shadow-slate-200/70 transition dark:border-slate-800 dark:bg-[#171717] dark:shadow-black/20 ${featured ? 'p-6 md:p-7' : 'p-5'}`}
+    >
+      <div className={`grid gap-5 ${featured ? 'md:grid-cols-[1fr_320px] md:items-center' : ''}`}>
+        <div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{card.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{card.summary}</p>
+            </div>
+            <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-xl dark:border-slate-700 dark:bg-[#212121]">
+              <TrendArrow trend={card.trend} />
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-end gap-3">
+            <div className="flex items-end gap-1">
+              <span className={featured ? 'text-7xl font-semibold tracking-[-0.06em]' : 'text-5xl font-semibold tracking-[-0.05em]'}>{card.score}</span>
+              <span className="pb-2 text-xl font-medium text-slate-400">%</span>
+            </div>
+            <span className="mb-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#212121] dark:text-slate-300">
+              3-week trend {card.trend}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-[1.25rem] border border-slate-100 bg-[#f7f7f8] p-4 dark:border-slate-800 dark:bg-[#212121]">
+          <div className="mb-2 flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+            {card.series.map((value, seriesIndex) => (
+              <span key={`${card.id}-${value}-${seriesIndex}`}>{value}</span>
+            ))}
+          </div>
+          <ExecutiveTrendGraph series={card.series} featured={featured} />
+        </div>
+      </div>
+
+      {card.deepDive && (
+        <button
+          type="button"
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-[#212121] dark:text-slate-100 dark:hover:bg-[#2f2f2f]"
+        >
+          Deep dive policies <span aria-hidden="true">→</span>
+        </button>
+      )}
+    </motion.article>
+  )
+}
+
 function ExecutiveOverviewPage() {
   const [isEditingTimeline, setIsEditingTimeline] = useState(false)
   const [timelineRows, setTimelineRows] = useState(initialTimelineRows)
+  const overallMaturityCard = maturityCards.find((card) => card.id === 'overall')
+  const locationMaturityCards = maturityCards.filter((card) => card.id !== 'overall')
 
   const updateTimelineRow = (rowId, field, value) => {
     setTimelineRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
@@ -1728,81 +1784,47 @@ function ExecutiveOverviewPage() {
   }
 
   return (
-    <div className="w-full max-w-7xl space-y-8 text-slate-950 dark:text-slate-50">
+    <div className="w-full max-w-6xl space-y-6 text-slate-950 dark:text-slate-50">
       <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-        className="overflow-hidden rounded-[2rem] border border-white/60 bg-white/80 p-6 shadow-2xl shadow-slate-200/70 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/55 dark:shadow-slate-950/40"
+        transition={{ duration: 0.42, ease: 'easeOut' }}
+        className="rounded-[2rem] border border-slate-200 bg-[#f7f7f8] p-4 shadow-sm dark:border-slate-800 dark:bg-[#101010] md:p-6"
       >
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-600 dark:text-emerald-300">Executive Overview</p>
-            <h2 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">WAF Maturity Level</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-              Static leadership dashboard showing three-week WAF maturity movement and upcoming configuration milestones.
-            </p>
+        <div className="mx-auto max-w-4xl py-4 text-center">
+          <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm dark:bg-white dark:text-slate-950">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
           </div>
-          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
-            Static mock data · No backend calls
-          </div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Executive Overview</p>
+          <h2 className="mt-2 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">WAF maturity at a glance</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+            A GPT-style, clean executive dashboard using static mock data only. Overall maturity is prioritized first, with location details underneath.
+          </p>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-3">
-          {maturityCards.map((card, index) => (
-            <motion.article
-              key={card.id}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.42, delay: index * 0.08, ease: 'easeOut' }}
-              whileHover={{ y: -4 }}
-              className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-900/80 dark:shadow-slate-950/40"
-            >
-              <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.accent}`} />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{card.title}</p>
-                  <div className="mt-4 flex items-end gap-2">
-                    <span className="text-5xl font-black tracking-tight">{card.score}</span>
-                    <span className="pb-2 text-xl font-bold text-slate-400">%</span>
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-slate-100 p-3 text-2xl dark:bg-slate-800">
-                  <TrendArrow trend={card.trend} />
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-950/40">
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  <span>3-week trend</span>
-                  <span className="text-slate-700 dark:text-slate-200">{card.trend}</span>
-                </div>
-                <ExecutiveTrendGraph series={card.series} />
-              </div>
-
-              {card.deepDive && (
-                <button
-                  type="button"
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/20"
-                >
-                  Deep dive policies <span aria-hidden="true">→</span>
-                </button>
-              )}
-            </motion.article>
-          ))}
+        <div className="space-y-5">
+          {overallMaturityCard && <MaturityScoreCard card={overallMaturityCard} index={0} featured />}
+          <div className="grid gap-5 lg:grid-cols-2">
+            {locationMaturityCards.map((card, index) => (
+              <MaturityScoreCard key={card.id} card={card} index={index + 1} />
+            ))}
+          </div>
         </div>
       </motion.section>
 
       <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.15, ease: 'easeOut' }}
-        className="rounded-[2rem] border border-white/60 bg-white/85 p-6 shadow-2xl shadow-slate-200/70 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-950/40"
+        transition={{ duration: 0.42, delay: 0.12, ease: 'easeOut' }}
+        className="rounded-[2rem] border border-slate-200 bg-[#f7f7f8] p-4 shadow-sm dark:border-slate-800 dark:bg-[#101010] md:p-6"
       >
-        <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-600 dark:text-cyan-300">Admin editable timeline</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">Upcoming WAF Configuration Plan</h2>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Admin editable timeline</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] md:text-3xl">Upcoming WAF Configuration Plan</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
               Shows which domains will be configured on WAF and which statuses will move from Monitoring to Blocking.
             </p>
@@ -1812,7 +1834,7 @@ function ExecutiveOverviewPage() {
               <button
                 type="button"
                 onClick={addTimelineRow}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-200 bg-cyan-50 text-xl font-black text-cyan-700 transition hover:bg-cyan-100 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-200 dark:hover:bg-cyan-500/20"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-xl font-semibold text-slate-800 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-[#212121] dark:text-slate-100 dark:hover:bg-[#2f2f2f]"
                 aria-label="Add new domain row"
               >
                 +
@@ -1821,61 +1843,61 @@ function ExecutiveOverviewPage() {
             <button
               type="button"
               onClick={() => setIsEditingTimeline((value) => !value)}
-              className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-slate-300/70 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:shadow-slate-950/50 dark:hover:bg-slate-200"
+              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
             >
               {isEditingTimeline ? 'Save Timeline' : 'Edit as Admin'}
             </button>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700">
-          <div className="hidden grid-cols-[150px_1.4fr_1.7fr_1.1fr_170px] gap-4 bg-slate-100 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:bg-slate-900 dark:text-slate-400 xl:grid">
+        <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white dark:border-slate-800 dark:bg-[#171717]">
+          <div className="hidden grid-cols-[150px_1.4fr_1.7fr_1.1fr_170px] gap-4 border-b border-slate-200 bg-[#f7f7f8] px-5 py-3 text-xs font-semibold text-slate-500 dark:border-slate-800 dark:bg-[#212121] dark:text-slate-400 xl:grid">
             <span>Date</span>
             <span>Domain</span>
             <span>Action</span>
             <span>Owner</span>
             <span>Status</span>
           </div>
-          <div className="divide-y divide-slate-200 dark:divide-slate-700">
+          <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {timelineRows.map((row, index) => (
               <motion.div
                 key={row.id}
-                initial={{ opacity: 0, x: -10 }}
+                initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.28, delay: index * 0.04 }}
-                className="grid gap-4 bg-white px-5 py-4 dark:bg-slate-950/30 xl:grid-cols-[150px_1.4fr_1.7fr_1.1fr_170px] xl:items-center"
+                transition={{ duration: 0.24, delay: index * 0.04 }}
+                className="grid gap-4 bg-white px-5 py-4 dark:bg-[#171717] xl:grid-cols-[150px_1.4fr_1.7fr_1.1fr_170px] xl:items-center"
               >
                 {isEditingTimeline ? (
                   <>
-                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" type="date" value={row.date} onChange={(event) => updateTimelineRow(row.id, 'date', event.target.value)} />
-                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" type="text" value={row.domain} onChange={(event) => updateTimelineRow(row.id, 'domain', event.target.value)} />
-                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" type="text" value={row.action} onChange={(event) => updateTimelineRow(row.id, 'action', event.target.value)} />
-                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" type="text" value={row.owner} onChange={(event) => updateTimelineRow(row.id, 'owner', event.target.value)} />
-                    <select className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" value={row.status} onChange={(event) => updateTimelineRow(row.id, 'status', event.target.value)}>
+                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-[#212121]" type="date" value={row.date} onChange={(event) => updateTimelineRow(row.id, 'date', event.target.value)} />
+                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-[#212121]" type="text" value={row.domain} onChange={(event) => updateTimelineRow(row.id, 'domain', event.target.value)} />
+                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-[#212121]" type="text" value={row.action} onChange={(event) => updateTimelineRow(row.id, 'action', event.target.value)} />
+                    <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-[#212121]" type="text" value={row.owner} onChange={(event) => updateTimelineRow(row.id, 'owner', event.target.value)} />
+                    <select className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-[#212121]" value={row.status} onChange={(event) => updateTimelineRow(row.id, 'status', event.target.value)}>
                       {timelineStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                     </select>
                   </>
                 ) : (
                   <>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400 xl:hidden">Date</p>
-                      <p className="font-semibold">{row.date}</p>
+                      <p className="text-xs font-semibold text-slate-400 xl:hidden">Date</p>
+                      <p className="font-medium">{row.date}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400 xl:hidden">Domain</p>
-                      <p className="font-semibold text-slate-800 dark:text-slate-100">{row.domain}</p>
+                      <p className="text-xs font-semibold text-slate-400 xl:hidden">Domain</p>
+                      <p className="font-medium text-slate-800 dark:text-slate-100">{row.domain}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400 xl:hidden">Action</p>
+                      <p className="text-xs font-semibold text-slate-400 xl:hidden">Action</p>
                       <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{row.action}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400 xl:hidden">Owner</p>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{row.owner}</p>
+                      <p className="text-xs font-semibold text-slate-400 xl:hidden">Owner</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{row.owner}</p>
                     </div>
                     <div>
-                      <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-400 xl:hidden">Status</p>
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${timelineStatusClasses[row.status] || timelineStatusClasses.Planned}`}>{row.status}</span>
+                      <p className="mb-1 text-xs font-semibold text-slate-400 xl:hidden">Status</p>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${timelineStatusClasses[row.status] || timelineStatusClasses.Planned}`}>{row.status}</span>
                     </div>
                   </>
                 )}
