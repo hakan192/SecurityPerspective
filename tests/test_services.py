@@ -4,6 +4,7 @@ from app.services import (
     _build_http2_rfc_control_status,
     _build_recent_policy_changes,
     _delete_missing_server_policy_rows,
+    _extract_certificate_common_name,
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
@@ -106,6 +107,18 @@ def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate()
     assert row["sni_certificate"] == "sni-cert-01"
     assert row["sni_certificate_name"] == "sni-cert-01"
     assert row["client_certificate"] == "client-cert-01"
+
+
+def test_extract_certificate_common_name_returns_only_cn_from_distinguished_name():
+    subject = "C=TR, L=Istanbul, O=Example Org, CN=app.example.com"
+
+    assert _extract_certificate_common_name(subject) == "app.example.com"
+
+
+def test_extract_certificate_common_name_handles_slash_separated_and_escaped_values():
+    subject = r"/C=US/O=Example/CN=api\,internal.example.com/OU=Security"
+
+    assert _extract_certificate_common_name(subject) == "api,internal.example.com"
 
 
 def test_extract_certificate_local_row_parses_certificate_attributes():

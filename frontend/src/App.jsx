@@ -10,6 +10,12 @@ const API_BASE =
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
 
+const getCertificateCommonName = (subject) => {
+  if (!subject) return ''
+  const match = String(subject).trim().match(/(?:^|[,/]\s*)\s*CN\s*=\s*((?:\\.|[^,/])*)/i)
+  return match ? match[1].replace(/\\(.)/g, '$1').trim() : ''
+}
+
 const navItems = [
   {
     id: 'waf',
@@ -2127,7 +2133,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                                 .map((entry) => entry.host || '')
                                 .filter(Boolean)
                               const clientCertificateDetails = typeof policy === 'string' ? {} : (policy.client_certificate_details || {})
-                              const certificateCn = clientCertificateDetails.cn || clientCertificateDetails.subject || '-'
+                              const certificateCn = clientCertificateDetails.cn || getCertificateCommonName(clientCertificateDetails.subject) || '-'
                               const certificateIssuer = clientCertificateDetails.issuer || '-'
                               const certificateExpireDate = clientCertificateDetails.expire_date || clientCertificateDetails.valid_to || '-'
                               const certificateDaysLeft = clientCertificateDetails.days_left ?? '-'

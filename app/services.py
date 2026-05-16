@@ -1108,6 +1108,19 @@ def _normalize_optional_text(value):
     return normalized or None
 
 
+def _extract_certificate_common_name(subject):
+    subject_text = _normalize_optional_text(subject)
+    if not subject_text:
+        return None
+
+    match = re.search(r"(?:^|[,/]\s*)\s*CN\s*=\s*((?:\\.|[^,/])*)", subject_text, re.IGNORECASE)
+    if not match:
+        return None
+
+    common_name = re.sub(r"\\(.)", r"\1", match.group(1)).strip()
+    return common_name or None
+
+
 def _normalize_optional_date(value):
     text_value = _normalize_optional_text(value)
     if not text_value:
@@ -4390,6 +4403,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "client_certificate": row["client_certificate"],
                     "client_certificate_details": {
                         "subject": row["client_certificate_subject"],
+                        "cn": _extract_certificate_common_name(row["client_certificate_subject"]),
                         "issuer": row["client_certificate_issuer"],
                         "valid_from": row["client_certificate_valid_from"],
                         "valid_to": row["client_certificate_valid_to"],
