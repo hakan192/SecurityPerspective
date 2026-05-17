@@ -1213,3 +1213,67 @@ def test_build_policy_maturity_assessment_scores_access_zero_when_allow_method_d
     assert access["max_points"] == 5
     assert access["status"] == "Needs improvement"
     assert access["components"]["allow_method"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_ip_protection_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {"ip_list": "enabled", "geo_location": "enabled"},
+        {},
+    )
+
+    ip_protection = assessment["categories"][5]
+
+    assert ip_protection["title"] == "IP Protection"
+    assert ip_protection["points"] == 10
+    assert ip_protection["max_points"] == 10
+    assert ip_protection["status"] == "Strong"
+    assert ip_protection["components"]["ip_list"]["points"] == 5
+    assert ip_protection["components"]["geo_location"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_ip_protection_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {"ip_list": "enabled", "geo_location": "unknown"},
+        {},
+    )
+
+    ip_protection = assessment["categories"][5]
+
+    assert ip_protection["points"] == 5
+    assert ip_protection["max_points"] == 10
+    assert ip_protection["status"] == "Needs improvement"
+    assert ip_protection["components"]["ip_list"]["points"] == 5
+    assert ip_protection["components"]["geo_location"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_ip_protection_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {"ip_list": "unknown", "geo_location": "unknown"},
+        {},
+    )
+
+    ip_protection = assessment["categories"][5]
+
+    assert ip_protection["points"] == 0
+    assert ip_protection["max_points"] == 10
+    assert ip_protection["status"] == "Needs improvement"
+    assert ip_protection["components"]["ip_list"]["points"] == 0
+    assert ip_protection["components"]["geo_location"]["points"] == 0

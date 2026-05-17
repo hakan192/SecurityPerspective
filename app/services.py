@@ -459,6 +459,26 @@ def _calculate_access_points(access_state: dict[str, str]) -> tuple[int, dict]:
     return points, components
 
 
+def _calculate_ip_protection_points(ip_protection_state: dict[str, str]) -> tuple[int, dict]:
+    ip_list_enabled = _is_maturity_enabled(ip_protection_state.get("ip_list"))
+    geo_location_enabled = _is_maturity_enabled(ip_protection_state.get("geo_location"))
+    component_points = {
+        "ip_list": 5 if ip_list_enabled else 0,
+        "geo_location": 5 if geo_location_enabled else 0,
+    }
+    components = {
+        "ip_list": {
+            "status": ip_protection_state.get("ip_list", "disabled"),
+            "points": component_points["ip_list"],
+        },
+        "geo_location": {
+            "status": ip_protection_state.get("geo_location", "disabled"),
+            "points": component_points["geo_location"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
 def _build_policy_maturity_assessment(
     standard_state: dict[str, str],
     http2_enabled,
@@ -473,6 +493,7 @@ def _build_policy_maturity_assessment(
     advanced_points, advanced_components = _calculate_advanced_protection_points(advanced_state)
     application_dos_points, application_dos_components = _calculate_application_dos_points(application_dos_state)
     access_points, access_components = _calculate_access_points(access_state)
+    ip_protection_points, ip_protection_components = _calculate_ip_protection_points(ip_protection_state)
     categories = [
         _build_maturity_category("standard_protection", standard_points, standard_components),
         _build_maturity_category("advanced_protection", advanced_points, advanced_components),
@@ -483,11 +504,7 @@ def _build_policy_maturity_assessment(
             bot_mitigation_state,
         ),
         _build_maturity_category("access", access_points, access_components),
-        _build_maturity_category(
-            "ip_protection",
-            _calculate_binary_maturity_points("ip_protection", ip_protection_state),
-            ip_protection_state,
-        ),
+        _build_maturity_category("ip_protection", ip_protection_points, ip_protection_components),
         _build_maturity_category(
             "api_security",
             _calculate_binary_maturity_points("api_security", api_security_state),

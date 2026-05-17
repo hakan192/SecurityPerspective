@@ -1797,30 +1797,28 @@ function getMaturityPoints(policy = {}) {
   const accessPoints = allowMethodStrong ? 5 : 0
   const accessStrong = accessPoints === 5
 
-  const ipStrong = hasAnyMaturityValue(
+  const ipListStrong = hasAnyMaturityValue(
     Array.isArray(ipListPolicyEntries) ? ipListPolicyEntries : [],
-    Array.isArray(geoIpEntries) ? geoIpEntries : [],
     policy.ip_list,
     policy.ipList,
     policy['ip-list'],
     policy.ip_list_entries,
-    policy.ip_group,
-    policy.ipGroup,
-    policy['ip-group'],
-    policy.geo_location,
-    policy.geoLocation,
-    policy['geo-location'],
     webProtectionProfile.ip_list,
     webProtectionProfile.ipList,
     webProtectionProfile['ip-list'],
-    webProtectionProfile.ip_list_entries,
-    webProtectionProfile.ip_group,
-    webProtectionProfile.ipGroup,
-    webProtectionProfile['ip-group'],
+    webProtectionProfile.ip_list_entries
+  )
+  const geoLocationStrong = hasAnyMaturityValue(
+    Array.isArray(geoIpEntries) ? geoIpEntries : [],
+    policy.geo_location,
+    policy.geoLocation,
+    policy['geo-location'],
     webProtectionProfile.geo_location,
     webProtectionProfile.geoLocation,
     webProtectionProfile['geo-location']
   )
+  const ipProtectionPoints = (ipListStrong ? 5 : 0) + (geoLocationStrong ? 5 : 0)
+  const ipStrong = ipProtectionPoints === 10
 
   const apiStrong = hasAnyMaturityValue(
     apiSecurityPolicy,
@@ -1888,13 +1886,17 @@ function getMaturityPoints(policy = {}) {
         allow_method: { status: allowMethodStrong ? 'enabled' : 'disabled', points: allowMethodStrong ? 5 : 0 }
       }
     },
-    createPoint(
-      ipStrong,
-      'IP Protection',
-      'IP list, IP group, and geo-location controls contribute location and source protection maturity.',
-      10,
-      3
-    ),
+    {
+      title: 'IP Protection',
+      description: 'IP list and geo-location controls contribute location and source protection maturity.',
+      status: ipStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: ipProtectionPoints,
+      maxPoints: 10,
+      components: {
+        ip_list: { status: ipListStrong ? 'enabled' : 'disabled', points: ipListStrong ? 5 : 0 },
+        geo_location: { status: geoLocationStrong ? 'enabled' : 'disabled', points: geoLocationStrong ? 5 : 0 }
+      }
+    },
     createPoint(
       apiStrong,
       'API Security',
@@ -1937,6 +1939,7 @@ function runMaturityPointAssertions() {
     application_layer_dos_prevention_policy: { http_request_flood_prevention_rule: 'rule-a' }
   })[2]
   const enabledAccessPoints = getMaturityPoints({ allow_method: 'Enabled' })[4]
+  const partialIpProtectionPoints = getMaturityPoints({ ip_list_policy_entries: [{ ip: '10.0.0.1' }] })[5]
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
   console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
@@ -1949,6 +1952,7 @@ function runMaturityPointAssertions() {
   console.assert(partialAdvancedPoints.points === 10, 'advance protection gives 10 points for one enabled feature')
   console.assert(partialApplicationDosPoints.points === 5, 'application DoS gives 5 points for one enabled feature')
   console.assert(enabledAccessPoints.points === 5, 'access gives 5 points when Allow method is enabled')
+  console.assert(partialIpProtectionPoints.points === 5, 'IP protection gives 5 points for one enabled feature')
 }
 
 runMaturityPointAssertions()
