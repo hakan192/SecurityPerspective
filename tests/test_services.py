@@ -1093,3 +1093,82 @@ def test_build_policy_maturity_assessment_scores_advance_protection_zero_when_no
     assert advance["status"] == "Needs improvement"
     assert advance["components"]["syntax_based_detection"]["points"] == 0
     assert advance["components"]["custom_access_rules"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_application_dos_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {
+            "http_flood_prevention": "enabled",
+            "http_access_limit": "enabled",
+            "tcp_flood_prevention": "enabled",
+        },
+        {},
+        {},
+        {},
+        {},
+    )
+
+    application_dos = assessment["categories"][2]
+
+    assert application_dos["title"] == "Application DoS"
+    assert application_dos["points"] == 15
+    assert application_dos["max_points"] == 15
+    assert application_dos["status"] == "Strong"
+    assert application_dos["components"]["http_flood_prevention"]["points"] == 5
+    assert application_dos["components"]["http_access_limit"]["points"] == 5
+    assert application_dos["components"]["tcp_flood_prevention"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_application_dos_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {
+            "http_flood_prevention": "enabled",
+            "http_access_limit": "unknown",
+            "tcp_flood_prevention": "enabled",
+        },
+        {},
+        {},
+        {},
+        {},
+    )
+
+    application_dos = assessment["categories"][2]
+
+    assert application_dos["points"] == 10
+    assert application_dos["max_points"] == 15
+    assert application_dos["status"] == "Needs improvement"
+    assert application_dos["components"]["http_flood_prevention"]["points"] == 5
+    assert application_dos["components"]["http_access_limit"]["points"] == 0
+    assert application_dos["components"]["tcp_flood_prevention"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_application_dos_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {
+            "http_flood_prevention": "unknown",
+            "http_access_limit": "unknown",
+            "tcp_flood_prevention": "unknown",
+        },
+        {},
+        {},
+        {},
+        {},
+    )
+
+    application_dos = assessment["categories"][2]
+
+    assert application_dos["points"] == 0
+    assert application_dos["max_points"] == 15
+    assert application_dos["status"] == "Needs improvement"
+    assert application_dos["components"]["http_flood_prevention"]["points"] == 0
+    assert application_dos["components"]["http_access_limit"]["points"] == 0
+    assert application_dos["components"]["tcp_flood_prevention"]["points"] == 0

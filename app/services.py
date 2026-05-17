@@ -421,6 +421,32 @@ def _calculate_advanced_protection_points(advanced_state: dict[str, str]) -> tup
     return sum(component_points.values()), components
 
 
+def _calculate_application_dos_points(application_dos_state: dict[str, str]) -> tuple[int, dict]:
+    http_flood_enabled = _is_maturity_enabled(application_dos_state.get("http_flood_prevention"))
+    http_access_limit_enabled = _is_maturity_enabled(application_dos_state.get("http_access_limit"))
+    tcp_flood_enabled = _is_maturity_enabled(application_dos_state.get("tcp_flood_prevention"))
+    component_points = {
+        "http_flood_prevention": 5 if http_flood_enabled else 0,
+        "http_access_limit": 5 if http_access_limit_enabled else 0,
+        "tcp_flood_prevention": 5 if tcp_flood_enabled else 0,
+    }
+    components = {
+        "http_flood_prevention": {
+            "status": application_dos_state.get("http_flood_prevention", "disabled"),
+            "points": component_points["http_flood_prevention"],
+        },
+        "http_access_limit": {
+            "status": application_dos_state.get("http_access_limit", "disabled"),
+            "points": component_points["http_access_limit"],
+        },
+        "tcp_flood_prevention": {
+            "status": application_dos_state.get("tcp_flood_prevention", "disabled"),
+            "points": component_points["tcp_flood_prevention"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
 def _build_policy_maturity_assessment(
     standard_state: dict[str, str],
     http2_enabled,
@@ -433,14 +459,11 @@ def _build_policy_maturity_assessment(
 ) -> dict:
     standard_points, standard_components = _calculate_standard_protection_points(standard_state, http2_enabled)
     advanced_points, advanced_components = _calculate_advanced_protection_points(advanced_state)
+    application_dos_points, application_dos_components = _calculate_application_dos_points(application_dos_state)
     categories = [
         _build_maturity_category("standard_protection", standard_points, standard_components),
         _build_maturity_category("advanced_protection", advanced_points, advanced_components),
-        _build_maturity_category(
-            "application_dos",
-            _calculate_binary_maturity_points("application_dos", application_dos_state),
-            application_dos_state,
-        ),
+        _build_maturity_category("application_dos", application_dos_points, application_dos_components),
         _build_maturity_category(
             "bot_mitigation",
             _calculate_binary_maturity_points("bot_mitigation", bot_mitigation_state),

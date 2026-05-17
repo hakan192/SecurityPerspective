@@ -1747,10 +1747,25 @@ function getMaturityPoints(policy = {}) {
     webProtectionProfile.http_flood_prevention,
     policy['http-flood-prevention']
   )
-  const tcpFloodStrong = isMaturityActionStrong(
-    tcpFloodPolicy.action ?? applicationDosPolicy.tcp_flood_action ?? policy.tcp_flood_prevention_action
+  const httpAccessLimitStrong = hasAnyMaturityValue(
+    applicationDosPolicy.layer4_access_limit_rule,
+    applicationDosPolicy.http_access_limit,
+    policy.http_access_limit,
+    webProtectionProfile.http_access_limit,
+    policy['http-access-limit']
   )
-  const applicationDosStrong = httpFloodStrong || tcpFloodStrong
+  const tcpFloodStrong = hasAnyMaturityValue(
+    tcpFloodPolicy.action,
+    applicationDosPolicy.layer4_connection_flood_check_rule,
+    applicationDosPolicy.tcp_flood_prevention,
+    applicationDosPolicy.tcp_flood_action,
+    policy.tcp_flood_prevention,
+    policy.tcp_flood_prevention_action,
+    webProtectionProfile.tcp_flood_prevention,
+    policy['tcp-flood-prevention']
+  )
+  const applicationDosPoints = (httpFloodStrong ? 5 : 0) + (httpAccessLimitStrong ? 5 : 0) + (tcpFloodStrong ? 5 : 0)
+  const applicationDosStrong = applicationDosPoints === 15
 
   const botStrong = hasAnyMaturityValue(
     botMitigationPolicy.biometric_detection,
@@ -1843,13 +1858,18 @@ function getMaturityPoints(policy = {}) {
         custom_access_rules: { status: customAccessStrong ? 'enabled' : 'disabled', points: customAccessStrong ? 10 : 0 }
       }
     },
-    createPoint(
-      applicationDosStrong,
-      'Application DoS',
-      'HTTP flood prevention and TCP flood actions are assessed for application-layer DoS readiness.',
-      15,
-      5
-    ),
+    {
+      title: 'Application DoS',
+      description: 'HTTP flood prevention, HTTP access limit, and TCP flood prevention are assessed for application-layer DoS readiness.',
+      status: applicationDosStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: applicationDosPoints,
+      maxPoints: 15,
+      components: {
+        http_flood_prevention: { status: httpFloodStrong ? 'enabled' : 'disabled', points: httpFloodStrong ? 5 : 0 },
+        http_access_limit: { status: httpAccessLimitStrong ? 'enabled' : 'disabled', points: httpAccessLimitStrong ? 5 : 0 },
+        tcp_flood_prevention: { status: tcpFloodStrong ? 'enabled' : 'disabled', points: tcpFloodStrong ? 5 : 0 }
+      }
+    },
     createPoint(
       botStrong,
       'Bot Mitigation',
@@ -1909,6 +1929,9 @@ function runMaturityPointAssertions() {
     syntax_based_attack_detection_details: { xss_html_tag_based_status: 'enable' },
     custom_access_rules: []
   })[1]
+  const partialApplicationDosPoints = getMaturityPoints({
+    application_layer_dos_prevention_policy: { http_request_flood_prevention_rule: 'rule-a' }
+  })[2]
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
   console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
@@ -1919,6 +1942,7 @@ function runMaturityPointAssertions() {
   console.assert(backendPolicyPoints[0].points === 15, 'backend maturity categories should be used when present')
   console.assert(partialStandardPoints.points === 15, 'standard protection without HTTP/2 gives 15 points for one enabled control')
   console.assert(partialAdvancedPoints.points === 10, 'advance protection gives 10 points for one enabled feature')
+  console.assert(partialApplicationDosPoints.points === 5, 'application DoS gives 5 points for one enabled feature')
 }
 
 runMaturityPointAssertions()
