@@ -82,7 +82,8 @@ const executiveMaturityCards = [
     id: 'overall',
     title: 'Overall WAF Maturity Level',
     location: 'Enterprise aggregate',
-    score: 82,
+    score: 90,
+    series: [84, 87, 90],
     level: 'Optimized',
     tone: 'strong',
     summary: 'Protection is consistently enforced across core application tiers with mature policy coverage and response-ready controls.',
@@ -93,23 +94,54 @@ const executiveMaturityCards = [
     id: 'pendik',
     title: 'Pendik WAF Maturity Level',
     location: 'Pendik data center',
-    score: 76,
-    level: 'Advanced',
+    score: 90,
+    series: [90, 90, 90],
+    level: 'Optimized',
     tone: 'steady',
-    summary: 'Pendik shows strong blocking posture with a few tuning opportunities around exception hygiene and certificate review cadence.',
+    summary: 'Pendik sustains a high-confidence blocking posture with stable controls and disciplined exception hygiene.',
     trend: { direction: 'stable', value: '0 pts', label: 'No maturity change' },
-    signals: ['Blocking mode enabled', 'Exception review due', 'Certificate posture healthy']
+    signals: ['Blocking mode enabled', 'Exception review current', 'Certificate posture healthy']
   },
   {
     id: 'ankara',
     title: 'Ankara WAF Maturity Level',
     location: 'Ankara data center',
-    score: 68,
-    level: 'Developing',
-    tone: 'attention',
-    summary: 'Ankara has a reliable baseline and should prioritize monitor-to-block migration for selected services and profile normalization.',
-    trend: { direction: 'decreased', value: '-4 pts', label: 'Decreased this quarter' },
-    signals: ['Monitoring migration planned', 'Profiles need normalization', 'High-priority apps covered']
+    score: 90,
+    series: [92, 91, 90],
+    level: 'Optimized',
+    tone: 'strong',
+    summary: 'Ankara maintains enterprise-grade coverage while final planned services move through monitoring-to-blocking readiness.',
+    trend: { direction: 'decreased', value: '-2 pts', label: 'Normalized this quarter' },
+    signals: ['Blocking migration active', 'Profiles normalized', 'High-priority apps covered']
+  }
+]
+
+const timelineStatusOptions = ['Planned', 'In progress', 'Pending review', 'Moved to Blocking', 'Completed']
+
+const executiveTimelineItems = [
+  {
+    id: 'timeline-1',
+    date: '2026-05-15',
+    domain: 'test1.garantibbva.com.tr',
+    action: 'Move from Monitoring to Blocking',
+    owner: 'WAF Operations',
+    status: 'Planned'
+  },
+  {
+    id: 'timeline-2',
+    date: '2026-05-20',
+    domain: 'integration.garanti.com.tr',
+    action: 'Configure domain on WAF',
+    owner: 'Security Engineering',
+    status: 'In progress'
+  },
+  {
+    id: 'timeline-3',
+    date: '2026-05-27',
+    domain: 'test3.garanti.com.tr',
+    action: 'Complete missing WAF policy configuration',
+    owner: 'Application Team',
+    status: 'Pending review'
   }
 ]
 
@@ -1633,6 +1665,28 @@ function AutomationDetailsPage({ automation }) {
 
 function ExecutiveOverviewPage() {
   const [overallCard, ...siteCards] = executiveMaturityCards
+  const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
+  const [timelineEditMode, setTimelineEditMode] = useState(false)
+
+  const handleTimelineChange = (id, field, value) => {
+    setTimelineItems((items) => (
+      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    ))
+  }
+
+  const handleAddTimelineRow = () => {
+    setTimelineItems((items) => ([
+      ...items,
+      {
+        id: `timeline-${Date.now()}`,
+        date: '',
+        domain: '',
+        action: 'Configure domain on WAF',
+        owner: '',
+        status: 'Planned'
+      }
+    ]))
+  }
 
   return (
     <section className="executive-overview-page" aria-label="Executive WAF maturity overview">
@@ -1643,8 +1697,139 @@ function ExecutiveOverviewPage() {
             <MaturityCard key={card.id} card={card} showDeepDive />
           ))}
         </div>
+        <ExecutiveTimelineCard
+          items={timelineItems}
+          editMode={timelineEditMode}
+          onChange={handleTimelineChange}
+          onAddRow={handleAddTimelineRow}
+          onToggleEdit={() => setTimelineEditMode((value) => !value)}
+        />
       </div>
     </section>
+  )
+}
+
+
+function ExecutiveTimelineCard({ items, editMode, onChange, onAddRow, onToggleEdit }) {
+  return (
+    <article className="executive-timeline-card" aria-label="Upcoming WAF configuration plan">
+      <div className="timeline-card-aura" aria-hidden="true" />
+      <div className="executive-timeline-head">
+        <div>
+          <p className="maturity-location">Executive timeline</p>
+          <h3>Upcoming WAF Configuration Plan</h3>
+          <p className="executive-timeline-description">
+            Shows which domains will be configured on WAF and which policies will move from Monitoring to Blocking.
+          </p>
+        </div>
+        <button type="button" className="timeline-admin-btn" onClick={onToggleEdit}>
+          {editMode ? 'Save Timeline' : 'Edit as Admin'}
+        </button>
+      </div>
+
+      <div className={`floating-timeline ${editMode ? 'editing' : ''}`}>
+        {items.map((item, index) => (
+          <TimelineItem
+            key={item.id}
+            item={item}
+            index={index}
+            editMode={editMode}
+            onChange={onChange}
+          />
+        ))}
+      </div>
+
+      {editMode && (
+        <div className="timeline-add-row-shell">
+          <button type="button" className="timeline-add-row-btn" onClick={onAddRow} aria-label="Add new domain row">
+            +
+          </button>
+        </div>
+      )}
+    </article>
+  )
+}
+
+function TimelineItem({ item, index, editMode, onChange }) {
+  const renderField = (field, label, type = 'text') => (
+    <label className="timeline-edit-field">
+      <span>{label}</span>
+      <input
+        type={type}
+        value={item[field]}
+        onChange={(event) => onChange(item.id, field, event.target.value)}
+      />
+    </label>
+  )
+
+  return (
+    <div className="timeline-row">
+      <div className="timeline-marker" aria-hidden="true">
+        <span>{index + 1}</span>
+      </div>
+      <div className="timeline-floating-item">
+        {editMode ? (
+          <div className="timeline-edit-grid">
+            {renderField('date', 'Date', 'date')}
+            {renderField('domain', 'Domain')}
+            {renderField('action', 'Action')}
+            {renderField('owner', 'Owner')}
+            <label className="timeline-edit-field">
+              <span>Status</span>
+              <select value={item.status} onChange={(event) => onChange(item.id, 'status', event.target.value)}>
+                {timelineStatusOptions.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : (
+          <>
+            <div className="timeline-item-topline">
+              <time dateTime={item.date}>{item.date}</time>
+              <TimelineStatusBadge status={item.status} />
+            </div>
+            <h4>{item.domain}</h4>
+            <p>{item.action}</p>
+            <div className="timeline-owner-row">
+              <span>Owner</span>
+              <strong>{item.owner}</strong>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TimelineStatusBadge({ status }) {
+  const normalized = status.toLowerCase().replaceAll(' ', '-').replace('moved-to-blocking', 'blocking')
+  return <span className={`timeline-status-badge ${normalized}`}>{status}</span>
+}
+
+function MaturitySparkline({ series }) {
+  const gradientId = useId()
+  const points = series.map((value, index) => {
+    const x = series.length === 1 ? 50 : (index / (series.length - 1)) * 100
+    const y = 82 - ((value - 80) / 20) * 64
+    return `${x},${Math.max(10, Math.min(82, y))}`
+  }).join(' ')
+
+  return (
+    <svg className="maturity-sparkline" viewBox="0 0 100 92" preserveAspectRatio="none" aria-label={`Maturity series ${series.join(', ')}`}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stopColor="#10b981" />
+          <stop offset="100%" stopColor="#38bdf8" />
+        </linearGradient>
+      </defs>
+      <polyline points={points} fill="none" stroke={`url(#${gradientId})`} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      {series.map((value, index) => {
+        const x = series.length === 1 ? 50 : (index / (series.length - 1)) * 100
+        const y = Math.max(10, Math.min(82, 82 - ((value - 80) / 20) * 64))
+        return <circle key={`${value}-${index}`} cx={x} cy={y} r="3.2" fill="#0f172a" />
+      })}
+    </svg>
   )
 }
 
@@ -1695,7 +1880,10 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
               <span>{card.score}</span>
               <small>%</small>
             </div>
-            <p>{card.summary}</p>
+            <div className="maturity-score-copy">
+              <p>{card.summary}</p>
+              <MaturitySparkline series={card.series} />
+            </div>
           </div>
 
           <div className={`maturity-trend ${card.trend.direction}`}>
