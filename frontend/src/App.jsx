@@ -1706,10 +1706,6 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
             </span>
           </div>
         </div>
-
-        <div className="maturity-progress" aria-hidden="true">
-          <span style={{ width: `${card.score}%` }} />
-        </div>
         {showDeepDive && (
           <div className="maturity-card-actions">
             <button type="button" className="deep-dive-btn">

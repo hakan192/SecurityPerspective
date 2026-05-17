@@ -1853,29 +1853,6 @@ input,
   color: #7dd3fc;
 }
 
-.maturity-progress {
-  height: 0.45rem;
-  margin-top: 0.95rem;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.18);
-}
-
-.maturity-progress span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: #10b981;
-}
-
-.maturity-card.steady .maturity-progress span {
-  background: #0ea5e9;
-}
-
-.maturity-card.attention .maturity-progress span {
-  background: #f59e0b;
-}
-
 
 .maturity-card-actions {
   display: flex;
