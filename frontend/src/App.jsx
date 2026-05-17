@@ -1665,9 +1665,7 @@ function AutomationDetailsPage({ automation }) {
 
 function ScoringPage({ selectedScoreId, onBack, onOpenDetails, policies = [], getPolicyStatus }) {
   const selectedCard = executiveMaturityCards.find((card) => card.id === selectedScoreId) || executiveMaturityCards[0]
-  const scoringCards = selectedScoreId === 'overall'
-    ? executiveMaturityCards
-    : executiveMaturityCards.filter((card) => card.id === 'overall' || card.id === selectedCard.id)
+  const scoringCards = [selectedCard]
   const selectedLocationName = selectedScoreId === 'pendik' ? 'Pendik' : selectedScoreId === 'ankara' ? 'Ankara' : 'Overall'
   const filteredPolicies = policies.filter((policy) => {
     if (selectedScoreId === 'overall') return true
