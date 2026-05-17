@@ -1767,20 +1767,29 @@ function getMaturityPoints(policy = {}) {
   const applicationDosPoints = (httpFloodStrong ? 5 : 0) + (httpAccessLimitStrong ? 5 : 0) + (tcpFloodStrong ? 5 : 0)
   const applicationDosStrong = applicationDosPoints === 15
 
-  const botStrong = hasAnyMaturityValue(
-    botMitigationPolicy.biometric_detection,
+  const thresholdBasedDetectionStrong = hasAnyMaturityValue(
     botMitigationPolicy.threshold_based_detection,
-    botMitigationPolicy.known_bot,
-    botMitigationPolicy.action,
-    policy.biometric_detection,
+    botMitigationPolicy.threshold_based_detection_details,
     policy.threshold_based_detection,
-    policy.known_bot,
+    policy.threshold_based_detection_details,
     policy.bot_confirmation,
     policy.bot_recognition,
-    webProtectionProfile.biometric_detection,
     webProtectionProfile.threshold_based_detection,
-    webProtectionProfile.known_bot
+    webProtectionProfile.threshold_based_detection_details
   )
+  const knownBotStrong = hasAnyMaturityValue(
+    botMitigationPolicy.known_bot,
+    botMitigationPolicy.known_bots,
+    botMitigationPolicy.known_bots_details,
+    policy.known_bot,
+    policy.known_bots,
+    policy.known_bots_details,
+    webProtectionProfile.known_bot,
+    webProtectionProfile.known_bots,
+    webProtectionProfile.known_bots_details
+  )
+  const botMitigationPoints = (thresholdBasedDetectionStrong ? 5 : 0) + (knownBotStrong ? 5 : 0)
+  const botStrong = botMitigationPoints === 10
 
   const allowMethodStrong = hasAnyMaturityValue(
     policy.allow_method,
@@ -1892,13 +1901,17 @@ function getMaturityPoints(policy = {}) {
         tcp_flood_prevention: { status: tcpFloodStrong ? 'enabled' : 'disabled', points: tcpFloodStrong ? 5 : 0 }
       }
     },
-    createPoint(
-      botStrong,
-      'Bot Mitigation',
-      'Bot mitigation maturity checks biometric, threshold, known-bot, and alerting controls.',
-      10,
-      3
-    ),
+    {
+      title: 'Bot Mitigation',
+      description: 'Bot mitigation maturity checks threshold based detection and known-bot controls.',
+      status: botStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: botMitigationPoints,
+      maxPoints: 10,
+      components: {
+        threshold_based_detection: { status: thresholdBasedDetectionStrong ? 'enabled' : 'disabled', points: thresholdBasedDetectionStrong ? 5 : 0 },
+        known_bot: { status: knownBotStrong ? 'enabled' : 'disabled', points: knownBotStrong ? 5 : 0 }
+      }
+    },
     {
       title: 'Access',
       description: 'Access maturity reflects the Allow method security feature.',
@@ -1939,14 +1952,18 @@ function runMaturityPointAssertions() {
     signature: 'Enabled',
     http_rfc: 'Enabled',
     syntax_based_attack_detection_details: { xss_html_tag_based_status: 'enable' },
+    custom_access_rules: [{ name: 'rule-a' }],
     application_layer_dos_prevention_policy: {
       http_request_flood_prevention_rule: 'Enabled',
+      layer4_access_limit_rule: 'Enabled',
       tcp_flood_prevention_policy: { action: 'alert_deny' }
     },
-    bot_mitigation_details: { known_bot: 'Enabled' },
+    bot_mitigation_details: { threshold_based_detection: 'Enabled', known_bot: 'Enabled' },
     allow_method: 'Enabled',
     ip_list_policy_entries: [{ ip: '10.0.0.1' }],
-    api_security_details: { schema_validation: 'Enabled' }
+    geo_ip_entries: [{ countryName: 'United States' }],
+    xml_validation_enable_signature_detection: 'Enabled',
+    json_validation_enable_attack_signatures: 'Enabled'
   })
   const strongPolicyScore = strongPolicyPoints.reduce((total, point) => total + point.points, 0)
   const weakPolicyPoints = getMaturityPoints({})
@@ -1965,6 +1982,7 @@ function runMaturityPointAssertions() {
   const partialApplicationDosPoints = getMaturityPoints({
     application_layer_dos_prevention_policy: { http_request_flood_prevention_rule: 'rule-a' }
   })[2]
+  const partialBotMitigationPoints = getMaturityPoints({ bot_mitigation_details: { threshold_based_detection: 'Enabled' } })[3]
   const enabledAccessPoints = getMaturityPoints({ allow_method: 'Enabled' })[4]
   const partialIpProtectionPoints = getMaturityPoints({ ip_list_policy_entries: [{ ip: '10.0.0.1' }] })[5]
   const partialApiSecurityPoints = getMaturityPoints({ xml_validation_enable_signature_detection: 'Enabled' })[6]
@@ -1979,6 +1997,7 @@ function runMaturityPointAssertions() {
   console.assert(partialStandardPoints.points === 15, 'standard protection without HTTP/2 gives 15 points for one enabled control')
   console.assert(partialAdvancedPoints.points === 10, 'advance protection gives 10 points for one enabled feature')
   console.assert(partialApplicationDosPoints.points === 5, 'application DoS gives 5 points for one enabled feature')
+  console.assert(partialBotMitigationPoints.points === 5, 'bot mitigation gives 5 points for one enabled feature')
   console.assert(enabledAccessPoints.points === 5, 'access gives 5 points when Allow method is enabled')
   console.assert(partialIpProtectionPoints.points === 5, 'IP protection gives 5 points for one enabled feature')
   console.assert(partialApiSecurityPoints.points === 5, 'API security gives 5 points for one enabled feature')
@@ -1997,7 +2016,6 @@ const maturityComponentLabels = {
   http_flood_prevention: 'HTTP flood prevention',
   http_access_limit: 'HTTP access limit',
   tcp_flood_prevention: 'TCP flood prevention',
-  biometric_based_detection: 'Biometric based detection',
   threshold_based_detection: 'Threshold based detection',
   known_bot: 'Known-bot',
   allow_method: 'Allow method',

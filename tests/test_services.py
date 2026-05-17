@@ -415,7 +415,6 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
         "tcp_flood_prevention": "enabled",
     }
     assert states[("1", "policy-b")][0][6] == {
-        "biometric_based_detection": "enabled",
         "threshold_based_detection": "enabled",
         "known_bot": "enabled",
     }
@@ -1341,3 +1340,69 @@ def test_build_policy_maturity_assessment_scores_api_security_zero_when_no_featu
     assert api_security["status"] == "Needs improvement"
     assert api_security["components"]["xml_validation_policy"]["points"] == 0
     assert api_security["components"]["json_validation_policy"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_bot_mitigation_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {"threshold_based_detection": "enabled", "known_bot": "enabled", "biometric_based_detection": "enabled"},
+        {},
+        {},
+        {},
+    )
+
+    bot_mitigation = assessment["categories"][3]
+
+    assert bot_mitigation["title"] == "Bot Mitigation"
+    assert bot_mitigation["points"] == 10
+    assert bot_mitigation["max_points"] == 10
+    assert bot_mitigation["status"] == "Strong"
+    assert "biometric_based_detection" not in bot_mitigation["components"]
+    assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 5
+    assert bot_mitigation["components"]["known_bot"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_bot_mitigation_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {"threshold_based_detection": "enabled", "known_bot": "unknown"},
+        {},
+        {},
+        {},
+    )
+
+    bot_mitigation = assessment["categories"][3]
+
+    assert bot_mitigation["points"] == 5
+    assert bot_mitigation["max_points"] == 10
+    assert bot_mitigation["status"] == "Needs improvement"
+    assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 5
+    assert bot_mitigation["components"]["known_bot"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_bot_mitigation_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {"threshold_based_detection": "unknown", "known_bot": "unknown", "biometric_based_detection": "enabled"},
+        {},
+        {},
+        {},
+    )
+
+    bot_mitigation = assessment["categories"][3]
+
+    assert bot_mitigation["points"] == 0
+    assert bot_mitigation["max_points"] == 10
+    assert bot_mitigation["status"] == "Needs improvement"
+    assert "biometric_based_detection" not in bot_mitigation["components"]
+    assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 0
+    assert bot_mitigation["components"]["known_bot"]["points"] == 0

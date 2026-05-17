@@ -242,7 +242,6 @@ APPLICATION_DOS_PROTECTION_FEATURES = {
     "tcp_flood_prevention": "TCP Flood Prevention",
 }
 BOT_MITIGATION_FEATURES = {
-    "biometric_based_detection": "Biometric Based Detection",
     "threshold_based_detection": "Threshold Based Detection",
     "known_bot": "Known-Bot",
 }
@@ -314,7 +313,7 @@ MATURITY_CATEGORY_DEFINITIONS = {
     },
     "bot_mitigation": {
         "title": "Bot Mitigation",
-        "description": "Bot mitigation maturity checks biometric, threshold, known-bot, and alerting controls.",
+        "description": "Bot mitigation maturity checks threshold based detection and known-bot controls.",
         "max_points": 10,
         "weak_points": 3,
     },
@@ -421,6 +420,26 @@ def _calculate_advanced_protection_points(advanced_state: dict[str, str]) -> tup
     return sum(component_points.values()), components
 
 
+def _calculate_bot_mitigation_points(bot_mitigation_state: dict[str, str]) -> tuple[int, dict]:
+    threshold_enabled = _is_maturity_enabled(bot_mitigation_state.get("threshold_based_detection"))
+    known_bot_enabled = _is_maturity_enabled(bot_mitigation_state.get("known_bot"))
+    component_points = {
+        "threshold_based_detection": 5 if threshold_enabled else 0,
+        "known_bot": 5 if known_bot_enabled else 0,
+    }
+    components = {
+        "threshold_based_detection": {
+            "status": bot_mitigation_state.get("threshold_based_detection", "disabled"),
+            "points": component_points["threshold_based_detection"],
+        },
+        "known_bot": {
+            "status": bot_mitigation_state.get("known_bot", "disabled"),
+            "points": component_points["known_bot"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
 def _calculate_application_dos_points(application_dos_state: dict[str, str]) -> tuple[int, dict]:
     http_flood_enabled = _is_maturity_enabled(application_dos_state.get("http_flood_prevention"))
     http_access_limit_enabled = _is_maturity_enabled(application_dos_state.get("http_access_limit"))
@@ -512,6 +531,7 @@ def _build_policy_maturity_assessment(
     standard_points, standard_components = _calculate_standard_protection_points(standard_state, http2_enabled)
     advanced_points, advanced_components = _calculate_advanced_protection_points(advanced_state)
     application_dos_points, application_dos_components = _calculate_application_dos_points(application_dos_state)
+    bot_mitigation_points, bot_mitigation_components = _calculate_bot_mitigation_points(bot_mitigation_state)
     access_points, access_components = _calculate_access_points(access_state)
     ip_protection_points, ip_protection_components = _calculate_ip_protection_points(ip_protection_state)
     api_security_points, api_security_components = _calculate_api_security_points(api_security_state)
@@ -519,11 +539,7 @@ def _build_policy_maturity_assessment(
         _build_maturity_category("standard_protection", standard_points, standard_components),
         _build_maturity_category("advanced_protection", advanced_points, advanced_components),
         _build_maturity_category("application_dos", application_dos_points, application_dos_components),
-        _build_maturity_category(
-            "bot_mitigation",
-            _calculate_binary_maturity_points("bot_mitigation", bot_mitigation_state),
-            bot_mitigation_state,
-        ),
+        _build_maturity_category("bot_mitigation", bot_mitigation_points, bot_mitigation_components),
         _build_maturity_category("access", access_points, access_components),
         _build_maturity_category("ip_protection", ip_protection_points, ip_protection_components),
         _build_maturity_category("api_security", api_security_points, api_security_components),
@@ -593,15 +609,9 @@ def _build_bot_mitigation_state(
     threshold_row: dict | None,
     known_bots_row: dict | None,
 ) -> dict[str, str]:
-    biometric_row = biometric_row or {}
     threshold_row = threshold_row or {}
     known_bots_row = known_bots_row or {}
     return {
-        "biometric_based_detection": (
-            "enabled"
-            if any(_normalize_optional_text(biometric_row.get(field)) for field in BIOMETRIC_BASED_DETECTION_STATUS_FIELDS)
-            else "unknown"
-        ),
         "threshold_based_detection": (
             "enabled"
             if any(_normalize_optional_text(threshold_row.get(field)) for field in THRESHOLD_BASED_DETECTION_STATUS_FIELDS)
