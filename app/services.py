@@ -479,6 +479,26 @@ def _calculate_ip_protection_points(ip_protection_state: dict[str, str]) -> tupl
     return sum(component_points.values()), components
 
 
+def _calculate_api_security_points(api_security_state: dict[str, str]) -> tuple[int, dict]:
+    xml_validation_enabled = _is_maturity_enabled(api_security_state.get("xml_validation_policy"))
+    json_validation_enabled = _is_maturity_enabled(api_security_state.get("json_validation_policy"))
+    component_points = {
+        "xml_validation_policy": 5 if xml_validation_enabled else 0,
+        "json_validation_policy": 5 if json_validation_enabled else 0,
+    }
+    components = {
+        "xml_validation_policy": {
+            "status": api_security_state.get("xml_validation_policy", "disabled"),
+            "points": component_points["xml_validation_policy"],
+        },
+        "json_validation_policy": {
+            "status": api_security_state.get("json_validation_policy", "disabled"),
+            "points": component_points["json_validation_policy"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
 def _build_policy_maturity_assessment(
     standard_state: dict[str, str],
     http2_enabled,
@@ -494,6 +514,7 @@ def _build_policy_maturity_assessment(
     application_dos_points, application_dos_components = _calculate_application_dos_points(application_dos_state)
     access_points, access_components = _calculate_access_points(access_state)
     ip_protection_points, ip_protection_components = _calculate_ip_protection_points(ip_protection_state)
+    api_security_points, api_security_components = _calculate_api_security_points(api_security_state)
     categories = [
         _build_maturity_category("standard_protection", standard_points, standard_components),
         _build_maturity_category("advanced_protection", advanced_points, advanced_components),
@@ -505,11 +526,7 @@ def _build_policy_maturity_assessment(
         ),
         _build_maturity_category("access", access_points, access_components),
         _build_maturity_category("ip_protection", ip_protection_points, ip_protection_components),
-        _build_maturity_category(
-            "api_security",
-            _calculate_binary_maturity_points("api_security", api_security_state),
-            api_security_state,
-        ),
+        _build_maturity_category("api_security", api_security_points, api_security_components),
     ]
     total_points = sum(category["points"] for category in categories)
     max_points = sum(category["max_points"] for category in categories)

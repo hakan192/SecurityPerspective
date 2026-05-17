@@ -1277,3 +1277,67 @@ def test_build_policy_maturity_assessment_scores_ip_protection_zero_when_no_feat
     assert ip_protection["status"] == "Needs improvement"
     assert ip_protection["components"]["ip_list"]["points"] == 0
     assert ip_protection["components"]["geo_location"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_api_security_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"xml_validation_policy": "enabled", "json_validation_policy": "enabled"},
+    )
+
+    api_security = assessment["categories"][6]
+
+    assert api_security["title"] == "API Security"
+    assert api_security["points"] == 10
+    assert api_security["max_points"] == 10
+    assert api_security["status"] == "Strong"
+    assert api_security["components"]["xml_validation_policy"]["points"] == 5
+    assert api_security["components"]["json_validation_policy"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_api_security_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"xml_validation_policy": "enabled", "json_validation_policy": "unknown"},
+    )
+
+    api_security = assessment["categories"][6]
+
+    assert api_security["points"] == 5
+    assert api_security["max_points"] == 10
+    assert api_security["status"] == "Needs improvement"
+    assert api_security["components"]["xml_validation_policy"]["points"] == 5
+    assert api_security["components"]["json_validation_policy"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_api_security_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"xml_validation_policy": "unknown", "json_validation_policy": "unknown"},
+    )
+
+    api_security = assessment["categories"][6]
+
+    assert api_security["points"] == 0
+    assert api_security["max_points"] == 10
+    assert api_security["status"] == "Needs improvement"
+    assert api_security["components"]["xml_validation_policy"]["points"] == 0
+    assert api_security["components"]["json_validation_policy"]["points"] == 0

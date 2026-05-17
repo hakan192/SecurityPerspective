@@ -1820,15 +1820,38 @@ function getMaturityPoints(policy = {}) {
   const ipProtectionPoints = (ipListStrong ? 5 : 0) + (geoLocationStrong ? 5 : 0)
   const ipStrong = ipProtectionPoints === 10
 
-  const apiStrong = hasAnyMaturityValue(
-    apiSecurityPolicy,
-    policy.api_security,
-    policy.api_protection,
-    policy.api_schema_validation,
-    policy.api_endpoint_detection,
-    policy.user_tracking,
-    webProtectionProfile.api_security
+  const xmlValidationStrong = hasAnyMaturityValue(
+    apiSecurityPolicy.xml_validation_policy,
+    apiSecurityPolicy.xml_validation,
+    apiSecurityPolicy.xmlValidationPolicy,
+    apiSecurityPolicy.enable_signature_detection,
+    policy.xml_validation_enable_signature_detection,
+    policy['xml-validation-enable-signature-detection'],
+    policy.xml_validation_policy,
+    policy.xmlValidationPolicy,
+    policy['xml-validation-policy'],
+    webProtectionProfile.xml_validation_enable_signature_detection,
+    webProtectionProfile.xml_validation_policy,
+    webProtectionProfile.xmlValidationPolicy,
+    webProtectionProfile['xml-validation-policy']
   )
+  const jsonValidationStrong = hasAnyMaturityValue(
+    apiSecurityPolicy.json_validation_policy,
+    apiSecurityPolicy.json_validation,
+    apiSecurityPolicy.jsonValidationPolicy,
+    apiSecurityPolicy.enable_attack_signatures,
+    policy.json_validation_enable_attack_signatures,
+    policy['json-validation-enable-attack-signatures'],
+    policy.json_validation_policy,
+    policy.jsonValidationPolicy,
+    policy['json-validation-policy'],
+    webProtectionProfile.json_validation_enable_attack_signatures,
+    webProtectionProfile.json_validation_policy,
+    webProtectionProfile.jsonValidationPolicy,
+    webProtectionProfile['json-validation-policy']
+  )
+  const apiSecurityPoints = (xmlValidationStrong ? 5 : 0) + (jsonValidationStrong ? 5 : 0)
+  const apiStrong = apiSecurityPoints === 10
 
   const createPoint = (strong, title, description, maxPoints, weakPoints) => ({
     title,
@@ -1897,13 +1920,17 @@ function getMaturityPoints(policy = {}) {
         geo_location: { status: geoLocationStrong ? 'enabled' : 'disabled', points: geoLocationStrong ? 5 : 0 }
       }
     },
-    createPoint(
-      apiStrong,
-      'API Security',
-      'API security and user tracking controls improve visibility and API governance maturity.',
-      10,
-      4
-    )
+    {
+      title: 'API Security',
+      description: 'XML validation policy and JSON validation policy improve API governance maturity.',
+      status: apiStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: apiSecurityPoints,
+      maxPoints: 10,
+      components: {
+        xml_validation_policy: { status: xmlValidationStrong ? 'enabled' : 'disabled', points: xmlValidationStrong ? 5 : 0 },
+        json_validation_policy: { status: jsonValidationStrong ? 'enabled' : 'disabled', points: jsonValidationStrong ? 5 : 0 }
+      }
+    }
   ]
 }
 
@@ -1940,6 +1967,7 @@ function runMaturityPointAssertions() {
   })[2]
   const enabledAccessPoints = getMaturityPoints({ allow_method: 'Enabled' })[4]
   const partialIpProtectionPoints = getMaturityPoints({ ip_list_policy_entries: [{ ip: '10.0.0.1' }] })[5]
+  const partialApiSecurityPoints = getMaturityPoints({ xml_validation_enable_signature_detection: 'Enabled' })[6]
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
   console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
@@ -1953,6 +1981,7 @@ function runMaturityPointAssertions() {
   console.assert(partialApplicationDosPoints.points === 5, 'application DoS gives 5 points for one enabled feature')
   console.assert(enabledAccessPoints.points === 5, 'access gives 5 points when Allow method is enabled')
   console.assert(partialIpProtectionPoints.points === 5, 'IP protection gives 5 points for one enabled feature')
+  console.assert(partialApiSecurityPoints.points === 5, 'API security gives 5 points for one enabled feature')
 }
 
 runMaturityPointAssertions()
