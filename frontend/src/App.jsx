@@ -1703,7 +1703,7 @@ function ScoringPage({ selectedScoreId, onBack, onOpenDetails, policies = [], ge
 
       <div className="scoring-maturity-grid" aria-label="Maturity assessment cards">
         {scoringCards.map((card) => (
-          <MaturityCard key={card.id} card={card} featured={card.id === selectedCard.id} />
+          <MaturityCard key={card.id} card={card} featured={card.id === selectedCard.id} contentWrapped={false} />
         ))}
       </div>
 
@@ -2028,47 +2028,51 @@ function TrendArrowIcon({ direction }) {
   )
 }
 
-function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive }) {
+function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive, contentWrapped = true }) {
+  const cardContent = (
+    <>
+      <div className="maturity-card-head">
+        <div>
+          <p className="maturity-location">{card.location}</p>
+          <h3>{card.title}</h3>
+        </div>
+        <span className="maturity-level-pill">{card.level}</span>
+      </div>
+
+      <div className="maturity-metrics-row">
+        <div className="maturity-score-row">
+          <div className="maturity-score-orb" aria-label={`${card.score}% maturity score`}>
+            <span>{card.score}</span>
+            <small>%</small>
+          </div>
+          <p>{card.summary}</p>
+        </div>
+
+        <div className={`maturity-trend ${card.trend.direction}`}>
+          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+          <span className="maturity-trend-copy">
+            <strong>{card.trend.value}</strong>
+            <small>{card.trend.label}</small>
+          </span>
+        </div>
+      </div>
+      {showDeepDive && (
+        <div className="maturity-card-actions">
+          <button type="button" className="deep-dive-btn" onClick={() => onDeepDive?.(card.id)}>
+            <span>Deep dive policies</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path d="m13 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <article className={`maturity-card ${featured ? 'featured' : ''} ${card.tone}`}>
-      <div className="maturity-card-content">
-        <div className="maturity-card-head">
-          <div>
-            <p className="maturity-location">{card.location}</p>
-            <h3>{card.title}</h3>
-          </div>
-          <span className="maturity-level-pill">{card.level}</span>
-        </div>
-
-        <div className="maturity-metrics-row">
-          <div className="maturity-score-row">
-            <div className="maturity-score-orb" aria-label={`${card.score}% maturity score`}>
-              <span>{card.score}</span>
-              <small>%</small>
-            </div>
-            <p>{card.summary}</p>
-          </div>
-
-          <div className={`maturity-trend ${card.trend.direction}`}>
-            <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-            <span className="maturity-trend-copy">
-              <strong>{card.trend.value}</strong>
-              <small>{card.trend.label}</small>
-            </span>
-          </div>
-        </div>
-        {showDeepDive && (
-          <div className="maturity-card-actions">
-            <button type="button" className="deep-dive-btn" onClick={() => onDeepDive?.(card.id)}>
-              <span>Deep dive policies</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
-            </button>
-          </div>
-        )}
-      </div>
+      {contentWrapped ? <div className="maturity-card-content">{cardContent}</div> : cardContent}
     </article>
   )
 }

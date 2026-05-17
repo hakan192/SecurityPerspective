@@ -2416,6 +2416,12 @@ input,
   gap: 1rem;
 }
 
+.scoring-maturity-grid .maturity-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.2rem;
+}
+
 .scoring-section-head {
   display: flex;
   justify-content: space-between;
