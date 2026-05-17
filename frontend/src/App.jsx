@@ -82,7 +82,8 @@ const executiveMaturityCards = [
     id: 'overall',
     title: 'Overall WAF Maturity Level',
     location: 'Enterprise aggregate',
-    score: 82,
+    score: 90,
+    series: [84, 87, 90],
     level: 'Optimized',
     tone: 'strong',
     summary: 'Protection is consistently enforced across core application tiers with mature policy coverage and response-ready controls.',
@@ -93,23 +94,54 @@ const executiveMaturityCards = [
     id: 'pendik',
     title: 'Pendik WAF Maturity Level',
     location: 'Pendik data center',
-    score: 76,
-    level: 'Advanced',
+    score: 90,
+    series: [90, 90, 90],
+    level: 'Optimized',
     tone: 'steady',
-    summary: 'Pendik shows strong blocking posture with a few tuning opportunities around exception hygiene and certificate review cadence.',
+    summary: 'Pendik sustains a high-confidence blocking posture with stable controls and disciplined exception hygiene.',
     trend: { direction: 'stable', value: '0 pts', label: 'No maturity change' },
-    signals: ['Blocking mode enabled', 'Exception review due', 'Certificate posture healthy']
+    signals: ['Blocking mode enabled', 'Exception review current', 'Certificate posture healthy']
   },
   {
     id: 'ankara',
     title: 'Ankara WAF Maturity Level',
     location: 'Ankara data center',
-    score: 68,
-    level: 'Developing',
-    tone: 'attention',
-    summary: 'Ankara has a reliable baseline and should prioritize monitor-to-block migration for selected services and profile normalization.',
-    trend: { direction: 'decreased', value: '-4 pts', label: 'Decreased this quarter' },
-    signals: ['Monitoring migration planned', 'Profiles need normalization', 'High-priority apps covered']
+    score: 90,
+    series: [92, 91, 90],
+    level: 'Optimized',
+    tone: 'strong',
+    summary: 'Ankara maintains enterprise-grade coverage while final planned services move through monitoring-to-blocking readiness.',
+    trend: { direction: 'decreased', value: '-2 pts', label: 'Normalized this quarter' },
+    signals: ['Blocking migration active', 'Profiles normalized', 'High-priority apps covered']
+  }
+]
+
+const timelineStatusOptions = ['Planned', 'In progress', 'Pending review', 'Moved to Blocking', 'Completed']
+
+const executiveTimelineItems = [
+  {
+    id: 'timeline-1',
+    date: '2026-05-15',
+    domain: 'test1.garantibbva.com.tr',
+    action: 'Move from Monitoring to Blocking',
+    owner: 'WAF Operations',
+    status: 'Planned'
+  },
+  {
+    id: 'timeline-2',
+    date: '2026-05-20',
+    domain: 'integration.garanti.com.tr',
+    action: 'Configure domain on WAF',
+    owner: 'Security Engineering',
+    status: 'In progress'
+  },
+  {
+    id: 'timeline-3',
+    date: '2026-05-27',
+    domain: 'test3.garanti.com.tr',
+    action: 'Complete missing WAF policy configuration',
+    owner: 'Application Team',
+    status: 'Pending review'
   }
 ]
 
@@ -1633,19 +1665,229 @@ function AutomationDetailsPage({ automation }) {
 
 function ExecutiveOverviewPage() {
   const [overallCard, ...siteCards] = executiveMaturityCards
+  const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
+  const [timelineEditMode, setTimelineEditMode] = useState(false)
+  const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
+  const [activeOverviewTabId, setActiveOverviewTabId] = useState('executive-overview-main')
+
+  const handleTimelineChange = (id, field, value) => {
+    setTimelineItems((items) => (
+      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    ))
+  }
+
+  const handleAddTimelineRow = () => {
+    setTimelineItems((items) => ([
+      ...items,
+      {
+        id: `timeline-${Date.now()}`,
+        date: '',
+        domain: '',
+        action: 'Configure domain on WAF',
+        owner: '',
+        status: 'Planned'
+      }
+    ]))
+  }
+
+  const handleDeleteTimelineRow = (id) => {
+    setTimelineItems((items) => items.filter((item) => item.id !== id))
+  }
+
+  const openTimelineAdminTab = () => {
+    setOverviewTabs((tabs) => (
+      tabs.some((tab) => tab.id === 'timeline-admin')
+        ? tabs
+        : [...tabs, { id: 'timeline-admin', title: 'Timeline Admin', type: 'timeline-admin' }]
+    ))
+    setTimelineEditMode(true)
+    setActiveOverviewTabId('timeline-admin')
+  }
+
+  const closeOverviewTab = (tabId) => {
+    setOverviewTabs((tabs) => tabs.filter((tab) => tab.id !== tabId))
+    if (tabId === 'timeline-admin') {
+      setTimelineEditMode(false)
+    }
+    if (activeOverviewTabId === tabId) {
+      setActiveOverviewTabId('executive-overview-main')
+    }
+  }
+
+  const saveTimeline = () => {
+    setTimelineEditMode(false)
+  }
+
+  const activeOverviewTab = overviewTabs.find((tab) => tab.id === activeOverviewTabId) || overviewTabs[0]
 
   return (
     <section className="executive-overview-page" aria-label="Executive WAF maturity overview">
-      <div className="maturity-layout" aria-label="WAF protection maturity levels">
-        <MaturityCard card={overallCard} featured />
-        <div className="maturity-site-grid">
-          {siteCards.map((card) => (
-            <MaturityCard key={card.id} card={card} showDeepDive />
+      {overviewTabs.length > 1 && (
+        <div className="workspace-tab-bar executive-tab-bar" role="tablist" aria-label="Executive overview tabs">
+          {overviewTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeOverviewTabId === tab.id}
+              className={`workspace-tab ${activeOverviewTabId === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveOverviewTabId(tab.id)}
+            >
+              <span className="workspace-tab-label">{tab.title}</span>
+              {tab.id !== 'executive-overview-main' && (
+                <span
+                  className="workspace-tab-close"
+                  role="button"
+                  aria-label={`Close ${tab.title}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    closeOverviewTab(tab.id)
+                  }}
+                >×</span>
+              )}
+            </button>
           ))}
         </div>
-      </div>
+      )}
+
+      {activeOverviewTab?.type === 'timeline-admin' ? (
+        <ExecutiveTimelineCard
+          items={timelineItems}
+          editMode={timelineEditMode}
+          adminTab
+          onChange={handleTimelineChange}
+          onAddRow={handleAddTimelineRow}
+          onDeleteRow={handleDeleteTimelineRow}
+          onToggleEdit={() => (timelineEditMode ? saveTimeline() : setTimelineEditMode(true))}
+        />
+      ) : (
+        <div className="maturity-layout" aria-label="WAF protection maturity levels">
+          <MaturityCard card={overallCard} featured />
+          <div className="maturity-site-grid">
+            {siteCards.map((card) => (
+              <MaturityCard key={card.id} card={card} showDeepDive />
+            ))}
+          </div>
+          <ExecutiveTimelineCard
+            items={timelineItems}
+            editMode={false}
+            onChange={handleTimelineChange}
+            onAddRow={handleAddTimelineRow}
+            onDeleteRow={handleDeleteTimelineRow}
+            onToggleEdit={openTimelineAdminTab}
+          />
+        </div>
+      )}
     </section>
   )
+}
+
+
+function ExecutiveTimelineCard({ items, editMode, adminTab = false, onChange, onAddRow, onDeleteRow, onToggleEdit }) {
+  return (
+    <article className="executive-timeline-card" aria-label="Upcoming WAF configuration plan">
+      <div className="timeline-card-aura" aria-hidden="true" />
+      <div className="executive-timeline-head">
+        <div>
+          <p className="maturity-location">{adminTab ? 'Admin timeline workspace' : 'Executive timeline'}</p>
+          <h3>Upcoming WAF Configuration Plan</h3>
+          <p className="executive-timeline-description">
+            Shows which domains will be configured on WAF and which policies will move from Monitoring to Blocking.
+          </p>
+        </div>
+        <div className="timeline-admin-actions">
+          {editMode && (
+            <button type="button" className="timeline-add-row-btn" onClick={onAddRow} aria-label="Add new domain row">
+              +
+            </button>
+          )}
+          <button type="button" className="timeline-admin-btn" onClick={onToggleEdit}>
+            {editMode ? 'Save Timeline' : 'Edit as Admin'}
+          </button>
+        </div>
+      </div>
+
+      <div className={`floating-timeline ${editMode ? 'editing' : ''}`}>
+        {items.map((item, index) => (
+          <TimelineItem
+            key={item.id}
+            item={item}
+            index={index}
+            editMode={editMode}
+            onChange={onChange}
+            onDelete={onDeleteRow}
+          />
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function TimelineItem({ item, index, editMode, onChange, onDelete }) {
+  const renderField = (field, label, type = 'text') => (
+    <label className="timeline-edit-field">
+      <span>{label}</span>
+      <input
+        type={type}
+        value={item[field]}
+        onChange={(event) => onChange(item.id, field, event.target.value)}
+      />
+    </label>
+  )
+
+  return (
+    <div className="timeline-row">
+      <div className="timeline-marker" aria-hidden="true">
+        <span>{index + 1}</span>
+      </div>
+      <div className="timeline-floating-item">
+        {editMode ? (
+          <div className="timeline-edit-shell">
+            <div className="timeline-edit-grid">
+              {renderField('date', 'Date', 'date')}
+              {renderField('domain', 'Domain')}
+              {renderField('action', 'Action')}
+              {renderField('owner', 'Owner')}
+              <label className="timeline-edit-field">
+                <span>Status</span>
+                <select value={item.status} onChange={(event) => onChange(item.id, 'status', event.target.value)}>
+                  {timelineStatusOptions.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button
+              type="button"
+              className="timeline-delete-row-btn"
+              onClick={() => onDelete(item.id)}
+              aria-label={`Delete timeline item ${index + 1}`}
+            >
+              Delete
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="timeline-item-topline">
+              <time dateTime={item.date}>{item.date}</time>
+              <TimelineStatusBadge status={item.status} />
+            </div>
+            <h4>{item.domain}</h4>
+            <p>{item.action}</p>
+            <div className="timeline-owner-row">
+              <span>Owner</span>
+              <strong>{item.owner}</strong>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TimelineStatusBadge({ status }) {
+  const normalized = status.toLowerCase().replaceAll(' ', '-').replace('moved-to-blocking', 'blocking')
+  return <span className={`timeline-status-badge ${normalized}`}>{status}</span>
 }
 
 
@@ -1679,7 +1921,6 @@ function TrendArrowIcon({ direction }) {
 function MaturityCard({ card, featured = false, showDeepDive = false }) {
   return (
     <article className={`maturity-card ${featured ? 'featured' : ''} ${card.tone}`}>
-      <div className="maturity-card-glow" aria-hidden="true" />
       <div className="maturity-card-content">
         <div className="maturity-card-head">
           <div>
