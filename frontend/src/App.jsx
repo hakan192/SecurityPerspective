@@ -1663,7 +1663,117 @@ function AutomationDetailsPage({ automation }) {
 }
 
 
-function ExecutiveOverviewPage() {
+function ScoringPage({ selectedScoreId, onBack, onOpenDetails, policies = [], getPolicyStatus }) {
+  const selectedCard = executiveMaturityCards.find((card) => card.id === selectedScoreId) || executiveMaturityCards[0]
+  const scoringCards = selectedScoreId === 'overall'
+    ? executiveMaturityCards
+    : executiveMaturityCards.filter((card) => card.id === 'overall' || card.id === selectedCard.id)
+  const selectedLocationName = selectedScoreId === 'pendik' ? 'Pendik' : selectedScoreId === 'ankara' ? 'Ankara' : 'Overall'
+  const filteredPolicies = policies.filter((policy) => {
+    if (selectedScoreId === 'overall') return true
+    const policyLocation = policy?.location || policy?._deviceLocation || 'Unknown'
+    return policyLocation === selectedLocationName
+  })
+  const subtitle = selectedScoreId === 'overall'
+    ? 'Enterprise-wide policy scoring across all WAF locations.'
+    : `${selectedLocationName} location policy scoring and maturity assessment.`
+
+  return (
+    <section className="scoring-page waf-panel modern-waf" aria-label="Scoring workspace">
+      <div className="workspace-tab-bar scoring-tab-bar" role="tablist" aria-label="Scoring workspace tabs">
+        <button type="button" role="tab" aria-selected="true" className="workspace-tab active">
+          <span className="workspace-tab-label">Scoring</span>
+        </button>
+      </div>
+
+      <div className="scoring-hero">
+        <button type="button" className="scoring-back-btn" onClick={onBack}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M19 12H5" />
+            <path d="m12 19-7-7 7-7" />
+          </svg>
+          <span>Back</span>
+        </button>
+        <div>
+          <p className="maturity-location">Workspace tab</p>
+          <h2>Scoring</h2>
+          <p>{subtitle}</p>
+        </div>
+      </div>
+
+      <div className="scoring-maturity-grid" aria-label="Maturity assessment cards">
+        {scoringCards.map((card) => (
+          <MaturityCard key={card.id} card={card} featured={card.id === selectedCard.id} />
+        ))}
+      </div>
+
+      <div className="scoring-policy-section">
+        <div className="scoring-section-head">
+          <div>
+            <p className="maturity-location">Filtered policies</p>
+            <h3>{selectedLocationName} policies</h3>
+          </div>
+          <span className="maturity-level-pill">{filteredPolicies.length} policies</span>
+        </div>
+
+        {filteredPolicies.length === 0 ? (
+          <div className="waf-empty-state">
+            <p className="nav-desc">No policies found for {selectedLocationName}.</p>
+          </div>
+        ) : (
+          <div className="waf-card-grid scoring-policy-grid">
+            {filteredPolicies.map((policy, index) => {
+              const policyName = typeof policy === 'string' ? policy : policy.server_policy_name
+              const policyIp = typeof policy === 'string' ? '' : policy.ip
+              const policyLocation = typeof policy === 'string' ? selectedLocationName : (policy.location || policy._deviceLocation || 'Unknown')
+              const policyStatus = getPolicyStatus?.(policy) || { label: 'Unknown', className: 'not-protected' }
+              const { Icon: PolicyStatusIcon, toneClass: policyStatusTone } = getPolicyStatusVisual(policyStatus.label)
+              const hostnames = typeof policy === 'string'
+                ? []
+                : (policy.allow_hosts_entries || []).map((entry) => entry.host || '').filter(Boolean)
+
+              return (
+                <article className="policy-card scoring-policy-card" key={typeof policy === 'string' ? `scoring-policy-${index}` : `${policy._deviceName || 'device'}::${policyName || index}::${policyIp || 'no-ip'}`}>
+                  <div className="policy-top-row">
+                    <div>
+                      <p className="policy-label">Server Policy</p>
+                      <p className="policy-name">{policyName || `Policy ${index + 1}`}</p>
+                      <div className="policy-device-row">
+                        <span className="policy-device-icon" aria-hidden="true"><DeviceStackIcon /></span>
+                        <span className="policy-device-label">{policyLocation}</span>
+                        <strong>{policy._deviceName || 'Unknown Device'}</strong>
+                      </div>
+                    </div>
+                    <div className="policy-status-wrap">
+                      <span className={`policy-status-pill ${policyStatusTone}`}>
+                        <PolicyStatusIcon />
+                        {policyStatus.label}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="scoring-policy-meta">
+                    <p><span>IP</span><strong>{policyIp || '-'}</strong></p>
+                    <p><span>Hostnames</span><strong>{hostnames.length ? hostnames.join(', ') : '-'}</strong></p>
+                  </div>
+                  <button type="button" className="policy-full-details-btn scoring-details-btn" onClick={() => onOpenDetails?.(policy, index)}>
+                    <span>Details</span>
+                    <svg className="policy-full-details-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M7 7h10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M7 17 17 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+
+function ExecutiveOverviewPage({ onDeepDive }) {
   const [overallCard, ...siteCards] = executiveMaturityCards
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
@@ -1765,7 +1875,7 @@ function ExecutiveOverviewPage() {
           <MaturityCard card={overallCard} featured />
           <div className="maturity-site-grid">
             {siteCards.map((card) => (
-              <MaturityCard key={card.id} card={card} showDeepDive />
+              <MaturityCard key={card.id} card={card} showDeepDive onDeepDive={onDeepDive} />
             ))}
           </div>
           <ExecutiveTimelineCard
@@ -1918,7 +2028,7 @@ function TrendArrowIcon({ direction }) {
   )
 }
 
-function MaturityCard({ card, featured = false, showDeepDive = false }) {
+function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive }) {
   return (
     <article className={`maturity-card ${featured ? 'featured' : ''} ${card.tone}`}>
       <div className="maturity-card-content">
@@ -1949,8 +2059,8 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
         </div>
         {showDeepDive && (
           <div className="maturity-card-actions">
-            <button type="button" className="deep-dive-btn">
-              <span>Deep Dive</span>
+            <button type="button" className="deep-dive-btn" onClick={() => onDeepDive?.(card.id)}>
+              <span>Deep dive policies</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M5 12h14" />
                 <path d="m13 6 6 6-6 6" />
@@ -1966,6 +2076,8 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
+  const [activePage, setActivePage] = useState('overview')
+  const [selectedScoreId, setSelectedScoreId] = useState('overall')
   const [settingsExpanded, setSettingsExpanded] = useState(false)
   const [settingsGearSpinning, setSettingsGearSpinning] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -2119,8 +2231,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home') loadWafResponse()
-  }, [activeNav])
+    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+  }, [activeNav, activePage])
 
   useEffect(() => {
     setExpandedPolicyCard('')
@@ -2302,6 +2414,23 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     })
   }
 
+  const openScoringPage = (scoreId) => {
+    setSelectedScoreId(scoreId)
+    setActivePage('scoring')
+    setActiveNav('overview')
+  }
+
+  const closeScoringPage = () => {
+    setActivePage('overview')
+    setActiveNav('overview')
+  }
+
+  const openScoringPolicyDetails = (policy, index) => {
+    openPolicyTab(policy, index)
+    setActivePage('overview')
+    setActiveNav('waf')
+  }
+
   const activeWafTab = wafTabs.find((tab) => tab.id === activeWafTabId) || wafTabs[0]
   const activeAutomationTab = automationTabs.find((tab) => tab.id === activeAutomationTabId) || automationTabs[0]
 
@@ -2311,7 +2440,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       <div className={`dashboard-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <aside className={`sidebar ${sidebarOpen ? 'is-open' : 'is-closed'}`}>
           <div className="sidebar-top">
-            <button onClick={() => setActiveNav('home')} className="home-link">
+            <button onClick={() => { setActiveNav('home'); setActivePage('overview') }} className="home-link">
               <div className="brand-logo-shell">
                 <SecurityPerspectiveLogo />
               </div>
@@ -2331,6 +2460,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     type="button"
                     onClick={() => {
                       setActiveNav(item.id)
+                      setActivePage('overview')
                     }}
                     className={`nav-item ${active ? 'active' : ''}`}
                   >
@@ -2350,7 +2480,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               <span className="settings-gear" aria-hidden="true">⚙</span> Platform Settings
             </button>
             {settingsExpanded && (
-              <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => setActiveNav('device-config')}>
+              <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => { setActiveNav('device-config'); setActivePage('overview') }}>
                 Device Config
               </button>
             )}
@@ -2366,15 +2496,17 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </button>
               <div className="kicker">Workspace</div>
               <h1 className="workspace-title">
-                {activeNav === 'home'
-                  ? 'Search'
-                  : activeNav === 'waf'
-                    ? 'WAF Configuration'
-                    : activeNav === 'automation'
-                      ? 'Automation'
-                    : activeNav === 'device-config'
-                      ? 'Device Config'
-                      : 'Executive Overview'}
+                {activePage === 'scoring'
+                  ? 'Scoring'
+                  : activeNav === 'home'
+                    ? 'Search'
+                    : activeNav === 'waf'
+                      ? 'WAF Configuration'
+                      : activeNav === 'automation'
+                        ? 'Automation'
+                        : activeNav === 'device-config'
+                          ? 'Device Config'
+                          : 'Executive Overview'}
               </h1>
               {activeNav === 'waf' && <p className="waf-updated">Last updated: {new Date().toLocaleString()}</p>}
             </div>
@@ -2403,8 +2535,18 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             </div>
           </header>
 
-          <section className={`body-content ${activeNav === 'home' ? 'home-centered' : ''}`}>
-            {activeNav === 'home' && (
+          <section className={`body-content ${activeNav === 'home' && activePage !== 'scoring' ? 'home-centered' : ''}`}>
+            {activePage === 'scoring' && (
+              <ScoringPage
+                selectedScoreId={selectedScoreId}
+                onBack={closeScoringPage}
+                onOpenDetails={openScoringPolicyDetails}
+                policies={wafPolicies}
+                getPolicyStatus={getPolicyStatus}
+              />
+            )}
+
+            {activePage !== 'scoring' && activeNav === 'home' && (
               <form className="search-wrap" onSubmit={submitSearch}>
                 <div className="hero-text">How can I help you? :)</div>
                 <div className="search-bar">
@@ -2418,7 +2560,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </form>
             )}
 
-            {activeNav === 'waf' && (
+            {activePage !== 'scoring' && activeNav === 'waf' && (
               <section className="waf-panel modern-waf">
                 <div className="workspace-tab-bar" role="tablist" aria-label="WAF workspace tabs">
                   {wafTabs.map((tab) => (
@@ -2622,7 +2764,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activeNav === 'automation' && (
+            {activePage !== 'scoring' && activeNav === 'automation' && (
               <section className="waf-panel modern-waf automation-workspace">
                 <div className="workspace-tab-bar" role="tablist" aria-label="Automation workspace tabs">
                   {automationTabs.map((tab) => (
@@ -2704,8 +2846,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activeNav === 'overview' && <ExecutiveOverviewPage />}
-            {activeNav === 'device-config' && (
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
                   <div>
