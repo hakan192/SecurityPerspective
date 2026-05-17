@@ -86,6 +86,7 @@ const executiveMaturityCards = [
     level: 'Optimized',
     tone: 'strong',
     summary: 'Protection is consistently enforced across core application tiers with mature policy coverage and response-ready controls.',
+    trend: { direction: 'improved', label: 'Improved 6 pts this quarter' },
     signals: ['Policy coverage 91%', 'Attack signatures current', 'Bot controls aligned']
   },
   {
@@ -96,6 +97,7 @@ const executiveMaturityCards = [
     level: 'Advanced',
     tone: 'steady',
     summary: 'Pendik shows strong blocking posture with a few tuning opportunities around exception hygiene and certificate review cadence.',
+    trend: { direction: 'stable', label: 'No maturity change this quarter' },
     signals: ['Blocking mode enabled', 'Exception review due', 'Certificate posture healthy']
   },
   {
@@ -106,6 +108,7 @@ const executiveMaturityCards = [
     level: 'Developing',
     tone: 'attention',
     summary: 'Ankara has a reliable baseline and should prioritize monitor-to-block migration for selected services and profile normalization.',
+    trend: { direction: 'decreased', label: 'Decreased 4 pts this quarter' },
     signals: ['Monitoring migration planned', 'Profiles need normalization', 'High-priority apps covered']
   }
 ]
@@ -1632,18 +1635,7 @@ function ExecutiveOverviewPage() {
   const [overallCard, ...siteCards] = executiveMaturityCards
 
   return (
-    <section className="executive-overview-page" aria-labelledby="executive-overview-title">
-      <div className="executive-hero">
-        <div>
-          <p className="executive-kicker">Frontend mock data • Backend integration later</p>
-          <h2 id="executive-overview-title">Executive Overview</h2>
-          <p>
-            A GPT-style maturity snapshot for leadership review, using mock WAF protection data while backend integrations are planned.
-          </p>
-        </div>
-        <span className="executive-ai-pill">Mock intelligence preview</span>
-      </div>
-
+    <section className="executive-overview-page" aria-label="Executive WAF maturity overview">
       <div className="maturity-layout" aria-label="WAF protection maturity levels">
         <MaturityCard card={overallCard} featured />
         <div className="maturity-site-grid">
@@ -1653,6 +1645,34 @@ function ExecutiveOverviewPage() {
         </div>
       </div>
     </section>
+  )
+}
+
+
+function TrendArrowIcon({ direction }) {
+  if (direction === 'improved') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m5 15 6-6 4 4 4-4" />
+        <path d="M15 9h4v4" />
+      </svg>
+    )
+  }
+
+  if (direction === 'decreased') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m5 9 6 6 4-4 4 4" />
+        <path d="M15 15h4v-4" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m15 8 4 4-4 4" />
+    </svg>
   )
 }
 
@@ -1667,6 +1687,11 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
             <h3>{card.title}</h3>
           </div>
           <span className="maturity-level-pill">{card.level}</span>
+        </div>
+
+        <div className={`maturity-trend ${card.trend.direction}`}>
+          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+          <span>{card.trend.label}</span>
         </div>
 
         <div className="maturity-score-row">
