@@ -1688,6 +1688,18 @@ const hasStrongMaturityValue = (value) => {
 const hasAnyMaturityValue = (...values) => values.some(hasStrongMaturityValue)
 
 function getMaturityPoints(policy = {}) {
+  const backendCategories = policy?.maturity_assessment?.categories
+  if (Array.isArray(backendCategories) && backendCategories.length > 0) {
+    return backendCategories.map((category) => ({
+      title: category.title,
+      description: category.description,
+      status: category.status,
+      points: Number(category.points ?? 0),
+      maxPoints: Number(category.max_points ?? category.maxPoints ?? 0),
+      components: category.components || {}
+    }))
+  }
+
   const webProtectionProfile = policy.web_protection_profile_details || {}
   const syntaxDetails = policy.syntax_based_attack_detection_details || webProtectionProfile.syntax_based_attack_detection_details || {}
   const customAccessRules = policy.custom_access_rules || webProtectionProfile.custom_access_rules || []
@@ -1713,9 +1725,16 @@ function getMaturityPoints(policy = {}) {
     policy.signature ?? webProtectionProfile.signature_set_status ?? policy.signature_protection ?? policy['signature-protection']
   )
   const httpRfcStrong = isMaturityEnabled(
-    policy.http_rfc ?? webProtectionProfile.http_protocol_parameter_restriction ?? policy.httpRfc ?? policy['http-rfc']
+    policy.http_rfc ?? webProtectionProfile.http_rfc ?? webProtectionProfile.http_protocol_parameter_restriction ?? policy.httpRfc ?? policy['http-rfc']
   )
-  const standardStrong = signatureStrong && httpRfcStrong
+  const http2Enabled = isMaturityEnabled(policy.http2 ?? webProtectionProfile.http2)
+  const http2RfcStrong = http2Enabled && isMaturityEnabled(
+    policy.http2_rfc_control ?? webProtectionProfile.http2_rfc_control ?? policy.http2RfcControl ?? policy['http2-rfc-control']
+  )
+  const standardPoints = http2Enabled
+    ? (signatureStrong ? 10 : 0) + (httpRfcStrong ? 10 : 0) + (http2RfcStrong ? 10 : 0)
+    : (signatureStrong ? 15 : 0) + (httpRfcStrong ? 15 : 0)
+  const standardStrong = standardPoints === 30
 
   const syntaxStrong = Object.values(syntaxDetails).some(isMaturityEnabled)
   const customAccessStrong = Array.isArray(customAccessRules) ? customAccessRules.length > 0 : hasAnyMaturityValue(customAccessRules)
@@ -1805,13 +1824,13 @@ function getMaturityPoints(policy = {}) {
   })
 
   return [
-    createPoint(
-      standardStrong,
-      'Standart Protection',
-      'Signature and HTTP RFC controls provide the highest-weight baseline protection score.',
-      30,
-      12
-    ),
+    {
+      title: 'Standart Protection',
+      description: 'Signature, HTTP RFC, and HTTP/2 RFC controls provide the highest-weight baseline protection score.',
+      status: standardStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: standardPoints,
+      maxPoints: 30
+    },
     createPoint(
       advancedStrong,
       'Advance Protection',
@@ -1873,6 +1892,14 @@ function runMaturityPointAssertions() {
   })
   const strongPolicyScore = strongPolicyPoints.reduce((total, point) => total + point.points, 0)
   const weakPolicyPoints = getMaturityPoints({})
+  const backendPolicyPoints = getMaturityPoints({
+    maturity_assessment: {
+      categories: [
+        { title: 'Standart Protection', description: 'Backend score', status: 'Needs improvement', points: 15, max_points: 30 }
+      ]
+    }
+  })
+  const partialStandardPoints = getMaturityPoints({ signature: 'Enabled', http_rfc: 'Disabled', http2: 'disable' })[0]
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
   console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
@@ -1880,6 +1907,8 @@ function runMaturityPointAssertions() {
     [...strongPolicyPoints, ...weakPolicyPoints].every((point) => point.points <= point.maxPoints),
     'every category should have points <= max'
   )
+  console.assert(backendPolicyPoints[0].points === 15, 'backend maturity categories should be used when present')
+  console.assert(partialStandardPoints.points === 15, 'standard protection without HTTP/2 gives 15 points for one enabled control')
 }
 
 runMaturityPointAssertions()

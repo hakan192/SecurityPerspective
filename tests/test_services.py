@@ -2,6 +2,7 @@ from app.services import (
     _build_device_base_url,
     _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
+    _build_policy_maturity_assessment,
     _build_recent_policy_changes,
     _delete_missing_server_policy_rows,
     _extract_certificate_common_name,
@@ -962,3 +963,69 @@ def test_build_recent_policy_changes_keeps_historical_api_security_changes():
             "type": "API Security",
         }
     ]
+
+
+def test_build_policy_maturity_assessment_scores_standard_protection_with_http2_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {"signature": "enabled", "http_rfc": "enabled", "http2_rfc_control": "enabled"},
+        "enable",
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    standard = assessment["categories"][0]
+
+    assert standard["title"] == "Standart Protection"
+    assert standard["points"] == 30
+    assert standard["max_points"] == 30
+    assert standard["status"] == "Strong"
+    assert standard["components"]["signature"]["points"] == 10
+    assert standard["components"]["http_rfc"]["points"] == 10
+    assert standard["components"]["http2_rfc_control"]["points"] == 10
+    assert standard["components"]["http2_rfc_control"]["counted"] is True
+
+
+def test_build_policy_maturity_assessment_scores_standard_protection_without_http2_full_points_for_two_controls():
+    assessment = _build_policy_maturity_assessment(
+        {"signature": "enabled", "http_rfc": "enabled", "http2_rfc_control": "disabled"},
+        "disable",
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    standard = assessment["categories"][0]
+
+    assert standard["points"] == 30
+    assert standard["status"] == "Strong"
+    assert standard["components"]["signature"]["points"] == 15
+    assert standard["components"]["http_rfc"]["points"] == 15
+    assert standard["components"]["http2_rfc_control"]["counted"] is False
+
+
+def test_build_policy_maturity_assessment_scores_standard_protection_without_http2_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {"signature": "enabled", "http_rfc": "disabled", "http2_rfc_control": "disabled"},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    standard = assessment["categories"][0]
+
+    assert standard["points"] == 15
+    assert standard["max_points"] == 30
+    assert standard["status"] == "Needs improvement"
+    assert standard["components"]["signature"]["points"] == 15
+    assert standard["components"]["http_rfc"]["points"] == 0
