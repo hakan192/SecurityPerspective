@@ -1838,7 +1838,6 @@ function TrendArrowIcon({ direction }) {
 function MaturityCard({ card, featured = false, showDeepDive = false }) {
   return (
     <article className={`maturity-card ${featured ? 'featured' : ''} ${card.tone}`}>
-      <div className="maturity-card-glow" aria-hidden="true" />
       <div className="maturity-card-content">
         <div className="maturity-card-head">
           <div>
