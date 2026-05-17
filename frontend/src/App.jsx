@@ -1691,9 +1691,9 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
 
         <div className="maturity-metrics-row">
           <div className="maturity-score-row">
-            <div className="maturity-score-orb" aria-label={`${card.score} out of 100 maturity score`}>
+            <div className="maturity-score-orb" aria-label={`${card.score}% maturity score`}>
               <span>{card.score}</span>
-              <small>/100</small>
+              <small>%</small>
             </div>
             <p>{card.summary}</p>
           </div>
