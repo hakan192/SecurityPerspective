@@ -1826,19 +1826,19 @@ input,
 }
 
 .maturity-trend.decreased {
-  color: #b91c1c;
+  color: #be123c;
 }
 
 .maturity-trend.decreased .maturity-trend-icon {
-  background: rgba(239, 68, 68, 0.13);
+  background: rgba(225, 29, 72, 0.13);
 }
 
 .maturity-trend.stable {
-  color: #0369a1;
+  color: #475569;
 }
 
 .maturity-trend.stable .maturity-trend-icon {
-  background: rgba(14, 165, 233, 0.13);
+  background: rgba(100, 116, 139, 0.13);
 }
 
 .dark .maturity-trend.improved {
@@ -1846,11 +1846,11 @@ input,
 }
 
 .dark .maturity-trend.decreased {
-  color: #fca5a5;
+  color: #fda4af;
 }
 
 .dark .maturity-trend.stable {
-  color: #7dd3fc;
+  color: #cbd5e1;
 }
 
 
