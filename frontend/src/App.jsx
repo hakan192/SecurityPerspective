@@ -1667,6 +1667,8 @@ function ExecutiveOverviewPage() {
   const [overallCard, ...siteCards] = executiveMaturityCards
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
+  const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
+  const [activeOverviewTabId, setActiveOverviewTabId] = useState('executive-overview-main')
 
   const handleTimelineChange = (id, field, value) => {
     setTimelineItems((items) => (
@@ -1688,43 +1690,121 @@ function ExecutiveOverviewPage() {
     ]))
   }
 
+  const handleDeleteTimelineRow = (id) => {
+    setTimelineItems((items) => items.filter((item) => item.id !== id))
+  }
+
+  const openTimelineAdminTab = () => {
+    setOverviewTabs((tabs) => (
+      tabs.some((tab) => tab.id === 'timeline-admin')
+        ? tabs
+        : [...tabs, { id: 'timeline-admin', title: 'Timeline Admin', type: 'timeline-admin' }]
+    ))
+    setTimelineEditMode(true)
+    setActiveOverviewTabId('timeline-admin')
+  }
+
+  const closeOverviewTab = (tabId) => {
+    setOverviewTabs((tabs) => tabs.filter((tab) => tab.id !== tabId))
+    if (tabId === 'timeline-admin') {
+      setTimelineEditMode(false)
+    }
+    if (activeOverviewTabId === tabId) {
+      setActiveOverviewTabId('executive-overview-main')
+    }
+  }
+
+  const saveTimeline = () => {
+    setTimelineEditMode(false)
+  }
+
+  const activeOverviewTab = overviewTabs.find((tab) => tab.id === activeOverviewTabId) || overviewTabs[0]
+
   return (
     <section className="executive-overview-page" aria-label="Executive WAF maturity overview">
-      <div className="maturity-layout" aria-label="WAF protection maturity levels">
-        <MaturityCard card={overallCard} featured />
-        <div className="maturity-site-grid">
-          {siteCards.map((card) => (
-            <MaturityCard key={card.id} card={card} showDeepDive />
+      {overviewTabs.length > 1 && (
+        <div className="workspace-tab-bar executive-tab-bar" role="tablist" aria-label="Executive overview tabs">
+          {overviewTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeOverviewTabId === tab.id}
+              className={`workspace-tab ${activeOverviewTabId === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveOverviewTabId(tab.id)}
+            >
+              <span className="workspace-tab-label">{tab.title}</span>
+              {tab.id !== 'executive-overview-main' && (
+                <span
+                  className="workspace-tab-close"
+                  role="button"
+                  aria-label={`Close ${tab.title}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    closeOverviewTab(tab.id)
+                  }}
+                >×</span>
+              )}
+            </button>
           ))}
         </div>
+      )}
+
+      {activeOverviewTab?.type === 'timeline-admin' ? (
         <ExecutiveTimelineCard
           items={timelineItems}
           editMode={timelineEditMode}
+          adminTab
           onChange={handleTimelineChange}
           onAddRow={handleAddTimelineRow}
-          onToggleEdit={() => setTimelineEditMode((value) => !value)}
+          onDeleteRow={handleDeleteTimelineRow}
+          onToggleEdit={() => (timelineEditMode ? saveTimeline() : setTimelineEditMode(true))}
         />
-      </div>
+      ) : (
+        <div className="maturity-layout" aria-label="WAF protection maturity levels">
+          <MaturityCard card={overallCard} featured />
+          <div className="maturity-site-grid">
+            {siteCards.map((card) => (
+              <MaturityCard key={card.id} card={card} showDeepDive />
+            ))}
+          </div>
+          <ExecutiveTimelineCard
+            items={timelineItems}
+            editMode={false}
+            onChange={handleTimelineChange}
+            onAddRow={handleAddTimelineRow}
+            onDeleteRow={handleDeleteTimelineRow}
+            onToggleEdit={openTimelineAdminTab}
+          />
+        </div>
+      )}
     </section>
   )
 }
 
 
-function ExecutiveTimelineCard({ items, editMode, onChange, onAddRow, onToggleEdit }) {
+function ExecutiveTimelineCard({ items, editMode, adminTab = false, onChange, onAddRow, onDeleteRow, onToggleEdit }) {
   return (
     <article className="executive-timeline-card" aria-label="Upcoming WAF configuration plan">
       <div className="timeline-card-aura" aria-hidden="true" />
       <div className="executive-timeline-head">
         <div>
-          <p className="maturity-location">Executive timeline</p>
+          <p className="maturity-location">{adminTab ? 'Admin timeline workspace' : 'Executive timeline'}</p>
           <h3>Upcoming WAF Configuration Plan</h3>
           <p className="executive-timeline-description">
             Shows which domains will be configured on WAF and which policies will move from Monitoring to Blocking.
           </p>
         </div>
-        <button type="button" className="timeline-admin-btn" onClick={onToggleEdit}>
-          {editMode ? 'Save Timeline' : 'Edit as Admin'}
-        </button>
+        <div className="timeline-admin-actions">
+          {editMode && (
+            <button type="button" className="timeline-add-row-btn" onClick={onAddRow} aria-label="Add new domain row">
+              +
+            </button>
+          )}
+          <button type="button" className="timeline-admin-btn" onClick={onToggleEdit}>
+            {editMode ? 'Save Timeline' : 'Edit as Admin'}
+          </button>
+        </div>
       </div>
 
       <div className={`floating-timeline ${editMode ? 'editing' : ''}`}>
@@ -1735,22 +1815,15 @@ function ExecutiveTimelineCard({ items, editMode, onChange, onAddRow, onToggleEd
             index={index}
             editMode={editMode}
             onChange={onChange}
+            onDelete={onDeleteRow}
           />
         ))}
       </div>
-
-      {editMode && (
-        <div className="timeline-add-row-shell">
-          <button type="button" className="timeline-add-row-btn" onClick={onAddRow} aria-label="Add new domain row">
-            +
-          </button>
-        </div>
-      )}
     </article>
   )
 }
 
-function TimelineItem({ item, index, editMode, onChange }) {
+function TimelineItem({ item, index, editMode, onChange, onDelete }) {
   const renderField = (field, label, type = 'text') => (
     <label className="timeline-edit-field">
       <span>{label}</span>
@@ -1769,19 +1842,29 @@ function TimelineItem({ item, index, editMode, onChange }) {
       </div>
       <div className="timeline-floating-item">
         {editMode ? (
-          <div className="timeline-edit-grid">
-            {renderField('date', 'Date', 'date')}
-            {renderField('domain', 'Domain')}
-            {renderField('action', 'Action')}
-            {renderField('owner', 'Owner')}
-            <label className="timeline-edit-field">
-              <span>Status</span>
-              <select value={item.status} onChange={(event) => onChange(item.id, 'status', event.target.value)}>
-                {timelineStatusOptions.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </label>
+          <div className="timeline-edit-shell">
+            <div className="timeline-edit-grid">
+              {renderField('date', 'Date', 'date')}
+              {renderField('domain', 'Domain')}
+              {renderField('action', 'Action')}
+              {renderField('owner', 'Owner')}
+              <label className="timeline-edit-field">
+                <span>Status</span>
+                <select value={item.status} onChange={(event) => onChange(item.id, 'status', event.target.value)}>
+                  {timelineStatusOptions.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button
+              type="button"
+              className="timeline-delete-row-btn"
+              onClick={() => onDelete(item.id)}
+              aria-label={`Delete timeline item ${index + 1}`}
+            >
+              Delete
+            </button>
           </div>
         ) : (
           <>
