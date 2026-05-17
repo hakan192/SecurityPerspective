@@ -1710,13 +1710,6 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
         <div className="maturity-progress" aria-hidden="true">
           <span style={{ width: `${card.score}%` }} />
         </div>
-
-        <div className="maturity-signal-row">
-          {card.signals.map((signal) => (
-            <span key={signal}>{signal}</span>
-          ))}
-        </div>
-
         {showDeepDive && (
           <div className="maturity-card-actions">
             <button type="button" className="deep-dive-btn">
