@@ -1914,6 +1914,70 @@ function runMaturityPointAssertions() {
 runMaturityPointAssertions()
 
 
+const maturityComponentLabels = {
+  http2_enabled: 'Server-pool HTTP/2',
+  signature: 'Signature',
+  http_rfc: 'HTTP RFC',
+  http2_rfc_control: 'HTTP/2 RFC control',
+  syntax_based_detection: 'Syntax based detection',
+  custom_access_rules: 'Custom access rules',
+  http_flood_prevention: 'HTTP flood prevention',
+  http_access_limit: 'HTTP access limit',
+  tcp_flood_prevention: 'TCP flood prevention',
+  biometric_based_detection: 'Biometric based detection',
+  threshold_based_detection: 'Threshold based detection',
+  known_bot: 'Known-bot',
+  allow_method: 'Allow method',
+  ip_list: 'IP list',
+  geo_location: 'Geo location',
+  xml_validation_policy: 'XML validation policy',
+  json_validation_policy: 'JSON validation policy'
+}
+
+const formatMaturityComponentLabel = (key) => {
+  if (maturityComponentLabels[key]) return maturityComponentLabels[key]
+  return String(key || '')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+const formatMaturityComponentStatus = (value) => {
+  if (typeof value === 'boolean') return value ? 'enabled' : 'disabled'
+  const normalized = String(value ?? '').trim()
+  return normalized || 'unknown'
+}
+
+const getCalculatedPointDetails = (point = {}) => {
+  const components = point.components || {}
+  return Object.entries(components)
+    .filter(([key]) => key !== 'http2_enabled')
+    .map(([key, component]) => {
+      const label = formatMaturityComponentLabel(key)
+      if (component && typeof component === 'object' && !Array.isArray(component)) {
+        const counted = component.counted !== false
+        const status = formatMaturityComponentStatus(component.status)
+        const points = Number(component.points ?? 0)
+        return {
+          key,
+          label,
+          status,
+          points,
+          counted,
+          displayPoints: counted ? `${points} pts` : 'Not counted'
+        }
+      }
+
+      return {
+        key,
+        label,
+        status: formatMaturityComponentStatus(component),
+        points: null,
+        counted: true,
+        displayPoints: null
+      }
+    })
+}
+
 function ScoreBadge({ status }) {
   const strong = status === maturityStatusStrong
   return <span className={`score-status-badge ${strong ? 'strong' : 'needs-improvement'}`}>{status}</span>
@@ -1987,18 +2051,30 @@ function ScoringPolicyCard({ policy, onOpenDetails }) {
               {maturityPoints.map((point) => {
                 const strong = point.status === maturityStatusStrong
                 const percentage = Math.round((point.points / point.maxPoints) * 100)
+                const calculatedDetails = getCalculatedPointDetails(point)
                 return (
                   <div className="scoring-assessment-point" key={point.title}>
                     <div className="scoring-assessment-point-copy">
                       <div>
                         <h6>{point.title}</h6>
                         <p>{point.description}</p>
+                        <p className="scoring-calculated-total">Calculated points: {point.points}/{point.maxPoints} pts</p>
                       </div>
                       <div className="scoring-assessment-point-score">
                         <ScoreBadge status={point.status} />
                         <strong>{point.points}/{point.maxPoints} pts</strong>
                       </div>
                     </div>
+                    {calculatedDetails.length > 0 ? (
+                      <div className="scoring-calculated-breakdown" aria-label={`${point.title} calculated point breakdown`}>
+                        {calculatedDetails.map((detail) => (
+                          <span key={detail.key} className={!detail.counted ? 'not-counted' : ''}>
+                            <b>{detail.label}</b>
+                            <small>{detail.status}{detail.displayPoints ? ` · ${detail.displayPoints}` : ''}</small>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className={`scoring-progress-track ${strong ? 'strong' : 'needs-improvement'}`}>
                       <span style={{ width: `${percentage}%` }} />
                     </div>
