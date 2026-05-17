@@ -1737,8 +1737,9 @@ function getMaturityPoints(policy = {}) {
   const standardStrong = standardPoints === 30
 
   const syntaxStrong = Object.values(syntaxDetails).some(isMaturityEnabled)
-  const customAccessStrong = Array.isArray(customAccessRules) ? customAccessRules.length > 0 : hasAnyMaturityValue(customAccessRules)
-  const advancedStrong = syntaxStrong || customAccessStrong || isMaturityEnabled(policy.custom_access_policy)
+  const customAccessStrong = (Array.isArray(customAccessRules) ? customAccessRules.length > 0 : hasAnyMaturityValue(customAccessRules)) || isMaturityEnabled(policy.custom_access_policy)
+  const advancedPoints = (syntaxStrong ? 10 : 0) + (customAccessStrong ? 10 : 0)
+  const advancedStrong = advancedPoints === 20
 
   const httpFloodStrong = hasAnyMaturityValue(
     applicationDosPolicy.http_request_flood_prevention_rule,
@@ -1831,13 +1832,17 @@ function getMaturityPoints(policy = {}) {
       points: standardPoints,
       maxPoints: 30
     },
-    createPoint(
-      advancedStrong,
-      'Advance Protection',
-      'Syntax based attack detection and custom access controls raise advanced protection maturity.',
-      20,
-      6
-    ),
+    {
+      title: 'Advance Protection',
+      description: 'Syntax based attack detection and custom access controls raise advanced protection maturity.',
+      status: advancedStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: advancedPoints,
+      maxPoints: 20,
+      components: {
+        syntax_based_detection: { status: syntaxStrong ? 'enabled' : 'disabled', points: syntaxStrong ? 10 : 0 },
+        custom_access_rules: { status: customAccessStrong ? 'enabled' : 'disabled', points: customAccessStrong ? 10 : 0 }
+      }
+    },
     createPoint(
       applicationDosStrong,
       'Application DoS',
@@ -1900,6 +1905,10 @@ function runMaturityPointAssertions() {
     }
   })
   const partialStandardPoints = getMaturityPoints({ signature: 'Enabled', http_rfc: 'Disabled', http2: 'disable' })[0]
+  const partialAdvancedPoints = getMaturityPoints({
+    syntax_based_attack_detection_details: { xss_html_tag_based_status: 'enable' },
+    custom_access_rules: []
+  })[1]
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
   console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
@@ -1909,6 +1918,7 @@ function runMaturityPointAssertions() {
   )
   console.assert(backendPolicyPoints[0].points === 15, 'backend maturity categories should be used when present')
   console.assert(partialStandardPoints.points === 15, 'standard protection without HTTP/2 gives 15 points for one enabled control')
+  console.assert(partialAdvancedPoints.points === 10, 'advance protection gives 10 points for one enabled feature')
 }
 
 runMaturityPointAssertions()

@@ -401,6 +401,26 @@ def _calculate_binary_maturity_points(category_key: str, state: dict[str, str], 
     return definition["max_points"] if strong else definition["weak_points"]
 
 
+def _calculate_advanced_protection_points(advanced_state: dict[str, str]) -> tuple[int, dict]:
+    syntax_enabled = _is_maturity_enabled(advanced_state.get("syntax_based_detection"))
+    custom_access_rules_enabled = _is_maturity_enabled(advanced_state.get("custom_access_rules"))
+    component_points = {
+        "syntax_based_detection": 10 if syntax_enabled else 0,
+        "custom_access_rules": 10 if custom_access_rules_enabled else 0,
+    }
+    components = {
+        "syntax_based_detection": {
+            "status": advanced_state.get("syntax_based_detection", "disabled"),
+            "points": component_points["syntax_based_detection"],
+        },
+        "custom_access_rules": {
+            "status": advanced_state.get("custom_access_rules", "disabled"),
+            "points": component_points["custom_access_rules"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
 def _build_policy_maturity_assessment(
     standard_state: dict[str, str],
     http2_enabled,
@@ -412,13 +432,10 @@ def _build_policy_maturity_assessment(
     api_security_state: dict[str, str],
 ) -> dict:
     standard_points, standard_components = _calculate_standard_protection_points(standard_state, http2_enabled)
+    advanced_points, advanced_components = _calculate_advanced_protection_points(advanced_state)
     categories = [
         _build_maturity_category("standard_protection", standard_points, standard_components),
-        _build_maturity_category(
-            "advanced_protection",
-            _calculate_binary_maturity_points("advanced_protection", advanced_state),
-            advanced_state,
-        ),
+        _build_maturity_category("advanced_protection", advanced_points, advanced_components),
         _build_maturity_category(
             "application_dos",
             _calculate_binary_maturity_points("application_dos", application_dos_state),

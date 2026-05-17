@@ -1029,3 +1029,67 @@ def test_build_policy_maturity_assessment_scores_standard_protection_without_htt
     assert standard["status"] == "Needs improvement"
     assert standard["components"]["signature"]["points"] == 15
     assert standard["components"]["http_rfc"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_advance_protection_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {"syntax_based_detection": "enabled", "custom_access_rules": "enabled"},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    advance = assessment["categories"][1]
+
+    assert advance["title"] == "Advance Protection"
+    assert advance["points"] == 20
+    assert advance["max_points"] == 20
+    assert advance["status"] == "Strong"
+    assert advance["components"]["syntax_based_detection"]["points"] == 10
+    assert advance["components"]["custom_access_rules"]["points"] == 10
+
+
+def test_build_policy_maturity_assessment_scores_advance_protection_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {"syntax_based_detection": "enabled", "custom_access_rules": "unknown"},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    advance = assessment["categories"][1]
+
+    assert advance["points"] == 10
+    assert advance["max_points"] == 20
+    assert advance["status"] == "Needs improvement"
+    assert advance["components"]["syntax_based_detection"]["points"] == 10
+    assert advance["components"]["custom_access_rules"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_advance_protection_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {"syntax_based_detection": "disabled", "custom_access_rules": "unknown"},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    advance = assessment["categories"][1]
+
+    assert advance["points"] == 0
+    assert advance["max_points"] == 20
+    assert advance["status"] == "Needs improvement"
+    assert advance["components"]["syntax_based_detection"]["points"] == 0
+    assert advance["components"]["custom_access_rules"]["points"] == 0
