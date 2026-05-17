@@ -86,7 +86,7 @@ const executiveMaturityCards = [
     level: 'Optimized',
     tone: 'strong',
     summary: 'Protection is consistently enforced across core application tiers with mature policy coverage and response-ready controls.',
-    trend: { direction: 'improved', label: 'Improved 6 pts this quarter' },
+    trend: { direction: 'improved', value: '+6 pts', label: 'Improved this quarter' },
     signals: ['Policy coverage 91%', 'Attack signatures current', 'Bot controls aligned']
   },
   {
@@ -97,7 +97,7 @@ const executiveMaturityCards = [
     level: 'Advanced',
     tone: 'steady',
     summary: 'Pendik shows strong blocking posture with a few tuning opportunities around exception hygiene and certificate review cadence.',
-    trend: { direction: 'stable', label: 'No maturity change this quarter' },
+    trend: { direction: 'stable', value: '0 pts', label: 'No maturity change' },
     signals: ['Blocking mode enabled', 'Exception review due', 'Certificate posture healthy']
   },
   {
@@ -108,7 +108,7 @@ const executiveMaturityCards = [
     level: 'Developing',
     tone: 'attention',
     summary: 'Ankara has a reliable baseline and should prioritize monitor-to-block migration for selected services and profile normalization.',
-    trend: { direction: 'decreased', label: 'Decreased 4 pts this quarter' },
+    trend: { direction: 'decreased', value: '-4 pts', label: 'Decreased this quarter' },
     signals: ['Monitoring migration planned', 'Profiles need normalization', 'High-priority apps covered']
   }
 ]
@@ -1689,17 +1689,22 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
           <span className="maturity-level-pill">{card.level}</span>
         </div>
 
-        <div className={`maturity-trend ${card.trend.direction}`}>
-          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-          <span>{card.trend.label}</span>
-        </div>
-
-        <div className="maturity-score-row">
-          <div className="maturity-score-orb" aria-label={`${card.score} out of 100 maturity score`}>
-            <span>{card.score}</span>
-            <small>/100</small>
+        <div className="maturity-metrics-row">
+          <div className="maturity-score-row">
+            <div className="maturity-score-orb" aria-label={`${card.score} out of 100 maturity score`}>
+              <span>{card.score}</span>
+              <small>/100</small>
+            </div>
+            <p>{card.summary}</p>
           </div>
-          <p>{card.summary}</p>
+
+          <div className={`maturity-trend ${card.trend.direction}`}>
+            <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+            <span className="maturity-trend-copy">
+              <strong>{card.trend.value}</strong>
+              <small>{card.trend.label}</small>
+            </span>
+          </div>
         </div>
 
         <div className="maturity-progress" aria-hidden="true">
