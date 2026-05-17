@@ -1911,25 +1911,6 @@ input,
   }
 }
 
-.maturity-score-copy {
-  display: grid;
-  gap: 0.7rem;
-  min-width: 0;
-}
-
-.maturity-sparkline {
-  width: 100%;
-  height: 46px;
-  border-radius: 0.85rem;
-  background: linear-gradient(135deg, rgba(248, 250, 252, 0.92), rgba(226, 232, 240, 0.46));
-  padding: 0.35rem;
-  overflow: visible;
-}
-
-.dark .maturity-sparkline {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(30, 41, 59, 0.52));
-}
-
 .executive-timeline-card {
   position: relative;
   overflow: hidden;

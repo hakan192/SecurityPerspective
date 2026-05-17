@@ -1807,32 +1807,6 @@ function TimelineStatusBadge({ status }) {
   return <span className={`timeline-status-badge ${normalized}`}>{status}</span>
 }
 
-function MaturitySparkline({ series }) {
-  const gradientId = useId()
-  const points = series.map((value, index) => {
-    const x = series.length === 1 ? 50 : (index / (series.length - 1)) * 100
-    const y = 82 - ((value - 80) / 20) * 64
-    return `${x},${Math.max(10, Math.min(82, y))}`
-  }).join(' ')
-
-  return (
-    <svg className="maturity-sparkline" viewBox="0 0 100 92" preserveAspectRatio="none" aria-label={`Maturity series ${series.join(', ')}`}>
-      <defs>
-        <linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0%" stopColor="#10b981" />
-          <stop offset="100%" stopColor="#38bdf8" />
-        </linearGradient>
-      </defs>
-      <polyline points={points} fill="none" stroke={`url(#${gradientId})`} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      {series.map((value, index) => {
-        const x = series.length === 1 ? 50 : (index / (series.length - 1)) * 100
-        const y = Math.max(10, Math.min(82, 82 - ((value - 80) / 20) * 64))
-        return <circle key={`${value}-${index}`} cx={x} cy={y} r="3.2" fill="#0f172a" />
-      })}
-    </svg>
-  )
-}
-
 
 function TrendArrowIcon({ direction }) {
   if (direction === 'improved') {
@@ -1880,10 +1854,7 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
               <span>{card.score}</span>
               <small>%</small>
             </div>
-            <div className="maturity-score-copy">
-              <p>{card.summary}</p>
-              <MaturitySparkline series={card.series} />
-            </div>
+            <p>{card.summary}</p>
           </div>
 
           <div className={`maturity-trend ${card.trend.direction}`}>
