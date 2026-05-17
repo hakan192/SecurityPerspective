@@ -76,6 +76,40 @@ const automationCards = [
   }
 ]
 
+
+const executiveMaturityCards = [
+  {
+    id: 'overall',
+    title: 'Overall WAF Maturity Level',
+    location: 'Enterprise aggregate',
+    score: 82,
+    level: 'Optimized',
+    tone: 'strong',
+    summary: 'Protection is consistently enforced across core application tiers with mature policy coverage and response-ready controls.',
+    signals: ['Policy coverage 91%', 'Attack signatures current', 'Bot controls aligned']
+  },
+  {
+    id: 'pendik',
+    title: 'Pendik WAF Maturity Level',
+    location: 'Pendik data center',
+    score: 76,
+    level: 'Advanced',
+    tone: 'steady',
+    summary: 'Pendik shows strong blocking posture with a few tuning opportunities around exception hygiene and certificate review cadence.',
+    signals: ['Blocking mode enabled', 'Exception review due', 'Certificate posture healthy']
+  },
+  {
+    id: 'ankara',
+    title: 'Ankara WAF Maturity Level',
+    location: 'Ankara data center',
+    score: 68,
+    level: 'Developing',
+    tone: 'attention',
+    summary: 'Ankara has a reliable baseline and should prioritize monitor-to-block migration for selected services and profile normalization.',
+    signals: ['Monitoring migration planned', 'Profiles need normalization', 'High-priority apps covered']
+  }
+]
+
 const formatRecentChangeTime = (value) => {
   if (!value || value === '-') return '-'
   if (/^\d{2}\/\d{2}$/.test(value)) return value
@@ -1593,6 +1627,82 @@ function AutomationDetailsPage({ automation }) {
   )
 }
 
+
+function ExecutiveOverviewPage() {
+  const [overallCard, ...siteCards] = executiveMaturityCards
+
+  return (
+    <section className="executive-overview-page" aria-labelledby="executive-overview-title">
+      <div className="executive-hero">
+        <div>
+          <p className="executive-kicker">Frontend mock data • Backend integration later</p>
+          <h2 id="executive-overview-title">Executive Overview</h2>
+          <p>
+            A GPT-style maturity snapshot for leadership review, using mock WAF protection data while backend integrations are planned.
+          </p>
+        </div>
+        <span className="executive-ai-pill">Mock intelligence preview</span>
+      </div>
+
+      <div className="maturity-layout" aria-label="WAF protection maturity levels">
+        <MaturityCard card={overallCard} featured />
+        <div className="maturity-site-grid">
+          {siteCards.map((card) => (
+            <MaturityCard key={card.id} card={card} showDeepDive />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MaturityCard({ card, featured = false, showDeepDive = false }) {
+  return (
+    <article className={`maturity-card ${featured ? 'featured' : ''} ${card.tone}`}>
+      <div className="maturity-card-glow" aria-hidden="true" />
+      <div className="maturity-card-content">
+        <div className="maturity-card-head">
+          <div>
+            <p className="maturity-location">{card.location}</p>
+            <h3>{card.title}</h3>
+          </div>
+          <span className="maturity-level-pill">{card.level}</span>
+        </div>
+
+        <div className="maturity-score-row">
+          <div className="maturity-score-orb" aria-label={`${card.score} out of 100 maturity score`}>
+            <span>{card.score}</span>
+            <small>/100</small>
+          </div>
+          <p>{card.summary}</p>
+        </div>
+
+        <div className="maturity-progress" aria-hidden="true">
+          <span style={{ width: `${card.score}%` }} />
+        </div>
+
+        <div className="maturity-signal-row">
+          {card.signals.map((signal) => (
+            <span key={signal}>{signal}</span>
+          ))}
+        </div>
+
+        {showDeepDive && (
+          <div className="maturity-card-actions">
+            <button type="button" className="deep-dive-btn">
+              <span>Deep Dive</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
@@ -2334,7 +2444,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activeNav === 'overview' && <div className="hero-text muted">This page will be designed next.</div>}
+            {activeNav === 'overview' && <ExecutiveOverviewPage />}
             {activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
