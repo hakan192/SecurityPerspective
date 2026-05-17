@@ -1698,8 +1698,16 @@ function getMaturityPoints(policy = {}) {
     applicationDosPolicy['/layer4-connection-flood-check-rule'] ||
     applicationDosPolicy['layer4-connection-flood-check-rule'] ||
     {}
-  const botMitigationPolicy = policy.bot_mitigation_details || policy.bot_mitigation || webProtectionProfile.bot_mitigation_details || {}
+  const botMitigationPolicy =
+    policy.bot_mitigation_details ||
+    policy.bot_mitigation ||
+    policy.bot_mitigate_policy_detail ||
+    webProtectionProfile.bot_mitigation_details ||
+    webProtectionProfile.bot_mitigate_policy_detail ||
+    {}
   const apiSecurityPolicy = policy.api_security_details || policy.api_security || webProtectionProfile.api_security_details || {}
+  const ipListPolicyEntries = policy.ip_list_policy_entries || webProtectionProfile.ip_list_policy_entries || []
+  const geoIpEntries = policy.geo_ip_entries || webProtectionProfile.geo_ip_entries || []
 
   const signatureStrong = isMaturityEnabled(
     policy.signature ?? webProtectionProfile.signature_set_status ?? policy.signature_protection ?? policy['signature-protection']
@@ -1722,7 +1730,7 @@ function getMaturityPoints(policy = {}) {
   const tcpFloodStrong = isMaturityActionStrong(
     tcpFloodPolicy.action ?? applicationDosPolicy.tcp_flood_action ?? policy.tcp_flood_prevention_action
   )
-  const dosStrong = httpFloodStrong || tcpFloodStrong
+  const applicationDosStrong = httpFloodStrong || tcpFloodStrong
 
   const botStrong = hasAnyMaturityValue(
     botMitigationPolicy.biometric_detection,
@@ -1739,6 +1747,45 @@ function getMaturityPoints(policy = {}) {
     webProtectionProfile.known_bot
   )
 
+  const accessStrong = hasAnyMaturityValue(
+    policy.allow_method,
+    policy.allow_method_display,
+    policy.allowMethod,
+    policy['allow-method'],
+    policy.allow_method_list,
+    policy.custom_access_policy,
+    webProtectionProfile.allow_method,
+    webProtectionProfile.allow_method_display,
+    webProtectionProfile.allowMethod,
+    webProtectionProfile['allow-method'],
+    webProtectionProfile.allow_method_list
+  )
+
+  const ipStrong = hasAnyMaturityValue(
+    Array.isArray(ipListPolicyEntries) ? ipListPolicyEntries : [],
+    Array.isArray(geoIpEntries) ? geoIpEntries : [],
+    policy.ip_list,
+    policy.ipList,
+    policy['ip-list'],
+    policy.ip_list_entries,
+    policy.ip_group,
+    policy.ipGroup,
+    policy['ip-group'],
+    policy.geo_location,
+    policy.geoLocation,
+    policy['geo-location'],
+    webProtectionProfile.ip_list,
+    webProtectionProfile.ipList,
+    webProtectionProfile['ip-list'],
+    webProtectionProfile.ip_list_entries,
+    webProtectionProfile.ip_group,
+    webProtectionProfile.ipGroup,
+    webProtectionProfile['ip-group'],
+    webProtectionProfile.geo_location,
+    webProtectionProfile.geoLocation,
+    webProtectionProfile['geo-location']
+  )
+
   const apiStrong = hasAnyMaturityValue(
     apiSecurityPolicy,
     policy.api_security,
@@ -1749,49 +1796,63 @@ function getMaturityPoints(policy = {}) {
     webProtectionProfile.api_security
   )
 
-  const createPoint = (strong, title, description, strongPoints, weakPoints) => ({
+  const createPoint = (strong, title, description, maxPoints, weakPoints) => ({
     title,
     description,
     status: strong ? maturityStatusStrong : maturityStatusNeedsImprovement,
-    points: strong ? strongPoints : weakPoints,
-    maxPoints: 20
+    points: strong ? maxPoints : weakPoints,
+    maxPoints
   })
 
   return [
     createPoint(
       standardStrong,
-      'Standard protection coverage',
-      'Signature and HTTP RFC controls are assessed for baseline WAF protection maturity.',
-      20,
-      8
+      'Standart Protection',
+      'Signature and HTTP RFC controls provide the highest-weight baseline protection score.',
+      30,
+      12
     ),
     createPoint(
       advancedStrong,
-      'Advanced attack detection',
-      'Syntax based attack detection or custom access policy coverage indicates advanced detection maturity.',
+      'Advance Protection',
+      'Syntax based attack detection and custom access controls raise advanced protection maturity.',
       20,
       6
     ),
     createPoint(
-      dosStrong,
-      'DoS and IP protection',
-      'HTTP flood prevention or strong TCP flood actions improve resilience against volumetric abuse.',
-      20,
-      7
+      applicationDosStrong,
+      'Application DoS',
+      'HTTP flood prevention and TCP flood actions are assessed for application-layer DoS readiness.',
+      15,
+      5
     ),
     createPoint(
       botStrong,
-      'Bot mitigation maturity',
-      'Bot mitigation controls are checked for enabled, alerting, or alert-deny enforcement signals.',
-      20,
-      6
+      'Bot Mitigation',
+      'Bot mitigation maturity checks biometric, threshold, known-bot, and alerting controls.',
+      10,
+      3
+    ),
+    createPoint(
+      accessStrong,
+      'Access',
+      'Access maturity reflects allowed method and custom access enforcement signals.',
+      5,
+      2
+    ),
+    createPoint(
+      ipStrong,
+      'IP Protection',
+      'IP list, IP group, and geo-location controls contribute location and source protection maturity.',
+      10,
+      3
     ),
     createPoint(
       apiStrong,
-      'API and user tracking controls',
-      'API security and user tracking controls increase visibility and application-layer governance.',
-      20,
-      8
+      'API Security',
+      'API security and user tracking controls improve visibility and API governance maturity.',
+      10,
+      4
     )
   ]
 }
@@ -1806,13 +1867,15 @@ function runMaturityPointAssertions() {
       tcp_flood_prevention_policy: { action: 'alert_deny' }
     },
     bot_mitigation_details: { known_bot: 'Enabled' },
+    allow_method: 'Enabled',
+    ip_list_policy_entries: [{ ip: '10.0.0.1' }],
     api_security_details: { schema_validation: 'Enabled' }
   })
   const strongPolicyScore = strongPolicyPoints.reduce((total, point) => total + point.points, 0)
   const weakPolicyPoints = getMaturityPoints({})
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
-  console.assert(weakPolicyPoints.length === 5, 'weak policy should still return 5 categories')
+  console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
   console.assert(
     [...strongPolicyPoints, ...weakPolicyPoints].every((point) => point.points <= point.maxPoints),
     'every category should have points <= max'
