@@ -447,6 +447,18 @@ def _calculate_application_dos_points(application_dos_state: dict[str, str]) -> 
     return sum(component_points.values()), components
 
 
+def _calculate_access_points(access_state: dict[str, str]) -> tuple[int, dict]:
+    allow_method_enabled = _is_maturity_enabled(access_state.get("allow_method"))
+    points = 5 if allow_method_enabled else 0
+    components = {
+        "allow_method": {
+            "status": access_state.get("allow_method", "disabled"),
+            "points": points,
+        }
+    }
+    return points, components
+
+
 def _build_policy_maturity_assessment(
     standard_state: dict[str, str],
     http2_enabled,
@@ -460,6 +472,7 @@ def _build_policy_maturity_assessment(
     standard_points, standard_components = _calculate_standard_protection_points(standard_state, http2_enabled)
     advanced_points, advanced_components = _calculate_advanced_protection_points(advanced_state)
     application_dos_points, application_dos_components = _calculate_application_dos_points(application_dos_state)
+    access_points, access_components = _calculate_access_points(access_state)
     categories = [
         _build_maturity_category("standard_protection", standard_points, standard_components),
         _build_maturity_category("advanced_protection", advanced_points, advanced_components),
@@ -469,7 +482,7 @@ def _build_policy_maturity_assessment(
             _calculate_binary_maturity_points("bot_mitigation", bot_mitigation_state),
             bot_mitigation_state,
         ),
-        _build_maturity_category("access", _calculate_binary_maturity_points("access", access_state), access_state),
+        _build_maturity_category("access", access_points, access_components),
         _build_maturity_category(
             "ip_protection",
             _calculate_binary_maturity_points("ip_protection", ip_protection_state),

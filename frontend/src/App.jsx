@@ -1782,19 +1782,20 @@ function getMaturityPoints(policy = {}) {
     webProtectionProfile.known_bot
   )
 
-  const accessStrong = hasAnyMaturityValue(
+  const allowMethodStrong = hasAnyMaturityValue(
     policy.allow_method,
     policy.allow_method_display,
     policy.allowMethod,
     policy['allow-method'],
     policy.allow_method_list,
-    policy.custom_access_policy,
     webProtectionProfile.allow_method,
     webProtectionProfile.allow_method_display,
     webProtectionProfile.allowMethod,
     webProtectionProfile['allow-method'],
     webProtectionProfile.allow_method_list
   )
+  const accessPoints = allowMethodStrong ? 5 : 0
+  const accessStrong = accessPoints === 5
 
   const ipStrong = hasAnyMaturityValue(
     Array.isArray(ipListPolicyEntries) ? ipListPolicyEntries : [],
@@ -1877,13 +1878,16 @@ function getMaturityPoints(policy = {}) {
       10,
       3
     ),
-    createPoint(
-      accessStrong,
-      'Access',
-      'Access maturity reflects allowed method and custom access enforcement signals.',
-      5,
-      2
-    ),
+    {
+      title: 'Access',
+      description: 'Access maturity reflects the Allow method security feature.',
+      status: accessStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: accessPoints,
+      maxPoints: 5,
+      components: {
+        allow_method: { status: allowMethodStrong ? 'enabled' : 'disabled', points: allowMethodStrong ? 5 : 0 }
+      }
+    },
     createPoint(
       ipStrong,
       'IP Protection',
@@ -1932,6 +1936,7 @@ function runMaturityPointAssertions() {
   const partialApplicationDosPoints = getMaturityPoints({
     application_layer_dos_prevention_policy: { http_request_flood_prevention_rule: 'rule-a' }
   })[2]
+  const enabledAccessPoints = getMaturityPoints({ allow_method: 'Enabled' })[4]
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
   console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
@@ -1943,6 +1948,7 @@ function runMaturityPointAssertions() {
   console.assert(partialStandardPoints.points === 15, 'standard protection without HTTP/2 gives 15 points for one enabled control')
   console.assert(partialAdvancedPoints.points === 10, 'advance protection gives 10 points for one enabled feature')
   console.assert(partialApplicationDosPoints.points === 5, 'application DoS gives 5 points for one enabled feature')
+  console.assert(enabledAccessPoints.points === 5, 'access gives 5 points when Allow method is enabled')
 }
 
 runMaturityPointAssertions()

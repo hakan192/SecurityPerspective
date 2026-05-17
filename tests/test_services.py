@@ -1172,3 +1172,44 @@ def test_build_policy_maturity_assessment_scores_application_dos_zero_when_no_fe
     assert application_dos["components"]["http_flood_prevention"]["points"] == 0
     assert application_dos["components"]["http_access_limit"]["points"] == 0
     assert application_dos["components"]["tcp_flood_prevention"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_access_when_allow_method_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {"allow_method": "enabled"},
+        {},
+        {},
+    )
+
+    access = assessment["categories"][4]
+
+    assert access["title"] == "Access"
+    assert access["points"] == 5
+    assert access["max_points"] == 5
+    assert access["status"] == "Strong"
+    assert access["components"]["allow_method"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_access_zero_when_allow_method_disabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {"allow_method": "unknown"},
+        {},
+        {},
+    )
+
+    access = assessment["categories"][4]
+
+    assert access["points"] == 0
+    assert access["max_points"] == 5
+    assert access["status"] == "Needs improvement"
+    assert access["components"]["allow_method"]["points"] == 0
