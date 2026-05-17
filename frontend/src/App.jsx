@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import './App.css'
 
 const resolvedHost = window.location.hostname || 'localhost'
@@ -1663,7 +1664,392 @@ function AutomationDetailsPage({ automation }) {
 }
 
 
-function ExecutiveOverviewPage() {
+const maturityStatusStrong = 'Strong'
+const maturityStatusNeedsImprovement = 'Needs improvement'
+
+const toMaturityText = (value) => String(value ?? '').trim().toLowerCase()
+
+const isMaturityEnabled = (value) => {
+  const normalized = toMaturityText(value)
+  return ['enabled', 'enable', 'monitoring', 'true', '1', 'yes', 'on'].includes(normalized)
+}
+
+const isMaturityActionStrong = (value) => {
+  const normalized = toMaturityText(value).replaceAll('-', '_')
+  return ['enabled', 'enable', 'alert', 'alert_deny', 'block_period', 'block', 'monitoring'].includes(normalized)
+}
+
+const hasStrongMaturityValue = (value) => {
+  if (Array.isArray(value)) return value.some(hasStrongMaturityValue)
+  if (value && typeof value === 'object') return Object.values(value).some(hasStrongMaturityValue)
+  return isMaturityEnabled(value) || isMaturityActionStrong(value)
+}
+
+const hasAnyMaturityValue = (...values) => values.some(hasStrongMaturityValue)
+
+function getMaturityPoints(policy = {}) {
+  const webProtectionProfile = policy.web_protection_profile_details || {}
+  const syntaxDetails = policy.syntax_based_attack_detection_details || webProtectionProfile.syntax_based_attack_detection_details || {}
+  const customAccessRules = policy.custom_access_rules || webProtectionProfile.custom_access_rules || []
+  const applicationDosPolicy = policy.application_layer_dos_prevention_policy || webProtectionProfile.application_layer_dos_prevention_policy || {}
+  const tcpFloodPolicy =
+    applicationDosPolicy.tcp_flood_prevention_policy ||
+    applicationDosPolicy.layer4_connection_flood_check_rule_policy ||
+    applicationDosPolicy['/layer4-connection-flood-check-rule'] ||
+    applicationDosPolicy['layer4-connection-flood-check-rule'] ||
+    {}
+  const botMitigationPolicy =
+    policy.bot_mitigation_details ||
+    policy.bot_mitigation ||
+    policy.bot_mitigate_policy_detail ||
+    webProtectionProfile.bot_mitigation_details ||
+    webProtectionProfile.bot_mitigate_policy_detail ||
+    {}
+  const apiSecurityPolicy = policy.api_security_details || policy.api_security || webProtectionProfile.api_security_details || {}
+  const ipListPolicyEntries = policy.ip_list_policy_entries || webProtectionProfile.ip_list_policy_entries || []
+  const geoIpEntries = policy.geo_ip_entries || webProtectionProfile.geo_ip_entries || []
+
+  const signatureStrong = isMaturityEnabled(
+    policy.signature ?? webProtectionProfile.signature_set_status ?? policy.signature_protection ?? policy['signature-protection']
+  )
+  const httpRfcStrong = isMaturityEnabled(
+    policy.http_rfc ?? webProtectionProfile.http_protocol_parameter_restriction ?? policy.httpRfc ?? policy['http-rfc']
+  )
+  const standardStrong = signatureStrong && httpRfcStrong
+
+  const syntaxStrong = Object.values(syntaxDetails).some(isMaturityEnabled)
+  const customAccessStrong = Array.isArray(customAccessRules) ? customAccessRules.length > 0 : hasAnyMaturityValue(customAccessRules)
+  const advancedStrong = syntaxStrong || customAccessStrong || isMaturityEnabled(policy.custom_access_policy)
+
+  const httpFloodStrong = hasAnyMaturityValue(
+    applicationDosPolicy.http_request_flood_prevention_rule,
+    policy.http_flood_prevention,
+    webProtectionProfile.http_flood_prevention,
+    policy['http-flood-prevention']
+  )
+  const tcpFloodStrong = isMaturityActionStrong(
+    tcpFloodPolicy.action ?? applicationDosPolicy.tcp_flood_action ?? policy.tcp_flood_prevention_action
+  )
+  const applicationDosStrong = httpFloodStrong || tcpFloodStrong
+
+  const botStrong = hasAnyMaturityValue(
+    botMitigationPolicy.biometric_detection,
+    botMitigationPolicy.threshold_based_detection,
+    botMitigationPolicy.known_bot,
+    botMitigationPolicy.action,
+    policy.biometric_detection,
+    policy.threshold_based_detection,
+    policy.known_bot,
+    policy.bot_confirmation,
+    policy.bot_recognition,
+    webProtectionProfile.biometric_detection,
+    webProtectionProfile.threshold_based_detection,
+    webProtectionProfile.known_bot
+  )
+
+  const accessStrong = hasAnyMaturityValue(
+    policy.allow_method,
+    policy.allow_method_display,
+    policy.allowMethod,
+    policy['allow-method'],
+    policy.allow_method_list,
+    policy.custom_access_policy,
+    webProtectionProfile.allow_method,
+    webProtectionProfile.allow_method_display,
+    webProtectionProfile.allowMethod,
+    webProtectionProfile['allow-method'],
+    webProtectionProfile.allow_method_list
+  )
+
+  const ipStrong = hasAnyMaturityValue(
+    Array.isArray(ipListPolicyEntries) ? ipListPolicyEntries : [],
+    Array.isArray(geoIpEntries) ? geoIpEntries : [],
+    policy.ip_list,
+    policy.ipList,
+    policy['ip-list'],
+    policy.ip_list_entries,
+    policy.ip_group,
+    policy.ipGroup,
+    policy['ip-group'],
+    policy.geo_location,
+    policy.geoLocation,
+    policy['geo-location'],
+    webProtectionProfile.ip_list,
+    webProtectionProfile.ipList,
+    webProtectionProfile['ip-list'],
+    webProtectionProfile.ip_list_entries,
+    webProtectionProfile.ip_group,
+    webProtectionProfile.ipGroup,
+    webProtectionProfile['ip-group'],
+    webProtectionProfile.geo_location,
+    webProtectionProfile.geoLocation,
+    webProtectionProfile['geo-location']
+  )
+
+  const apiStrong = hasAnyMaturityValue(
+    apiSecurityPolicy,
+    policy.api_security,
+    policy.api_protection,
+    policy.api_schema_validation,
+    policy.api_endpoint_detection,
+    policy.user_tracking,
+    webProtectionProfile.api_security
+  )
+
+  const createPoint = (strong, title, description, maxPoints, weakPoints) => ({
+    title,
+    description,
+    status: strong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+    points: strong ? maxPoints : weakPoints,
+    maxPoints
+  })
+
+  return [
+    createPoint(
+      standardStrong,
+      'Standart Protection',
+      'Signature and HTTP RFC controls provide the highest-weight baseline protection score.',
+      30,
+      12
+    ),
+    createPoint(
+      advancedStrong,
+      'Advance Protection',
+      'Syntax based attack detection and custom access controls raise advanced protection maturity.',
+      20,
+      6
+    ),
+    createPoint(
+      applicationDosStrong,
+      'Application DoS',
+      'HTTP flood prevention and TCP flood actions are assessed for application-layer DoS readiness.',
+      15,
+      5
+    ),
+    createPoint(
+      botStrong,
+      'Bot Mitigation',
+      'Bot mitigation maturity checks biometric, threshold, known-bot, and alerting controls.',
+      10,
+      3
+    ),
+    createPoint(
+      accessStrong,
+      'Access',
+      'Access maturity reflects allowed method and custom access enforcement signals.',
+      5,
+      2
+    ),
+    createPoint(
+      ipStrong,
+      'IP Protection',
+      'IP list, IP group, and geo-location controls contribute location and source protection maturity.',
+      10,
+      3
+    ),
+    createPoint(
+      apiStrong,
+      'API Security',
+      'API security and user tracking controls improve visibility and API governance maturity.',
+      10,
+      4
+    )
+  ]
+}
+
+function runMaturityPointAssertions() {
+  const strongPolicyPoints = getMaturityPoints({
+    signature: 'Enabled',
+    http_rfc: 'Enabled',
+    syntax_based_attack_detection_details: { xss_html_tag_based_status: 'enable' },
+    application_layer_dos_prevention_policy: {
+      http_request_flood_prevention_rule: 'Enabled',
+      tcp_flood_prevention_policy: { action: 'alert_deny' }
+    },
+    bot_mitigation_details: { known_bot: 'Enabled' },
+    allow_method: 'Enabled',
+    ip_list_policy_entries: [{ ip: '10.0.0.1' }],
+    api_security_details: { schema_validation: 'Enabled' }
+  })
+  const strongPolicyScore = strongPolicyPoints.reduce((total, point) => total + point.points, 0)
+  const weakPolicyPoints = getMaturityPoints({})
+
+  console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
+  console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
+  console.assert(
+    [...strongPolicyPoints, ...weakPolicyPoints].every((point) => point.points <= point.maxPoints),
+    'every category should have points <= max'
+  )
+}
+
+runMaturityPointAssertions()
+
+
+function ScoreBadge({ status }) {
+  const strong = status === maturityStatusStrong
+  return <span className={`score-status-badge ${strong ? 'strong' : 'needs-improvement'}`}>{status}</span>
+}
+
+function ScoringPolicyCard({ policy, onOpenDetails }) {
+  const [expanded, setExpanded] = useState(false)
+  const maturityPoints = getMaturityPoints(policy)
+  const totalPoints = maturityPoints.reduce((total, point) => total + point.points, 0)
+  const maxPoints = maturityPoints.reduce((total, point) => total + point.maxPoints, 0)
+  const maturityPercentage = Math.round((totalPoints / maxPoints) * 100)
+  const policyName = typeof policy === 'string' ? policy : policy.server_policy_name || 'Policy Details'
+  const deviceName = typeof policy === 'string' ? 'Unknown Device' : policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
+  const policyLocation = typeof policy === 'string' ? 'Unknown' : policy.location || policy._deviceLocation || policy.region || 'Unknown'
+
+  return (
+    <article className={`scoring-assessment-card ${expanded ? 'expanded' : ''}`}>
+      <button
+        type="button"
+        className="scoring-assessment-toggle"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+      >
+        <div className="scoring-assessment-main">
+          <p className="policy-label">Maturity Assessment</p>
+          <h4>{policyName}</h4>
+          <div className="scoring-assessment-pills">
+            <span className="scoring-assessment-pill">
+              <DeviceStackIcon />
+              {deviceName}
+            </span>
+            <span className="scoring-assessment-pill location">{policyLocation}</span>
+          </div>
+        </div>
+        <div className="scoring-assessment-score" aria-label={`${maturityPercentage}% total maturity score`}>
+          <strong>{maturityPercentage}%</strong>
+          <span>Total maturity score</span>
+        </div>
+        <span className={`scoring-chevron ${expanded ? 'expanded' : ''}`} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            className="scoring-assessment-expanded"
+            initial={{ opacity: 0, height: 0, y: -6 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+          >
+            <div className="scoring-assessment-expanded-head">
+              <h5>Assessment points</h5>
+              <button
+                type="button"
+                className="policy-full-details-btn scoring-full-details-btn"
+                onClick={() => onOpenDetails?.(policy)}
+              >
+                <span>Full Details</span>
+                <svg className="policy-full-details-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M7 7h10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M7 17 17 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="scoring-assessment-point-list">
+              {maturityPoints.map((point) => {
+                const strong = point.status === maturityStatusStrong
+                const percentage = Math.round((point.points / point.maxPoints) * 100)
+                return (
+                  <div className="scoring-assessment-point" key={point.title}>
+                    <div className="scoring-assessment-point-copy">
+                      <div>
+                        <h6>{point.title}</h6>
+                        <p>{point.description}</p>
+                      </div>
+                      <div className="scoring-assessment-point-score">
+                        <ScoreBadge status={point.status} />
+                        <strong>{point.points}/{point.maxPoints} pts</strong>
+                      </div>
+                    </div>
+                    <div className={`scoring-progress-track ${strong ? 'strong' : 'needs-improvement'}`}>
+                      <span style={{ width: `${percentage}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </article>
+  )
+}
+
+function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, policies = [] }) {
+  const normalizedScoreId = toMaturityText(scoringLocation || selectedScoreId || 'overall')
+  const selectedLocationName = normalizedScoreId === 'pendik' ? 'Pendik' : normalizedScoreId === 'ankara' ? 'Ankara' : 'Overall'
+  const filteredPolicies = policies.filter((policy) => {
+    if (normalizedScoreId === 'overall' || normalizedScoreId === 'all') return true
+    const policyLocation = toMaturityText(policy?.location || policy?._deviceLocation || 'Unknown')
+    return policyLocation === normalizedScoreId
+  })
+  const subtitle = normalizedScoreId === 'overall' || normalizedScoreId === 'all'
+    ? 'Enterprise-wide policy maturity scoring across all WAF locations.'
+    : `${selectedLocationName} policy maturity scoring and assessment points.`
+
+  return (
+    <section className="scoring-page waf-panel modern-waf" aria-label="Scoring workspace">
+      <div className="workspace-tab-bar scoring-tab-bar" role="tablist" aria-label="Scoring workspace tabs">
+        <button type="button" role="tab" aria-selected="true" className="workspace-tab active">
+          <span className="workspace-tab-label">Scoring</span>
+        </button>
+      </div>
+
+      <div className="scoring-hero">
+        <button type="button" className="scoring-back-btn" onClick={onBack}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M19 12H5" />
+            <path d="m12 19-7-7 7-7" />
+          </svg>
+          <span>Back</span>
+        </button>
+        <div>
+          <p className="maturity-location">Workspace tab</p>
+          <h2>Scoring</h2>
+          <p>{subtitle}</p>
+        </div>
+      </div>
+
+      <div className="scoring-policy-section">
+        <div className="scoring-section-head">
+          <div>
+            <p className="maturity-location">Maturity Assessment</p>
+            <h3>{selectedLocationName} policies</h3>
+          </div>
+          <span className="maturity-level-pill">{filteredPolicies.length} policies</span>
+        </div>
+
+        {filteredPolicies.length === 0 ? (
+          <div className="waf-empty-state">
+            <p className="nav-desc">No policies found for {selectedLocationName}.</p>
+          </div>
+        ) : (
+          <div className="scoring-assessment-list">
+            {filteredPolicies.map((policy, index) => (
+              <ScoringPolicyCard
+                key={typeof policy === 'string' ? `scoring-policy-${index}` : `${policy._deviceName || 'device'}::${policy.server_policy_name || index}::${policy.ip || 'no-ip'}`}
+                policy={policy}
+                onOpenDetails={(selectedPolicy) => onOpenDetails?.(selectedPolicy, index)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+
+function ExecutiveOverviewPage({ onDeepDive }) {
   const [overallCard, ...siteCards] = executiveMaturityCards
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
@@ -1765,7 +2151,7 @@ function ExecutiveOverviewPage() {
           <MaturityCard card={overallCard} featured />
           <div className="maturity-site-grid">
             {siteCards.map((card) => (
-              <MaturityCard key={card.id} card={card} showDeepDive />
+              <MaturityCard key={card.id} card={card} showDeepDive onDeepDive={onDeepDive} />
             ))}
           </div>
           <ExecutiveTimelineCard
@@ -1918,47 +2304,51 @@ function TrendArrowIcon({ direction }) {
   )
 }
 
-function MaturityCard({ card, featured = false, showDeepDive = false }) {
+function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive, contentWrapped = true }) {
+  const cardContent = (
+    <>
+      <div className="maturity-card-head">
+        <div>
+          <p className="maturity-location">{card.location}</p>
+          <h3>{card.title}</h3>
+        </div>
+        <span className="maturity-level-pill">{card.level}</span>
+      </div>
+
+      <div className="maturity-metrics-row">
+        <div className="maturity-score-row">
+          <div className="maturity-score-orb" aria-label={`${card.score}% maturity score`}>
+            <span>{card.score}</span>
+            <small>%</small>
+          </div>
+          <p>{card.summary}</p>
+        </div>
+
+        <div className={`maturity-trend ${card.trend.direction}`}>
+          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+          <span className="maturity-trend-copy">
+            <strong>{card.trend.value}</strong>
+            <small>{card.trend.label}</small>
+          </span>
+        </div>
+      </div>
+      {showDeepDive && (
+        <div className="maturity-card-actions">
+          <button type="button" className="deep-dive-btn" onClick={() => onDeepDive?.(card.id)}>
+            <span>Deep dive policies</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path d="m13 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <article className={`maturity-card ${featured ? 'featured' : ''} ${card.tone}`}>
-      <div className="maturity-card-content">
-        <div className="maturity-card-head">
-          <div>
-            <p className="maturity-location">{card.location}</p>
-            <h3>{card.title}</h3>
-          </div>
-          <span className="maturity-level-pill">{card.level}</span>
-        </div>
-
-        <div className="maturity-metrics-row">
-          <div className="maturity-score-row">
-            <div className="maturity-score-orb" aria-label={`${card.score}% maturity score`}>
-              <span>{card.score}</span>
-              <small>%</small>
-            </div>
-            <p>{card.summary}</p>
-          </div>
-
-          <div className={`maturity-trend ${card.trend.direction}`}>
-            <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-            <span className="maturity-trend-copy">
-              <strong>{card.trend.value}</strong>
-              <small>{card.trend.label}</small>
-            </span>
-          </div>
-        </div>
-        {showDeepDive && (
-          <div className="maturity-card-actions">
-            <button type="button" className="deep-dive-btn">
-              <span>Deep Dive</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
-            </button>
-          </div>
-        )}
-      </div>
+      {contentWrapped ? <div className="maturity-card-content">{cardContent}</div> : cardContent}
     </article>
   )
 }
@@ -1966,6 +2356,8 @@ function MaturityCard({ card, featured = false, showDeepDive = false }) {
 function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState('home')
+  const [activePage, setActivePage] = useState('overview')
+  const [selectedScoreId, setSelectedScoreId] = useState('overall')
   const [settingsExpanded, setSettingsExpanded] = useState(false)
   const [settingsGearSpinning, setSettingsGearSpinning] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -2119,8 +2511,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home') loadWafResponse()
-  }, [activeNav])
+    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+  }, [activeNav, activePage])
 
   useEffect(() => {
     setExpandedPolicyCard('')
@@ -2302,6 +2694,23 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     })
   }
 
+  const openScoringPage = (scoreId) => {
+    setSelectedScoreId(scoreId)
+    setActivePage('scoring')
+    setActiveNav('overview')
+  }
+
+  const closeScoringPage = () => {
+    setActivePage('overview')
+    setActiveNav('overview')
+  }
+
+  const openScoringPolicyDetails = (policy, index) => {
+    openPolicyTab(policy, index)
+    setActivePage('overview')
+    setActiveNav('waf')
+  }
+
   const activeWafTab = wafTabs.find((tab) => tab.id === activeWafTabId) || wafTabs[0]
   const activeAutomationTab = automationTabs.find((tab) => tab.id === activeAutomationTabId) || automationTabs[0]
 
@@ -2311,7 +2720,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       <div className={`dashboard-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <aside className={`sidebar ${sidebarOpen ? 'is-open' : 'is-closed'}`}>
           <div className="sidebar-top">
-            <button onClick={() => setActiveNav('home')} className="home-link">
+            <button onClick={() => { setActiveNav('home'); setActivePage('overview') }} className="home-link">
               <div className="brand-logo-shell">
                 <SecurityPerspectiveLogo />
               </div>
@@ -2331,6 +2740,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     type="button"
                     onClick={() => {
                       setActiveNav(item.id)
+                      setActivePage('overview')
                     }}
                     className={`nav-item ${active ? 'active' : ''}`}
                   >
@@ -2350,7 +2760,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               <span className="settings-gear" aria-hidden="true">⚙</span> Platform Settings
             </button>
             {settingsExpanded && (
-              <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => setActiveNav('device-config')}>
+              <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => { setActiveNav('device-config'); setActivePage('overview') }}>
                 Device Config
               </button>
             )}
@@ -2366,15 +2776,17 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </button>
               <div className="kicker">Workspace</div>
               <h1 className="workspace-title">
-                {activeNav === 'home'
-                  ? 'Search'
-                  : activeNav === 'waf'
-                    ? 'WAF Configuration'
-                    : activeNav === 'automation'
-                      ? 'Automation'
-                    : activeNav === 'device-config'
-                      ? 'Device Config'
-                      : 'Executive Overview'}
+                {activePage === 'scoring'
+                  ? 'Scoring'
+                  : activeNav === 'home'
+                    ? 'Search'
+                    : activeNav === 'waf'
+                      ? 'WAF Configuration'
+                      : activeNav === 'automation'
+                        ? 'Automation'
+                        : activeNav === 'device-config'
+                          ? 'Device Config'
+                          : 'Executive Overview'}
               </h1>
               {activeNav === 'waf' && <p className="waf-updated">Last updated: {new Date().toLocaleString()}</p>}
             </div>
@@ -2403,8 +2815,18 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
             </div>
           </header>
 
-          <section className={`body-content ${activeNav === 'home' ? 'home-centered' : ''}`}>
-            {activeNav === 'home' && (
+          <section className={`body-content ${activeNav === 'home' && activePage !== 'scoring' ? 'home-centered' : ''}`}>
+            {activePage === 'scoring' && (
+              <ScoringPage
+                selectedScoreId={selectedScoreId}
+                scoringLocation={selectedScoreId}
+                onBack={closeScoringPage}
+                onOpenDetails={openScoringPolicyDetails}
+                policies={wafPolicies}
+              />
+            )}
+
+            {activePage !== 'scoring' && activeNav === 'home' && (
               <form className="search-wrap" onSubmit={submitSearch}>
                 <div className="hero-text">How can I help you? :)</div>
                 <div className="search-bar">
@@ -2418,7 +2840,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </form>
             )}
 
-            {activeNav === 'waf' && (
+            {activePage !== 'scoring' && activeNav === 'waf' && (
               <section className="waf-panel modern-waf">
                 <div className="workspace-tab-bar" role="tablist" aria-label="WAF workspace tabs">
                   {wafTabs.map((tab) => (
@@ -2622,7 +3044,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activeNav === 'automation' && (
+            {activePage !== 'scoring' && activeNav === 'automation' && (
               <section className="waf-panel modern-waf automation-workspace">
                 <div className="workspace-tab-bar" role="tablist" aria-label="Automation workspace tabs">
                   {automationTabs.map((tab) => (
@@ -2704,8 +3126,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activeNav === 'overview' && <ExecutiveOverviewPage />}
-            {activeNav === 'device-config' && (
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
                   <div>

@@ -2331,3 +2331,419 @@ input,
     width: 100%;
   }
 }
+
+.scoring-page {
+  gap: 1rem;
+}
+
+.scoring-tab-bar {
+  margin-bottom: 0;
+}
+
+.scoring-hero,
+.scoring-policy-section {
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.72)),
+    radial-gradient(circle at 18% 0%, rgba(16, 185, 129, 0.12), transparent 30%);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+  padding: clamp(1rem, 2vw, 1.25rem);
+}
+
+.dark .scoring-hero,
+.dark .scoring-policy-section {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.7)),
+    radial-gradient(circle at 18% 0%, rgba(16, 185, 129, 0.16), transparent 30%);
+  border-color: rgba(71, 85, 105, 0.72);
+  box-shadow: 0 24px 48px rgba(2, 6, 23, 0.28);
+}
+
+.scoring-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+}
+
+.scoring-hero h2,
+.scoring-section-head h3 {
+  margin: 0.25rem 0 0;
+  color: #0f172a;
+  letter-spacing: -0.04em;
+}
+
+.dark .scoring-hero h2,
+.dark .scoring-section-head h3 {
+  color: #f8fafc;
+}
+
+.scoring-hero p:last-child {
+  margin: 0.45rem 0 0;
+  color: #475569;
+}
+
+.dark .scoring-hero p:last-child {
+  color: #cbd5e1;
+}
+
+.scoring-back-btn {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.64rem 0.9rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dark .scoring-back-btn {
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.scoring-back-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.scoring-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 720px) {
+  .scoring-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .scoring-section-head {
+    flex-direction: column;
+  }
+}
+
+.scoring-assessment-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.scoring-assessment-card {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(24px);
+  overflow: hidden;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.scoring-assessment-card:hover,
+.scoring-assessment-card.expanded {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 24px 58px rgba(15, 23, 42, 0.12);
+}
+
+.dark .scoring-assessment-card {
+  border-color: rgba(71, 85, 105, 0.7);
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 24px 58px rgba(2, 6, 23, 0.3);
+}
+
+.scoring-assessment-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scoring-assessment-main h4 {
+  margin: 0.35rem 0 0;
+  color: #0f172a;
+  font-size: clamp(1.05rem, 1.4vw, 1.28rem);
+  letter-spacing: -0.035em;
+}
+
+.dark .scoring-assessment-main h4 {
+  color: #f8fafc;
+}
+
+.scoring-assessment-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.scoring-assessment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.78);
+  color: #475569;
+  padding: 0.38rem 0.62rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.scoring-assessment-pill svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.scoring-assessment-pill.location {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
+.dark .scoring-assessment-pill {
+  background: rgba(30, 41, 59, 0.72);
+  border-color: rgba(71, 85, 105, 0.75);
+  color: #cbd5e1;
+}
+
+.dark .scoring-assessment-pill.location {
+  color: #86efac;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.scoring-assessment-score {
+  min-width: 132px;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 1.25rem;
+  background: rgba(248, 250, 252, 0.72);
+  display: grid;
+  justify-items: center;
+  gap: 0.14rem;
+  padding: 0.78rem 0.9rem;
+}
+
+.dark .scoring-assessment-score {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(71, 85, 105, 0.76);
+}
+
+.scoring-assessment-score strong {
+  color: #047857;
+  font-size: 1.45rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.dark .scoring-assessment-score strong {
+  color: #86efac;
+}
+
+.scoring-assessment-score span {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dark .scoring-assessment-score span {
+  color: #94a3b8;
+}
+
+.scoring-chevron {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(203, 213, 225, 0.75);
+  border-radius: 1rem;
+  background: rgba(248, 250, 252, 0.72);
+  display: inline-grid;
+  place-items: center;
+  transition: transform 180ms ease;
+}
+
+.scoring-chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.scoring-chevron svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.dark .scoring-chevron {
+  background: rgba(30, 41, 59, 0.72);
+  border-color: rgba(71, 85, 105, 0.76);
+}
+
+.scoring-assessment-expanded {
+  border-top: 1px solid rgba(226, 232, 240, 0.72);
+  padding: 1rem 1.25rem 1.25rem;
+  overflow: hidden;
+}
+
+.dark .scoring-assessment-expanded {
+  border-top-color: rgba(71, 85, 105, 0.72);
+}
+
+.scoring-assessment-expanded-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.scoring-assessment-expanded-head h5 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.dark .scoring-assessment-expanded-head h5 {
+  color: #f8fafc;
+}
+
+.scoring-assessment-point-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.scoring-assessment-point {
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  border-radius: 1.15rem;
+  background: rgba(248, 250, 252, 0.62);
+  padding: 0.85rem;
+}
+
+.dark .scoring-assessment-point {
+  background: rgba(30, 41, 59, 0.46);
+  border-color: rgba(71, 85, 105, 0.7);
+}
+
+.scoring-assessment-point-copy {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.scoring-assessment-point h6 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.92rem;
+}
+
+.dark .scoring-assessment-point h6 {
+  color: #f8fafc;
+}
+
+.scoring-assessment-point p {
+  margin: 0.26rem 0 0;
+  color: #64748b;
+  line-height: 1.45;
+  font-size: 0.84rem;
+}
+
+.dark .scoring-assessment-point p {
+  color: #cbd5e1;
+}
+
+.scoring-assessment-point-score {
+  display: grid;
+  justify-items: end;
+  gap: 0.36rem;
+  white-space: nowrap;
+}
+
+.scoring-assessment-point-score strong {
+  color: #0f172a;
+  font-size: 0.82rem;
+}
+
+.dark .scoring-assessment-point-score strong {
+  color: #f8fafc;
+}
+
+.score-status-badge {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.score-status-badge.strong {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.score-status-badge.needs-improvement {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+.dark .score-status-badge.strong {
+  color: #86efac;
+}
+
+.dark .score-status-badge.needs-improvement {
+  color: #fcd34d;
+}
+
+.scoring-progress-track {
+  height: 0.56rem;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.78);
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
+
+.dark .scoring-progress-track {
+  background: rgba(51, 65, 85, 0.82);
+}
+
+.scoring-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 420ms ease;
+}
+
+.scoring-progress-track.strong span {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.scoring-progress-track.needs-improvement span {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+@media (max-width: 780px) {
+  .scoring-assessment-toggle,
+  .scoring-assessment-point-copy,
+  .scoring-assessment-expanded-head {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .scoring-assessment-score,
+  .scoring-assessment-point-score {
+    justify-items: start;
+  }
+}
