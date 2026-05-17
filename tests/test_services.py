@@ -2,6 +2,7 @@ from app.services import (
     _build_device_base_url,
     _build_http_rfc_control_status,
     _build_http2_rfc_control_status,
+    _build_policy_maturity_assessment,
     _build_recent_policy_changes,
     _delete_missing_server_policy_rows,
     _extract_certificate_common_name,
@@ -414,7 +415,6 @@ def test_load_server_policy_state_from_backups_includes_not_protected_and_certif
         "tcp_flood_prevention": "enabled",
     }
     assert states[("1", "policy-b")][0][6] == {
-        "biometric_based_detection": "enabled",
         "threshold_based_detection": "enabled",
         "known_bot": "enabled",
     }
@@ -962,3 +962,447 @@ def test_build_recent_policy_changes_keeps_historical_api_security_changes():
             "type": "API Security",
         }
     ]
+
+
+def test_build_policy_maturity_assessment_scores_standard_protection_with_http2_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {"signature": "enabled", "http_rfc": "enabled", "http2_rfc_control": "enabled"},
+        "enable",
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    standard = assessment["categories"][0]
+
+    assert standard["title"] == "Standart Protection"
+    assert standard["points"] == 30
+    assert standard["max_points"] == 30
+    assert standard["status"] == "Strong"
+    assert standard["components"]["signature"]["points"] == 10
+    assert standard["components"]["http_rfc"]["points"] == 10
+    assert standard["components"]["http2_rfc_control"]["points"] == 10
+    assert standard["components"]["http2_rfc_control"]["counted"] is True
+
+
+def test_build_policy_maturity_assessment_scores_standard_protection_without_http2_full_points_for_two_controls():
+    assessment = _build_policy_maturity_assessment(
+        {"signature": "enabled", "http_rfc": "enabled", "http2_rfc_control": "disabled"},
+        "disable",
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    standard = assessment["categories"][0]
+
+    assert standard["points"] == 30
+    assert standard["status"] == "Strong"
+    assert standard["components"]["signature"]["points"] == 15
+    assert standard["components"]["http_rfc"]["points"] == 15
+    assert standard["components"]["http2_rfc_control"]["counted"] is False
+
+
+def test_build_policy_maturity_assessment_scores_standard_protection_without_http2_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {"signature": "enabled", "http_rfc": "disabled", "http2_rfc_control": "disabled"},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    standard = assessment["categories"][0]
+
+    assert standard["points"] == 15
+    assert standard["max_points"] == 30
+    assert standard["status"] == "Needs improvement"
+    assert standard["components"]["signature"]["points"] == 15
+    assert standard["components"]["http_rfc"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_advance_protection_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {"syntax_based_detection": "enabled", "custom_access_rules": "enabled"},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    advance = assessment["categories"][1]
+
+    assert advance["title"] == "Advance Protection"
+    assert advance["points"] == 20
+    assert advance["max_points"] == 20
+    assert advance["status"] == "Strong"
+    assert advance["components"]["syntax_based_detection"]["points"] == 10
+    assert advance["components"]["custom_access_rules"]["points"] == 10
+
+
+def test_build_policy_maturity_assessment_scores_advance_protection_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {"syntax_based_detection": "enabled", "custom_access_rules": "unknown"},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    advance = assessment["categories"][1]
+
+    assert advance["points"] == 10
+    assert advance["max_points"] == 20
+    assert advance["status"] == "Needs improvement"
+    assert advance["components"]["syntax_based_detection"]["points"] == 10
+    assert advance["components"]["custom_access_rules"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_advance_protection_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {"syntax_based_detection": "disabled", "custom_access_rules": "unknown"},
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    advance = assessment["categories"][1]
+
+    assert advance["points"] == 0
+    assert advance["max_points"] == 20
+    assert advance["status"] == "Needs improvement"
+    assert advance["components"]["syntax_based_detection"]["points"] == 0
+    assert advance["components"]["custom_access_rules"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_application_dos_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {
+            "http_flood_prevention": "enabled",
+            "http_access_limit": "enabled",
+            "tcp_flood_prevention": "enabled",
+        },
+        {},
+        {},
+        {},
+        {},
+    )
+
+    application_dos = assessment["categories"][2]
+
+    assert application_dos["title"] == "Application DoS"
+    assert application_dos["points"] == 15
+    assert application_dos["max_points"] == 15
+    assert application_dos["status"] == "Strong"
+    assert application_dos["components"]["http_flood_prevention"]["points"] == 5
+    assert application_dos["components"]["http_access_limit"]["points"] == 5
+    assert application_dos["components"]["tcp_flood_prevention"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_application_dos_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {
+            "http_flood_prevention": "enabled",
+            "http_access_limit": "unknown",
+            "tcp_flood_prevention": "enabled",
+        },
+        {},
+        {},
+        {},
+        {},
+    )
+
+    application_dos = assessment["categories"][2]
+
+    assert application_dos["points"] == 10
+    assert application_dos["max_points"] == 15
+    assert application_dos["status"] == "Needs improvement"
+    assert application_dos["components"]["http_flood_prevention"]["points"] == 5
+    assert application_dos["components"]["http_access_limit"]["points"] == 0
+    assert application_dos["components"]["tcp_flood_prevention"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_application_dos_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {
+            "http_flood_prevention": "unknown",
+            "http_access_limit": "unknown",
+            "tcp_flood_prevention": "unknown",
+        },
+        {},
+        {},
+        {},
+        {},
+    )
+
+    application_dos = assessment["categories"][2]
+
+    assert application_dos["points"] == 0
+    assert application_dos["max_points"] == 15
+    assert application_dos["status"] == "Needs improvement"
+    assert application_dos["components"]["http_flood_prevention"]["points"] == 0
+    assert application_dos["components"]["http_access_limit"]["points"] == 0
+    assert application_dos["components"]["tcp_flood_prevention"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_access_when_allow_method_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {"allow_method": "enabled"},
+        {},
+        {},
+    )
+
+    access = assessment["categories"][4]
+
+    assert access["title"] == "Access"
+    assert access["points"] == 5
+    assert access["max_points"] == 5
+    assert access["status"] == "Strong"
+    assert access["components"]["allow_method"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_access_zero_when_allow_method_disabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {"allow_method": "unknown"},
+        {},
+        {},
+    )
+
+    access = assessment["categories"][4]
+
+    assert access["points"] == 0
+    assert access["max_points"] == 5
+    assert access["status"] == "Needs improvement"
+    assert access["components"]["allow_method"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_ip_protection_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {"ip_list": "enabled", "geo_location": "enabled"},
+        {},
+    )
+
+    ip_protection = assessment["categories"][5]
+
+    assert ip_protection["title"] == "IP Protection"
+    assert ip_protection["points"] == 10
+    assert ip_protection["max_points"] == 10
+    assert ip_protection["status"] == "Strong"
+    assert ip_protection["components"]["ip_list"]["points"] == 5
+    assert ip_protection["components"]["geo_location"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_ip_protection_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {"ip_list": "enabled", "geo_location": "unknown"},
+        {},
+    )
+
+    ip_protection = assessment["categories"][5]
+
+    assert ip_protection["points"] == 5
+    assert ip_protection["max_points"] == 10
+    assert ip_protection["status"] == "Needs improvement"
+    assert ip_protection["components"]["ip_list"]["points"] == 5
+    assert ip_protection["components"]["geo_location"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_ip_protection_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {"ip_list": "unknown", "geo_location": "unknown"},
+        {},
+    )
+
+    ip_protection = assessment["categories"][5]
+
+    assert ip_protection["points"] == 0
+    assert ip_protection["max_points"] == 10
+    assert ip_protection["status"] == "Needs improvement"
+    assert ip_protection["components"]["ip_list"]["points"] == 0
+    assert ip_protection["components"]["geo_location"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_api_security_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"xml_validation_policy": "enabled", "json_validation_policy": "enabled"},
+    )
+
+    api_security = assessment["categories"][6]
+
+    assert api_security["title"] == "API Security"
+    assert api_security["points"] == 10
+    assert api_security["max_points"] == 10
+    assert api_security["status"] == "Strong"
+    assert api_security["components"]["xml_validation_policy"]["points"] == 5
+    assert api_security["components"]["json_validation_policy"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_api_security_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"xml_validation_policy": "enabled", "json_validation_policy": "unknown"},
+    )
+
+    api_security = assessment["categories"][6]
+
+    assert api_security["points"] == 5
+    assert api_security["max_points"] == 10
+    assert api_security["status"] == "Needs improvement"
+    assert api_security["components"]["xml_validation_policy"]["points"] == 5
+    assert api_security["components"]["json_validation_policy"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_api_security_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {},
+        {},
+        {},
+        {"xml_validation_policy": "unknown", "json_validation_policy": "unknown"},
+    )
+
+    api_security = assessment["categories"][6]
+
+    assert api_security["points"] == 0
+    assert api_security["max_points"] == 10
+    assert api_security["status"] == "Needs improvement"
+    assert api_security["components"]["xml_validation_policy"]["points"] == 0
+    assert api_security["components"]["json_validation_policy"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_bot_mitigation_per_enabled_feature():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {"threshold_based_detection": "enabled", "known_bot": "enabled", "biometric_based_detection": "enabled"},
+        {},
+        {},
+        {},
+    )
+
+    bot_mitigation = assessment["categories"][3]
+
+    assert bot_mitigation["title"] == "Bot Mitigation"
+    assert bot_mitigation["points"] == 10
+    assert bot_mitigation["max_points"] == 10
+    assert bot_mitigation["status"] == "Strong"
+    assert "biometric_based_detection" not in bot_mitigation["components"]
+    assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 5
+    assert bot_mitigation["components"]["known_bot"]["points"] == 5
+
+
+def test_build_policy_maturity_assessment_scores_bot_mitigation_partial_points():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {"threshold_based_detection": "enabled", "known_bot": "unknown"},
+        {},
+        {},
+        {},
+    )
+
+    bot_mitigation = assessment["categories"][3]
+
+    assert bot_mitigation["points"] == 5
+    assert bot_mitigation["max_points"] == 10
+    assert bot_mitigation["status"] == "Needs improvement"
+    assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 5
+    assert bot_mitigation["components"]["known_bot"]["points"] == 0
+
+
+def test_build_policy_maturity_assessment_scores_bot_mitigation_zero_when_no_features_enabled():
+    assessment = _build_policy_maturity_assessment(
+        {},
+        False,
+        {},
+        {},
+        {"threshold_based_detection": "unknown", "known_bot": "unknown", "biometric_based_detection": "enabled"},
+        {},
+        {},
+        {},
+    )
+
+    bot_mitigation = assessment["categories"][3]
+
+    assert bot_mitigation["points"] == 0
+    assert bot_mitigation["max_points"] == 10
+    assert bot_mitigation["status"] == "Needs improvement"
+    assert "biometric_based_detection" not in bot_mitigation["components"]
+    assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 0
+    assert bot_mitigation["components"]["known_bot"]["points"] == 0

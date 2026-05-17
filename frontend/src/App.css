@@ -2662,6 +2662,61 @@ input,
   color: #cbd5e1;
 }
 
+.scoring-assessment-point .scoring-calculated-total {
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.dark .scoring-assessment-point .scoring-calculated-total {
+  color: #e2e8f0;
+}
+
+.scoring-calculated-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.45rem;
+  margin: 0.72rem 0 0.65rem;
+}
+
+.scoring-calculated-breakdown span {
+  display: grid;
+  gap: 0.14rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.78rem;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.52rem 0.62rem;
+}
+
+.dark .scoring-calculated-breakdown span {
+  background: rgba(15, 23, 42, 0.34);
+  border-color: rgba(100, 116, 139, 0.46);
+}
+
+.scoring-calculated-breakdown span.not-counted {
+  opacity: 0.72;
+}
+
+.scoring-calculated-breakdown b {
+  color: #0f172a;
+  font-size: 0.76rem;
+}
+
+.dark .scoring-calculated-breakdown b {
+  color: #f8fafc;
+}
+
+.scoring-calculated-breakdown small {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.dark .scoring-calculated-breakdown small {
+  color: #cbd5e1;
+}
+
 .scoring-assessment-point-score {
   display: grid;
   justify-items: end;

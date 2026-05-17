@@ -1688,6 +1688,18 @@ const hasStrongMaturityValue = (value) => {
 const hasAnyMaturityValue = (...values) => values.some(hasStrongMaturityValue)
 
 function getMaturityPoints(policy = {}) {
+  const backendCategories = policy?.maturity_assessment?.categories
+  if (Array.isArray(backendCategories) && backendCategories.length > 0) {
+    return backendCategories.map((category) => ({
+      title: category.title,
+      description: category.description,
+      status: category.status,
+      points: Number(category.points ?? 0),
+      maxPoints: Number(category.max_points ?? category.maxPoints ?? 0),
+      components: category.components || {}
+    }))
+  }
+
   const webProtectionProfile = policy.web_protection_profile_details || {}
   const syntaxDetails = policy.syntax_based_attack_detection_details || webProtectionProfile.syntax_based_attack_detection_details || {}
   const customAccessRules = policy.custom_access_rules || webProtectionProfile.custom_access_rules || []
@@ -1713,13 +1725,21 @@ function getMaturityPoints(policy = {}) {
     policy.signature ?? webProtectionProfile.signature_set_status ?? policy.signature_protection ?? policy['signature-protection']
   )
   const httpRfcStrong = isMaturityEnabled(
-    policy.http_rfc ?? webProtectionProfile.http_protocol_parameter_restriction ?? policy.httpRfc ?? policy['http-rfc']
+    policy.http_rfc ?? webProtectionProfile.http_rfc ?? webProtectionProfile.http_protocol_parameter_restriction ?? policy.httpRfc ?? policy['http-rfc']
   )
-  const standardStrong = signatureStrong && httpRfcStrong
+  const http2Enabled = isMaturityEnabled(policy.http2 ?? webProtectionProfile.http2)
+  const http2RfcStrong = http2Enabled && isMaturityEnabled(
+    policy.http2_rfc_control ?? webProtectionProfile.http2_rfc_control ?? policy.http2RfcControl ?? policy['http2-rfc-control']
+  )
+  const standardPoints = http2Enabled
+    ? (signatureStrong ? 10 : 0) + (httpRfcStrong ? 10 : 0) + (http2RfcStrong ? 10 : 0)
+    : (signatureStrong ? 15 : 0) + (httpRfcStrong ? 15 : 0)
+  const standardStrong = standardPoints === 30
 
   const syntaxStrong = Object.values(syntaxDetails).some(isMaturityEnabled)
-  const customAccessStrong = Array.isArray(customAccessRules) ? customAccessRules.length > 0 : hasAnyMaturityValue(customAccessRules)
-  const advancedStrong = syntaxStrong || customAccessStrong || isMaturityEnabled(policy.custom_access_policy)
+  const customAccessStrong = (Array.isArray(customAccessRules) ? customAccessRules.length > 0 : hasAnyMaturityValue(customAccessRules)) || isMaturityEnabled(policy.custom_access_policy)
+  const advancedPoints = (syntaxStrong ? 10 : 0) + (customAccessStrong ? 10 : 0)
+  const advancedStrong = advancedPoints === 20
 
   const httpFloodStrong = hasAnyMaturityValue(
     applicationDosPolicy.http_request_flood_prevention_rule,
@@ -1727,74 +1747,120 @@ function getMaturityPoints(policy = {}) {
     webProtectionProfile.http_flood_prevention,
     policy['http-flood-prevention']
   )
-  const tcpFloodStrong = isMaturityActionStrong(
-    tcpFloodPolicy.action ?? applicationDosPolicy.tcp_flood_action ?? policy.tcp_flood_prevention_action
+  const httpAccessLimitStrong = hasAnyMaturityValue(
+    applicationDosPolicy.layer4_access_limit_rule,
+    applicationDosPolicy.http_access_limit,
+    policy.http_access_limit,
+    webProtectionProfile.http_access_limit,
+    policy['http-access-limit']
   )
-  const applicationDosStrong = httpFloodStrong || tcpFloodStrong
+  const tcpFloodStrong = hasAnyMaturityValue(
+    tcpFloodPolicy.action,
+    applicationDosPolicy.layer4_connection_flood_check_rule,
+    applicationDosPolicy.tcp_flood_prevention,
+    applicationDosPolicy.tcp_flood_action,
+    policy.tcp_flood_prevention,
+    policy.tcp_flood_prevention_action,
+    webProtectionProfile.tcp_flood_prevention,
+    policy['tcp-flood-prevention']
+  )
+  const applicationDosPoints = (httpFloodStrong ? 5 : 0) + (httpAccessLimitStrong ? 5 : 0) + (tcpFloodStrong ? 5 : 0)
+  const applicationDosStrong = applicationDosPoints === 15
 
-  const botStrong = hasAnyMaturityValue(
-    botMitigationPolicy.biometric_detection,
+  const thresholdBasedDetectionStrong = hasAnyMaturityValue(
     botMitigationPolicy.threshold_based_detection,
-    botMitigationPolicy.known_bot,
-    botMitigationPolicy.action,
-    policy.biometric_detection,
+    botMitigationPolicy.threshold_based_detection_details,
     policy.threshold_based_detection,
-    policy.known_bot,
+    policy.threshold_based_detection_details,
     policy.bot_confirmation,
     policy.bot_recognition,
-    webProtectionProfile.biometric_detection,
     webProtectionProfile.threshold_based_detection,
-    webProtectionProfile.known_bot
+    webProtectionProfile.threshold_based_detection_details
   )
+  const knownBotStrong = hasAnyMaturityValue(
+    botMitigationPolicy.known_bot,
+    botMitigationPolicy.known_bots,
+    botMitigationPolicy.known_bots_details,
+    policy.known_bot,
+    policy.known_bots,
+    policy.known_bots_details,
+    webProtectionProfile.known_bot,
+    webProtectionProfile.known_bots,
+    webProtectionProfile.known_bots_details
+  )
+  const botMitigationPoints = (thresholdBasedDetectionStrong ? 5 : 0) + (knownBotStrong ? 5 : 0)
+  const botStrong = botMitigationPoints === 10
 
-  const accessStrong = hasAnyMaturityValue(
+  const allowMethodStrong = hasAnyMaturityValue(
     policy.allow_method,
     policy.allow_method_display,
     policy.allowMethod,
     policy['allow-method'],
     policy.allow_method_list,
-    policy.custom_access_policy,
     webProtectionProfile.allow_method,
     webProtectionProfile.allow_method_display,
     webProtectionProfile.allowMethod,
     webProtectionProfile['allow-method'],
     webProtectionProfile.allow_method_list
   )
+  const accessPoints = allowMethodStrong ? 5 : 0
+  const accessStrong = accessPoints === 5
 
-  const ipStrong = hasAnyMaturityValue(
+  const ipListStrong = hasAnyMaturityValue(
     Array.isArray(ipListPolicyEntries) ? ipListPolicyEntries : [],
-    Array.isArray(geoIpEntries) ? geoIpEntries : [],
     policy.ip_list,
     policy.ipList,
     policy['ip-list'],
     policy.ip_list_entries,
-    policy.ip_group,
-    policy.ipGroup,
-    policy['ip-group'],
-    policy.geo_location,
-    policy.geoLocation,
-    policy['geo-location'],
     webProtectionProfile.ip_list,
     webProtectionProfile.ipList,
     webProtectionProfile['ip-list'],
-    webProtectionProfile.ip_list_entries,
-    webProtectionProfile.ip_group,
-    webProtectionProfile.ipGroup,
-    webProtectionProfile['ip-group'],
+    webProtectionProfile.ip_list_entries
+  )
+  const geoLocationStrong = hasAnyMaturityValue(
+    Array.isArray(geoIpEntries) ? geoIpEntries : [],
+    policy.geo_location,
+    policy.geoLocation,
+    policy['geo-location'],
     webProtectionProfile.geo_location,
     webProtectionProfile.geoLocation,
     webProtectionProfile['geo-location']
   )
+  const ipProtectionPoints = (ipListStrong ? 5 : 0) + (geoLocationStrong ? 5 : 0)
+  const ipStrong = ipProtectionPoints === 10
 
-  const apiStrong = hasAnyMaturityValue(
-    apiSecurityPolicy,
-    policy.api_security,
-    policy.api_protection,
-    policy.api_schema_validation,
-    policy.api_endpoint_detection,
-    policy.user_tracking,
-    webProtectionProfile.api_security
+  const xmlValidationStrong = hasAnyMaturityValue(
+    apiSecurityPolicy.xml_validation_policy,
+    apiSecurityPolicy.xml_validation,
+    apiSecurityPolicy.xmlValidationPolicy,
+    apiSecurityPolicy.enable_signature_detection,
+    policy.xml_validation_enable_signature_detection,
+    policy['xml-validation-enable-signature-detection'],
+    policy.xml_validation_policy,
+    policy.xmlValidationPolicy,
+    policy['xml-validation-policy'],
+    webProtectionProfile.xml_validation_enable_signature_detection,
+    webProtectionProfile.xml_validation_policy,
+    webProtectionProfile.xmlValidationPolicy,
+    webProtectionProfile['xml-validation-policy']
   )
+  const jsonValidationStrong = hasAnyMaturityValue(
+    apiSecurityPolicy.json_validation_policy,
+    apiSecurityPolicy.json_validation,
+    apiSecurityPolicy.jsonValidationPolicy,
+    apiSecurityPolicy.enable_attack_signatures,
+    policy.json_validation_enable_attack_signatures,
+    policy['json-validation-enable-attack-signatures'],
+    policy.json_validation_policy,
+    policy.jsonValidationPolicy,
+    policy['json-validation-policy'],
+    webProtectionProfile.json_validation_enable_attack_signatures,
+    webProtectionProfile.json_validation_policy,
+    webProtectionProfile.jsonValidationPolicy,
+    webProtectionProfile['json-validation-policy']
+  )
+  const apiSecurityPoints = (xmlValidationStrong ? 5 : 0) + (jsonValidationStrong ? 5 : 0)
+  const apiStrong = apiSecurityPoints === 10
 
   const createPoint = (strong, title, description, maxPoints, weakPoints) => ({
     title,
@@ -1805,55 +1871,79 @@ function getMaturityPoints(policy = {}) {
   })
 
   return [
-    createPoint(
-      standardStrong,
-      'Standart Protection',
-      'Signature and HTTP RFC controls provide the highest-weight baseline protection score.',
-      30,
-      12
-    ),
-    createPoint(
-      advancedStrong,
-      'Advance Protection',
-      'Syntax based attack detection and custom access controls raise advanced protection maturity.',
-      20,
-      6
-    ),
-    createPoint(
-      applicationDosStrong,
-      'Application DoS',
-      'HTTP flood prevention and TCP flood actions are assessed for application-layer DoS readiness.',
-      15,
-      5
-    ),
-    createPoint(
-      botStrong,
-      'Bot Mitigation',
-      'Bot mitigation maturity checks biometric, threshold, known-bot, and alerting controls.',
-      10,
-      3
-    ),
-    createPoint(
-      accessStrong,
-      'Access',
-      'Access maturity reflects allowed method and custom access enforcement signals.',
-      5,
-      2
-    ),
-    createPoint(
-      ipStrong,
-      'IP Protection',
-      'IP list, IP group, and geo-location controls contribute location and source protection maturity.',
-      10,
-      3
-    ),
-    createPoint(
-      apiStrong,
-      'API Security',
-      'API security and user tracking controls improve visibility and API governance maturity.',
-      10,
-      4
-    )
+    {
+      title: 'Standart Protection',
+      description: 'Signature, HTTP RFC, and HTTP/2 RFC controls provide the highest-weight baseline protection score.',
+      status: standardStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: standardPoints,
+      maxPoints: 30
+    },
+    {
+      title: 'Advance Protection',
+      description: 'Syntax based attack detection and custom access controls raise advanced protection maturity.',
+      status: advancedStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: advancedPoints,
+      maxPoints: 20,
+      components: {
+        syntax_based_detection: { status: syntaxStrong ? 'enabled' : 'disabled', points: syntaxStrong ? 10 : 0 },
+        custom_access_rules: { status: customAccessStrong ? 'enabled' : 'disabled', points: customAccessStrong ? 10 : 0 }
+      }
+    },
+    {
+      title: 'Application DoS',
+      description: 'HTTP flood prevention, HTTP access limit, and TCP flood prevention are assessed for application-layer DoS readiness.',
+      status: applicationDosStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: applicationDosPoints,
+      maxPoints: 15,
+      components: {
+        http_flood_prevention: { status: httpFloodStrong ? 'enabled' : 'disabled', points: httpFloodStrong ? 5 : 0 },
+        http_access_limit: { status: httpAccessLimitStrong ? 'enabled' : 'disabled', points: httpAccessLimitStrong ? 5 : 0 },
+        tcp_flood_prevention: { status: tcpFloodStrong ? 'enabled' : 'disabled', points: tcpFloodStrong ? 5 : 0 }
+      }
+    },
+    {
+      title: 'Bot Mitigation',
+      description: 'Bot mitigation maturity checks threshold based detection and known-bot controls.',
+      status: botStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: botMitigationPoints,
+      maxPoints: 10,
+      components: {
+        threshold_based_detection: { status: thresholdBasedDetectionStrong ? 'enabled' : 'disabled', points: thresholdBasedDetectionStrong ? 5 : 0 },
+        known_bot: { status: knownBotStrong ? 'enabled' : 'disabled', points: knownBotStrong ? 5 : 0 }
+      }
+    },
+    {
+      title: 'Access',
+      description: 'Access maturity reflects the Allow method security feature.',
+      status: accessStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: accessPoints,
+      maxPoints: 5,
+      components: {
+        allow_method: { status: allowMethodStrong ? 'enabled' : 'disabled', points: allowMethodStrong ? 5 : 0 }
+      }
+    },
+    {
+      title: 'IP Protection',
+      description: 'IP list and geo-location controls contribute location and source protection maturity.',
+      status: ipStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: ipProtectionPoints,
+      maxPoints: 10,
+      components: {
+        ip_list: { status: ipListStrong ? 'enabled' : 'disabled', points: ipListStrong ? 5 : 0 },
+        geo_location: { status: geoLocationStrong ? 'enabled' : 'disabled', points: geoLocationStrong ? 5 : 0 }
+      }
+    },
+    {
+      title: 'API Security',
+      description: 'XML validation policy and JSON validation policy improve API governance maturity.',
+      status: apiStrong ? maturityStatusStrong : maturityStatusNeedsImprovement,
+      points: apiSecurityPoints,
+      maxPoints: 10,
+      components: {
+        xml_validation_policy: { status: xmlValidationStrong ? 'enabled' : 'disabled', points: xmlValidationStrong ? 5 : 0 },
+        json_validation_policy: { status: jsonValidationStrong ? 'enabled' : 'disabled', points: jsonValidationStrong ? 5 : 0 }
+      }
+    }
   ]
 }
 
@@ -1862,17 +1952,40 @@ function runMaturityPointAssertions() {
     signature: 'Enabled',
     http_rfc: 'Enabled',
     syntax_based_attack_detection_details: { xss_html_tag_based_status: 'enable' },
+    custom_access_rules: [{ name: 'rule-a' }],
     application_layer_dos_prevention_policy: {
       http_request_flood_prevention_rule: 'Enabled',
+      layer4_access_limit_rule: 'Enabled',
       tcp_flood_prevention_policy: { action: 'alert_deny' }
     },
-    bot_mitigation_details: { known_bot: 'Enabled' },
+    bot_mitigation_details: { threshold_based_detection: 'Enabled', known_bot: 'Enabled' },
     allow_method: 'Enabled',
     ip_list_policy_entries: [{ ip: '10.0.0.1' }],
-    api_security_details: { schema_validation: 'Enabled' }
+    geo_ip_entries: [{ countryName: 'United States' }],
+    xml_validation_enable_signature_detection: 'Enabled',
+    json_validation_enable_attack_signatures: 'Enabled'
   })
   const strongPolicyScore = strongPolicyPoints.reduce((total, point) => total + point.points, 0)
   const weakPolicyPoints = getMaturityPoints({})
+  const backendPolicyPoints = getMaturityPoints({
+    maturity_assessment: {
+      categories: [
+        { title: 'Standart Protection', description: 'Backend score', status: 'Needs improvement', points: 15, max_points: 30 }
+      ]
+    }
+  })
+  const partialStandardPoints = getMaturityPoints({ signature: 'Enabled', http_rfc: 'Disabled', http2: 'disable' })[0]
+  const partialAdvancedPoints = getMaturityPoints({
+    syntax_based_attack_detection_details: { xss_html_tag_based_status: 'enable' },
+    custom_access_rules: []
+  })[1]
+  const partialApplicationDosPoints = getMaturityPoints({
+    application_layer_dos_prevention_policy: { http_request_flood_prevention_rule: 'rule-a' }
+  })[2]
+  const partialBotMitigationPoints = getMaturityPoints({ bot_mitigation_details: { threshold_based_detection: 'Enabled' } })[3]
+  const enabledAccessPoints = getMaturityPoints({ allow_method: 'Enabled' })[4]
+  const partialIpProtectionPoints = getMaturityPoints({ ip_list_policy_entries: [{ ip: '10.0.0.1' }] })[5]
+  const partialApiSecurityPoints = getMaturityPoints({ xml_validation_enable_signature_detection: 'Enabled' })[6]
 
   console.assert(strongPolicyScore >= 80, 'strong policy should score at least 80')
   console.assert(weakPolicyPoints.length === 7, 'weak policy should still return 7 categories')
@@ -1880,10 +1993,81 @@ function runMaturityPointAssertions() {
     [...strongPolicyPoints, ...weakPolicyPoints].every((point) => point.points <= point.maxPoints),
     'every category should have points <= max'
   )
+  console.assert(backendPolicyPoints[0].points === 15, 'backend maturity categories should be used when present')
+  console.assert(partialStandardPoints.points === 15, 'standard protection without HTTP/2 gives 15 points for one enabled control')
+  console.assert(partialAdvancedPoints.points === 10, 'advance protection gives 10 points for one enabled feature')
+  console.assert(partialApplicationDosPoints.points === 5, 'application DoS gives 5 points for one enabled feature')
+  console.assert(partialBotMitigationPoints.points === 5, 'bot mitigation gives 5 points for one enabled feature')
+  console.assert(enabledAccessPoints.points === 5, 'access gives 5 points when Allow method is enabled')
+  console.assert(partialIpProtectionPoints.points === 5, 'IP protection gives 5 points for one enabled feature')
+  console.assert(partialApiSecurityPoints.points === 5, 'API security gives 5 points for one enabled feature')
 }
 
 runMaturityPointAssertions()
 
+
+const maturityComponentLabels = {
+  http2_enabled: 'Server-pool HTTP/2',
+  signature: 'Signature',
+  http_rfc: 'HTTP RFC',
+  http2_rfc_control: 'HTTP/2 RFC control',
+  syntax_based_detection: 'Syntax based detection',
+  custom_access_rules: 'Custom access rules',
+  http_flood_prevention: 'HTTP flood prevention',
+  http_access_limit: 'HTTP access limit',
+  tcp_flood_prevention: 'TCP flood prevention',
+  threshold_based_detection: 'Threshold based detection',
+  known_bot: 'Known-bot',
+  allow_method: 'Allow method',
+  ip_list: 'IP list',
+  geo_location: 'Geo location',
+  xml_validation_policy: 'XML validation policy',
+  json_validation_policy: 'JSON validation policy'
+}
+
+const formatMaturityComponentLabel = (key) => {
+  if (maturityComponentLabels[key]) return maturityComponentLabels[key]
+  return String(key || '')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+const formatMaturityComponentStatus = (value) => {
+  if (typeof value === 'boolean') return value ? 'enabled' : 'disabled'
+  const normalized = String(value ?? '').trim()
+  return normalized || 'unknown'
+}
+
+const getCalculatedPointDetails = (point = {}) => {
+  const components = point.components || {}
+  return Object.entries(components)
+    .filter(([key]) => key !== 'http2_enabled')
+    .map(([key, component]) => {
+      const label = formatMaturityComponentLabel(key)
+      if (component && typeof component === 'object' && !Array.isArray(component)) {
+        const counted = component.counted !== false
+        const status = formatMaturityComponentStatus(component.status)
+        const points = Number(component.points ?? 0)
+        return {
+          key,
+          label,
+          status,
+          points,
+          counted,
+          displayPoints: counted ? `${points} pts` : 'Not counted'
+        }
+      }
+
+      return {
+        key,
+        label,
+        status: formatMaturityComponentStatus(component),
+        points: null,
+        counted: true,
+        displayPoints: null
+      }
+    })
+}
 
 function ScoreBadge({ status }) {
   const strong = status === maturityStatusStrong
@@ -1958,18 +2142,30 @@ function ScoringPolicyCard({ policy, onOpenDetails }) {
               {maturityPoints.map((point) => {
                 const strong = point.status === maturityStatusStrong
                 const percentage = Math.round((point.points / point.maxPoints) * 100)
+                const calculatedDetails = getCalculatedPointDetails(point)
                 return (
                   <div className="scoring-assessment-point" key={point.title}>
                     <div className="scoring-assessment-point-copy">
                       <div>
                         <h6>{point.title}</h6>
                         <p>{point.description}</p>
+                        <p className="scoring-calculated-total">Calculated points: {point.points}/{point.maxPoints} pts</p>
                       </div>
                       <div className="scoring-assessment-point-score">
                         <ScoreBadge status={point.status} />
                         <strong>{point.points}/{point.maxPoints} pts</strong>
                       </div>
                     </div>
+                    {calculatedDetails.length > 0 ? (
+                      <div className="scoring-calculated-breakdown" aria-label={`${point.title} calculated point breakdown`}>
+                        {calculatedDetails.map((detail) => (
+                          <span key={detail.key} className={!detail.counted ? 'not-counted' : ''}>
+                            <b>{detail.label}</b>
+                            <small>{detail.status}{detail.displayPoints ? ` · ${detail.displayPoints}` : ''}</small>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className={`scoring-progress-track ${strong ? 'strong' : 'needs-improvement'}`}>
                       <span style={{ width: `${percentage}%` }} />
                     </div>

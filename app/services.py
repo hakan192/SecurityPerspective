@@ -242,7 +242,6 @@ APPLICATION_DOS_PROTECTION_FEATURES = {
     "tcp_flood_prevention": "TCP Flood Prevention",
 }
 BOT_MITIGATION_FEATURES = {
-    "biometric_based_detection": "Biometric Based Detection",
     "threshold_based_detection": "Threshold Based Detection",
     "known_bot": "Known-Bot",
 }
@@ -289,6 +288,271 @@ KNOWN_BOTS_STATUS_FIELDS = (
     "known_engines_status",
 )
 
+
+MATURITY_STATUS_STRONG = "Strong"
+MATURITY_STATUS_NEEDS_IMPROVEMENT = "Needs improvement"
+
+MATURITY_CATEGORY_DEFINITIONS = {
+    "standard_protection": {
+        "title": "Standart Protection",
+        "description": "Signature, HTTP RFC, and HTTP/2 RFC controls provide the highest-weight baseline protection score.",
+        "max_points": 30,
+        "weak_points": 12,
+    },
+    "advanced_protection": {
+        "title": "Advance Protection",
+        "description": "Syntax based attack detection and custom access controls raise advanced protection maturity.",
+        "max_points": 20,
+        "weak_points": 6,
+    },
+    "application_dos": {
+        "title": "Application DoS",
+        "description": "HTTP flood prevention and TCP flood actions are assessed for application-layer DoS readiness.",
+        "max_points": 15,
+        "weak_points": 5,
+    },
+    "bot_mitigation": {
+        "title": "Bot Mitigation",
+        "description": "Bot mitigation maturity checks threshold based detection and known-bot controls.",
+        "max_points": 10,
+        "weak_points": 3,
+    },
+    "access": {
+        "title": "Access",
+        "description": "Access maturity reflects allowed method and custom access enforcement signals.",
+        "max_points": 5,
+        "weak_points": 2,
+    },
+    "ip_protection": {
+        "title": "IP Protection",
+        "description": "IP list, IP group, and geo-location controls contribute location and source protection maturity.",
+        "max_points": 10,
+        "weak_points": 3,
+    },
+    "api_security": {
+        "title": "API Security",
+        "description": "API security and user tracking controls improve visibility and API governance maturity.",
+        "max_points": 10,
+        "weak_points": 4,
+    },
+}
+
+
+def _is_maturity_enabled(value) -> bool:
+    return str(value or "").strip().lower() in {"enabled", "enable", "monitoring", "true", "1", "yes", "on"}
+
+
+def _build_maturity_category(category_key: str, points: int, components: dict | None = None) -> dict:
+    definition = MATURITY_CATEGORY_DEFINITIONS[category_key]
+    max_points = definition["max_points"]
+    bounded_points = max(0, min(points, max_points))
+    percentage = round((bounded_points / max_points) * 100) if max_points else 0
+    return {
+        "key": category_key,
+        "title": definition["title"],
+        "description": definition["description"],
+        "status": MATURITY_STATUS_STRONG if bounded_points == max_points else MATURITY_STATUS_NEEDS_IMPROVEMENT,
+        "points": bounded_points,
+        "max_points": max_points,
+        "percentage": percentage,
+        "components": components or {},
+    }
+
+
+def _calculate_standard_protection_points(standard_state: dict[str, str], http2_enabled) -> tuple[int, dict]:
+    signature_enabled = _is_maturity_enabled(standard_state.get("signature"))
+    http_rfc_enabled = _is_maturity_enabled(standard_state.get("http_rfc"))
+    server_pool_http2_enabled = bool(_as_bool(http2_enabled))
+    http2_rfc_enabled = server_pool_http2_enabled and _is_maturity_enabled(standard_state.get("http2_rfc_control"))
+
+    if server_pool_http2_enabled:
+        component_points = {
+            "signature": 10 if signature_enabled else 0,
+            "http_rfc": 10 if http_rfc_enabled else 0,
+            "http2_rfc_control": 10 if http2_rfc_enabled else 0,
+        }
+    else:
+        component_points = {
+            "signature": 15 if signature_enabled else 0,
+            "http_rfc": 15 if http_rfc_enabled else 0,
+            "http2_rfc_control": 0,
+        }
+
+    components = {
+        "http2_enabled": server_pool_http2_enabled,
+        "signature": {"status": standard_state.get("signature", "disabled"), "points": component_points["signature"]},
+        "http_rfc": {"status": standard_state.get("http_rfc", "disabled"), "points": component_points["http_rfc"]},
+        "http2_rfc_control": {
+            "status": standard_state.get("http2_rfc_control", "disabled"),
+            "points": component_points["http2_rfc_control"],
+            "counted": server_pool_http2_enabled,
+        },
+    }
+    return sum(component_points.values()), components
+
+
+def _calculate_binary_maturity_points(category_key: str, state: dict[str, str], *, require_all: bool = False) -> int:
+    definition = MATURITY_CATEGORY_DEFINITIONS[category_key]
+    statuses = list((state or {}).values())
+    strong = all(_is_maturity_enabled(status) for status in statuses) if require_all and statuses else any(
+        _is_maturity_enabled(status) for status in statuses
+    )
+    return definition["max_points"] if strong else definition["weak_points"]
+
+
+def _calculate_advanced_protection_points(advanced_state: dict[str, str]) -> tuple[int, dict]:
+    syntax_enabled = _is_maturity_enabled(advanced_state.get("syntax_based_detection"))
+    custom_access_rules_enabled = _is_maturity_enabled(advanced_state.get("custom_access_rules"))
+    component_points = {
+        "syntax_based_detection": 10 if syntax_enabled else 0,
+        "custom_access_rules": 10 if custom_access_rules_enabled else 0,
+    }
+    components = {
+        "syntax_based_detection": {
+            "status": advanced_state.get("syntax_based_detection", "disabled"),
+            "points": component_points["syntax_based_detection"],
+        },
+        "custom_access_rules": {
+            "status": advanced_state.get("custom_access_rules", "disabled"),
+            "points": component_points["custom_access_rules"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
+def _calculate_bot_mitigation_points(bot_mitigation_state: dict[str, str]) -> tuple[int, dict]:
+    threshold_enabled = _is_maturity_enabled(bot_mitigation_state.get("threshold_based_detection"))
+    known_bot_enabled = _is_maturity_enabled(bot_mitigation_state.get("known_bot"))
+    component_points = {
+        "threshold_based_detection": 5 if threshold_enabled else 0,
+        "known_bot": 5 if known_bot_enabled else 0,
+    }
+    components = {
+        "threshold_based_detection": {
+            "status": bot_mitigation_state.get("threshold_based_detection", "disabled"),
+            "points": component_points["threshold_based_detection"],
+        },
+        "known_bot": {
+            "status": bot_mitigation_state.get("known_bot", "disabled"),
+            "points": component_points["known_bot"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
+def _calculate_application_dos_points(application_dos_state: dict[str, str]) -> tuple[int, dict]:
+    http_flood_enabled = _is_maturity_enabled(application_dos_state.get("http_flood_prevention"))
+    http_access_limit_enabled = _is_maturity_enabled(application_dos_state.get("http_access_limit"))
+    tcp_flood_enabled = _is_maturity_enabled(application_dos_state.get("tcp_flood_prevention"))
+    component_points = {
+        "http_flood_prevention": 5 if http_flood_enabled else 0,
+        "http_access_limit": 5 if http_access_limit_enabled else 0,
+        "tcp_flood_prevention": 5 if tcp_flood_enabled else 0,
+    }
+    components = {
+        "http_flood_prevention": {
+            "status": application_dos_state.get("http_flood_prevention", "disabled"),
+            "points": component_points["http_flood_prevention"],
+        },
+        "http_access_limit": {
+            "status": application_dos_state.get("http_access_limit", "disabled"),
+            "points": component_points["http_access_limit"],
+        },
+        "tcp_flood_prevention": {
+            "status": application_dos_state.get("tcp_flood_prevention", "disabled"),
+            "points": component_points["tcp_flood_prevention"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
+def _calculate_access_points(access_state: dict[str, str]) -> tuple[int, dict]:
+    allow_method_enabled = _is_maturity_enabled(access_state.get("allow_method"))
+    points = 5 if allow_method_enabled else 0
+    components = {
+        "allow_method": {
+            "status": access_state.get("allow_method", "disabled"),
+            "points": points,
+        }
+    }
+    return points, components
+
+
+def _calculate_ip_protection_points(ip_protection_state: dict[str, str]) -> tuple[int, dict]:
+    ip_list_enabled = _is_maturity_enabled(ip_protection_state.get("ip_list"))
+    geo_location_enabled = _is_maturity_enabled(ip_protection_state.get("geo_location"))
+    component_points = {
+        "ip_list": 5 if ip_list_enabled else 0,
+        "geo_location": 5 if geo_location_enabled else 0,
+    }
+    components = {
+        "ip_list": {
+            "status": ip_protection_state.get("ip_list", "disabled"),
+            "points": component_points["ip_list"],
+        },
+        "geo_location": {
+            "status": ip_protection_state.get("geo_location", "disabled"),
+            "points": component_points["geo_location"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
+def _calculate_api_security_points(api_security_state: dict[str, str]) -> tuple[int, dict]:
+    xml_validation_enabled = _is_maturity_enabled(api_security_state.get("xml_validation_policy"))
+    json_validation_enabled = _is_maturity_enabled(api_security_state.get("json_validation_policy"))
+    component_points = {
+        "xml_validation_policy": 5 if xml_validation_enabled else 0,
+        "json_validation_policy": 5 if json_validation_enabled else 0,
+    }
+    components = {
+        "xml_validation_policy": {
+            "status": api_security_state.get("xml_validation_policy", "disabled"),
+            "points": component_points["xml_validation_policy"],
+        },
+        "json_validation_policy": {
+            "status": api_security_state.get("json_validation_policy", "disabled"),
+            "points": component_points["json_validation_policy"],
+        },
+    }
+    return sum(component_points.values()), components
+
+
+def _build_policy_maturity_assessment(
+    standard_state: dict[str, str],
+    http2_enabled,
+    advanced_state: dict[str, str],
+    application_dos_state: dict[str, str],
+    bot_mitigation_state: dict[str, str],
+    access_state: dict[str, str],
+    ip_protection_state: dict[str, str],
+    api_security_state: dict[str, str],
+) -> dict:
+    standard_points, standard_components = _calculate_standard_protection_points(standard_state, http2_enabled)
+    advanced_points, advanced_components = _calculate_advanced_protection_points(advanced_state)
+    application_dos_points, application_dos_components = _calculate_application_dos_points(application_dos_state)
+    bot_mitigation_points, bot_mitigation_components = _calculate_bot_mitigation_points(bot_mitigation_state)
+    access_points, access_components = _calculate_access_points(access_state)
+    ip_protection_points, ip_protection_components = _calculate_ip_protection_points(ip_protection_state)
+    api_security_points, api_security_components = _calculate_api_security_points(api_security_state)
+    categories = [
+        _build_maturity_category("standard_protection", standard_points, standard_components),
+        _build_maturity_category("advanced_protection", advanced_points, advanced_components),
+        _build_maturity_category("application_dos", application_dos_points, application_dos_components),
+        _build_maturity_category("bot_mitigation", bot_mitigation_points, bot_mitigation_components),
+        _build_maturity_category("access", access_points, access_components),
+        _build_maturity_category("ip_protection", ip_protection_points, ip_protection_components),
+        _build_maturity_category("api_security", api_security_points, api_security_components),
+    ]
+    total_points = sum(category["points"] for category in categories)
+    max_points = sum(category["max_points"] for category in categories)
+    percentage = round((total_points / max_points) * 100) if max_points else 0
+    return {
+        "total_points": total_points,
+        "max_points": max_points,
+        "percentage": percentage,
+        "categories": categories,
+    }
 
 def _format_standard_protection_state(value) -> str:
     return "enabled" if _as_enable_disable(value) == "enable" or str(value).strip().lower() == "enabled" else "disabled"
@@ -345,15 +609,9 @@ def _build_bot_mitigation_state(
     threshold_row: dict | None,
     known_bots_row: dict | None,
 ) -> dict[str, str]:
-    biometric_row = biometric_row or {}
     threshold_row = threshold_row or {}
     known_bots_row = known_bots_row or {}
     return {
-        "biometric_based_detection": (
-            "enabled"
-            if any(_normalize_optional_text(biometric_row.get(field)) for field in BIOMETRIC_BASED_DETECTION_STATUS_FIELDS)
-            else "unknown"
-        ),
         "threshold_based_detection": (
             "enabled"
             if any(_normalize_optional_text(threshold_row.get(field)) for field in THRESHOLD_BASED_DETECTION_STATUS_FIELDS)
@@ -4368,6 +4626,11 @@ def load_server_policies_from_db(db: Session) -> dict:
             signature_set_status = _build_signature_set_status(row)
             http_rfc_control_status = _build_http_rfc_control_status(row)
             http2_rfc_control_status = _build_http2_rfc_control_status(row)
+            standard_protection_state = {
+                "signature": signature_set_status["status"],
+                "http_rfc": http_rfc_control_status["status"],
+                "http2_rfc_control": http2_rfc_control_status["status"],
+            }
             custom_access_policy_name = row["custom_access_policy"]
             custom_access_rule_names = custom_access_policy_rules_by_name.get((device_id, custom_access_policy_name), [])
             custom_access_rule_details = []
@@ -4384,6 +4647,67 @@ def load_server_policies_from_db(db: Session) -> dict:
                         },
                     )
                 )
+            advanced_protection_state = {
+                "syntax_based_detection": _build_syntax_based_detection_status(row),
+                "custom_access_rules": "enabled" if custom_access_rule_details else "unknown",
+            }
+            application_dos_protection_state = {
+                "http_flood_prevention": _presence_status(row["http_request_flood_prevention_rule"]),
+                "http_access_limit": _presence_status(row["layer4_access_limit_rule"]),
+                "tcp_flood_prevention": _presence_status(row["layer4_connection_flood_check_rule"]),
+            }
+            bot_mitigation_state = _build_bot_mitigation_state(
+                {
+                    "mouse_movement": biometric_lookup.get("mouse_movement") or row["biometric_mouse_movement"],
+                    "page_focus": biometric_lookup.get("page_focus") or row["biometric_page_focus"],
+                    "keyboard": biometric_lookup.get("keyboard") or row["biometric_keyboard"],
+                    "screen_touch": biometric_lookup.get("screen_touch") or row["biometric_screen_touch"],
+                    "scroll": biometric_lookup.get("scroll") or row["biometric_scroll"],
+                    "bot_traits": biometric_lookup.get("bot_traits") or row["biometric_bot_traits"],
+                    "bot_traits_num": biometric_lookup.get("bot_traits_num") or row["biometric_bot_traits_num"],
+                    "action": biometric_lookup.get("action") or row["biometric_action"],
+                    "host": biometric_lookup.get("host") or row["biometric_host"],
+                },
+                {
+                    "bot_confirmation": threshold_lookup.get("bot_confirmation") or row["threshold_bot_confirmation"],
+                    "bot_recognition": threshold_lookup.get("bot_recognition") or row["threshold_bot_recognition"],
+                    "crawler_detection": threshold_lookup.get("crawler_detection") or row["threshold_crawler_detection"],
+                    "crawler_action": threshold_lookup.get("crawler_action") or row["threshold_crawler_action"],
+                    "crawler_occurrence_num": threshold_lookup.get("crawler_occurrence_num") or row["threshold_crawler_occurrence_num"],
+                    "crawler_within": threshold_lookup.get("crawler_within") or row["threshold_crawler_within"],
+                    "slow_attack_detection": threshold_lookup.get("slow_attack_detection") or row["threshold_slow_attack_detection"],
+                    "slow_attack_action": threshold_lookup.get("slow_attack_action") or row["threshold_slow_attack_action"],
+                    "slow_attack_occurrence_num": threshold_lookup.get("slow_attack_occurrence_num") or row["threshold_slow_attack_occurrence_num"],
+                    "slow_attack_within": threshold_lookup.get("slow_attack_within") or row["threshold_slow_attack_within"],
+                },
+                {
+                    "dos_status": known_bots_lookup.get("dos_status") or row["known_bots_dos_status"],
+                    "spam_status": known_bots_lookup.get("spam_status") or row["known_bots_spam_status"],
+                    "trojan_status": known_bots_lookup.get("trojan_status") or row["known_bots_trojan_status"],
+                    "scanner_status": known_bots_lookup.get("scanner_status") or row["known_bots_scanner_status"],
+                    "crawler_status": known_bots_lookup.get("crawler_status") or row["known_bots_crawler_status"],
+                    "known_engines_status": known_bots_lookup.get("known_engines_status") or row["known_bots_known_engines_status"],
+                },
+            )
+            access_state = {"allow_method": _presence_status(row["allow_method_value"])}
+            ip_protection_state = _build_ip_protection_state(
+                ip_list_policy_by_name.get((device_id, row["ip_list_policy"]), []),
+                geo_ip_by_name.get((device_id, row["geo_block_list_policy"]), []),
+            )
+            api_security_state = _build_api_security_state(
+                {"enable_signature_detection": xml_enable_signature_detection},
+                {"enable_attack_signatures": json_enable_attack_signatures},
+            )
+            maturity_assessment = _build_policy_maturity_assessment(
+                standard_protection_state,
+                row["http2"],
+                advanced_protection_state,
+                application_dos_protection_state,
+                bot_mitigation_state,
+                access_state,
+                ip_protection_state,
+                api_security_state,
+            )
             by_device[device_id]["server_policies"].append(
                 {
                     "server_policy_name": row["server_policy_name"],
@@ -4430,6 +4754,8 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "xml-validation-enable-signature-detection": xml_enable_signature_detection,
                     "json_validation_enable_attack_signatures": json_enable_attack_signatures,
                     "json-validation-enable-attack-signatures": json_enable_attack_signatures,
+                    "maturity_assessment": maturity_assessment,
+                    "maturity_score": maturity_assessment["percentage"],
                     "recent_changes": [],
                     "syntax_based_attack_detection_details": {
                         "xss_html_tag_based_status": row["xss_html_tag_based_status"],
@@ -4592,62 +4918,13 @@ def load_server_policies_from_db(db: Session) -> dict:
                 current_status,
                 row["client_certificate_serial_number"],
                 backup_states_by_policy.get(backup_key, []),
-                {
-                    "signature": signature_set_status["status"],
-                    "http_rfc": http_rfc_control_status["status"],
-                    "http2_rfc_control": http2_rfc_control_status["status"],
-                },
-                {
-                    "syntax_based_detection": _build_syntax_based_detection_status(row),
-                    "custom_access_rules": "enabled" if custom_access_rule_details else "unknown",
-                },
-                {
-                    "http_flood_prevention": _presence_status(row["http_request_flood_prevention_rule"]),
-                    "http_access_limit": _presence_status(row["layer4_access_limit_rule"]),
-                    "tcp_flood_prevention": _presence_status(row["layer4_connection_flood_check_rule"]),
-                },
-                _build_bot_mitigation_state(
-                    {
-                        "mouse_movement": biometric_lookup.get("mouse_movement") or row["biometric_mouse_movement"],
-                        "page_focus": biometric_lookup.get("page_focus") or row["biometric_page_focus"],
-                        "keyboard": biometric_lookup.get("keyboard") or row["biometric_keyboard"],
-                        "screen_touch": biometric_lookup.get("screen_touch") or row["biometric_screen_touch"],
-                        "scroll": biometric_lookup.get("scroll") or row["biometric_scroll"],
-                        "bot_traits": biometric_lookup.get("bot_traits") or row["biometric_bot_traits"],
-                        "bot_traits_num": biometric_lookup.get("bot_traits_num") or row["biometric_bot_traits_num"],
-                        "action": biometric_lookup.get("action") or row["biometric_action"],
-                        "host": biometric_lookup.get("host") or row["biometric_host"],
-                    },
-                    {
-                        "bot_confirmation": threshold_lookup.get("bot_confirmation") or row["threshold_bot_confirmation"],
-                        "bot_recognition": threshold_lookup.get("bot_recognition") or row["threshold_bot_recognition"],
-                        "crawler_detection": threshold_lookup.get("crawler_detection") or row["threshold_crawler_detection"],
-                        "crawler_action": threshold_lookup.get("crawler_action") or row["threshold_crawler_action"],
-                        "crawler_occurrence_num": threshold_lookup.get("crawler_occurrence_num") or row["threshold_crawler_occurrence_num"],
-                        "crawler_within": threshold_lookup.get("crawler_within") or row["threshold_crawler_within"],
-                        "slow_attack_detection": threshold_lookup.get("slow_attack_detection") or row["threshold_slow_attack_detection"],
-                        "slow_attack_action": threshold_lookup.get("slow_attack_action") or row["threshold_slow_attack_action"],
-                        "slow_attack_occurrence_num": threshold_lookup.get("slow_attack_occurrence_num") or row["threshold_slow_attack_occurrence_num"],
-                        "slow_attack_within": threshold_lookup.get("slow_attack_within") or row["threshold_slow_attack_within"],
-                    },
-                    {
-                        "dos_status": known_bots_lookup.get("dos_status") or row["known_bots_dos_status"],
-                        "spam_status": known_bots_lookup.get("spam_status") or row["known_bots_spam_status"],
-                        "trojan_status": known_bots_lookup.get("trojan_status") or row["known_bots_trojan_status"],
-                        "scanner_status": known_bots_lookup.get("scanner_status") or row["known_bots_scanner_status"],
-                        "crawler_status": known_bots_lookup.get("crawler_status") or row["known_bots_crawler_status"],
-                        "known_engines_status": known_bots_lookup.get("known_engines_status") or row["known_bots_known_engines_status"],
-                    },
-                ),
-                {"allow_method": _presence_status(row["allow_method_value"])},
-                _build_ip_protection_state(
-                    ip_list_policy_by_name.get((device_id, row["ip_list_policy"]), []),
-                    geo_ip_by_name.get((device_id, row["geo_block_list_policy"]), []),
-                ),
-                _build_api_security_state(
-                    {"enable_signature_detection": xml_enable_signature_detection},
-                    {"enable_attack_signatures": json_enable_attack_signatures},
-                ),
+                standard_protection_state,
+                advanced_protection_state,
+                application_dos_protection_state,
+                bot_mitigation_state,
+                access_state,
+                ip_protection_state,
+                api_security_state,
             )
 
     return {"devices": list(by_device.values())}
