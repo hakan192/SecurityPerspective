@@ -38,6 +38,8 @@ The Nginx gateway is configured to redirect HTTP (`:80`) to HTTPS (`:443`) and e
 - `certs/server.crt`
 - `certs/server.key`
 
+At container startup, if these files are missing, the Nginx image now auto-generates a self-signed certificate so HTTPS still comes up on first build/run.
+
 For local development, you can generate a self-signed certificate:
 
 ```bash
@@ -47,7 +49,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -subj "/CN=localhost"
 ```
 
-If you need to go inside the running Nginx container and verify/upload certificates:
+If you need to go inside the running Nginx container and verify/replace certificates:
 
 ```bash
 # show nginx container

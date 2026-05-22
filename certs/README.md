@@ -5,6 +5,8 @@ Place TLS files here for local HTTPS support:
 - `server.crt`
 - `server.key`
 
+If these files are absent, the custom Nginx image auto-generates a self-signed cert on startup so HTTPS can still start.
+
 Example self-signed certificate generation:
 
 ```bash
