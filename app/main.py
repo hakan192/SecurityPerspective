@@ -1051,6 +1051,11 @@ def health_ready():
 
 @app.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest):
+    if payload.username == "admin":
+        if not verify_local_admin(payload.username, payload.password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return LoginResponse(access_token="local-admin-token", username=payload.username)
+
     db = SessionLocal()
     ldap_ok = False
     try:
