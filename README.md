@@ -25,11 +25,27 @@ cd /path/to/SecurityPerspective
 docker compose up --build
 ```
 
-- Nginx entrypoint (frontend + API proxy): http://localhost
+- Nginx entrypoint (frontend + API proxy): https://localhost
 - Backend API (direct): http://localhost:8000
 - API docs (direct): http://localhost:8000/docs
-- API docs via Nginx: http://localhost/api/docs
+- API docs via Nginx: https://localhost/api/docs
 - PostgreSQL (host access): localhost:5433
+
+### HTTPS setup for Nginx
+
+The Nginx gateway is configured to redirect HTTP (`:80`) to HTTPS (`:443`) and expects TLS files at:
+
+- `certs/server.crt`
+- `certs/server.key`
+
+For local development, you can generate a self-signed certificate:
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout certs/server.key \
+  -out certs/server.crt \
+  -subj "/CN=localhost"
+```
 
 ## Health checks
 
