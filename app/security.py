@@ -15,22 +15,29 @@ def require_analyst_or_admin(x_role: str = Header(default="viewer")) -> str:
     return x_role
 
 
-def ldap_authenticate(username: str, password: str) -> bool:
-    if not settings.ldap_enabled:
+def ldap_authenticate(username: str, password: str, ldap_config: dict | None = None) -> bool:
+    config = ldap_config or {
+        "enabled": settings.ldap_enabled,
+        "server_uri": settings.ldap_server_uri,
+        "bind_dn": settings.ldap_bind_dn,
+        "bind_password": settings.ldap_bind_password,
+        "search_base": settings.ldap_search_base,
+    }
+    if not config["enabled"]:
         return False
 
     from ldap3 import ALL, Connection, Server
 
-    server = Server(settings.ldap_server_uri, get_info=ALL)
+    server = Server(config["server_uri"], get_info=ALL)
     bind_connection = Connection(
         server,
-        user=settings.ldap_bind_dn,
-        password=settings.ldap_bind_password,
+        user=config["bind_dn"],
+        password=config["bind_password"],
         auto_bind=True,
     )
 
     search_filter = f"(uid={username})"
-    bind_connection.search(settings.ldap_search_base, search_filter, attributes=["distinguishedName"])
+    bind_connection.search(config["search_base"], search_filter, attributes=["distinguishedName"])
     if not bind_connection.entries:
         return False
 

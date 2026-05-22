@@ -2576,6 +2576,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false)
   const [viewedDevice, setViewedDevice] = useState(null)
   const [deviceError, setDeviceError] = useState('')
+  const [ldapError, setLdapError] = useState('')
+  const [savingLdap, setSavingLdap] = useState(false)
+  const [ldapConfig, setLdapConfig] = useState({
+    enabled: false,
+    server_uri: 'ldap://ldap.example.local:389',
+    bind_dn: '',
+    bind_password: '',
+    search_base: ''
+  })
   const [loadingDevices, setLoadingDevices] = useState(false)
   const [newDevice, setNewDevice] = useState({
     name: 'FortiWeb-Prod-02',
@@ -2731,6 +2740,22 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
   useEffect(() => {
     if (activeNav === 'device-config') loadDevices()
+  }, [activeNav])
+
+  const loadLdapConfig = async () => {
+    setLdapError('')
+    try {
+      const res = await fetch(`${API_BASE}/platform/ldap-config`, { headers: { 'X-Role': 'admin' } })
+      if (!res.ok) throw new Error('Failed to load LDAP config')
+      const data = await res.json()
+      setLdapConfig(data)
+    } catch (err) {
+      setLdapError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    if (activeNav === 'ldap-config') loadLdapConfig()
   }, [activeNav])
 
   useEffect(() => {
@@ -2956,9 +2981,14 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               <span className="settings-gear" aria-hidden="true">⚙</span> Platform Settings
             </button>
             {settingsExpanded && (
-              <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => { setActiveNav('device-config'); setActivePage('overview') }}>
-                Device Config
-              </button>
+              <>
+                <button type="button" className={`settings-subitem ${activeNav === 'device-config' ? 'active' : ''}`} onClick={() => { setActiveNav('device-config'); setActivePage('overview') }}>
+                  Device Config
+                </button>
+                <button type="button" className={`settings-subitem ${activeNav === 'ldap-config' ? 'active' : ''}`} onClick={() => { setActiveNav('ldap-config'); setActivePage('overview') }}>
+                  Ldap config
+                </button>
+              </>
             )}
           </div>
         </aside>
@@ -2982,6 +3012,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         ? 'Automation'
                         : activeNav === 'device-config'
                           ? 'Device Config'
+                          : activeNav === 'ldap-config'
+                            ? 'Ldap config'
                           : 'Executive Overview'}
               </h1>
               {activeNav === 'waf' && <p className="waf-updated">Last updated: {new Date().toLocaleString()}</p>}
@@ -3421,6 +3453,61 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                     </div>
                   </div>
                 )}
+              </section>
+            )}
+
+            {activePage !== 'scoring' && activeNav === 'ldap-config' && (
+              <section className="device-page">
+                <div className="device-topbar">
+                  <div>
+                    <span className="device-kicker">● Platform Authentication</span>
+                    <h2 className="device-title">Ldap config</h2>
+                    <p className="device-subtitle">Configure LDAP/LDAPS server connection and bind information for centralized authentication.</p>
+                  </div>
+                </div>
+                {ldapError && <p className="error-box">{ldapError}</p>}
+                <div className="device-modal-grid" style={{ marginTop: '1rem' }}>
+                  <label>LDAP Enabled
+                    <select value={ldapConfig.enabled ? 'true' : 'false'} onChange={(e) => setLdapConfig((prev) => ({ ...prev, enabled: e.target.value === 'true' }))}>
+                      <option value="false">Disabled</option>
+                      <option value="true">Enabled</option>
+                    </select>
+                  </label>
+                  <label>LDAP / LDAPS Server URI<input value={ldapConfig.server_uri} onChange={(e) => setLdapConfig((prev) => ({ ...prev, server_uri: e.target.value }))} placeholder="ldap:// or ldaps://..." /></label>
+                  <label>Bind DN<input value={ldapConfig.bind_dn} onChange={(e) => setLdapConfig((prev) => ({ ...prev, bind_dn: e.target.value }))} /></label>
+                  <label>Bind Password<input type="password" value={ldapConfig.bind_password} onChange={(e) => setLdapConfig((prev) => ({ ...prev, bind_password: e.target.value }))} /></label>
+                  <label>Search Base DN<input value={ldapConfig.search_base} onChange={(e) => setLdapConfig((prev) => ({ ...prev, search_base: e.target.value }))} /></label>
+                </div>
+                <div className="device-modal-actions" style={{ justifyContent: 'flex-start', marginTop: '1.2rem' }}>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={savingLdap}
+                    onClick={async () => {
+                      setSavingLdap(true)
+                      setLdapError('')
+                      try {
+                        const res = await fetch(`${API_BASE}/platform/ldap-config`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+                          body: JSON.stringify(ldapConfig)
+                        })
+                        if (!res.ok) {
+                          const err = await res.json()
+                          throw new Error(err.detail || 'Failed to save LDAP config')
+                        }
+                        const saved = await res.json()
+                        setLdapConfig(saved)
+                      } catch (err) {
+                        setLdapError(err.message)
+                      } finally {
+                        setSavingLdap(false)
+                      }
+                    }}
+                  >
+                    {savingLdap ? 'Saving...' : 'Save Ldap config'}
+                  </button>
+                </div>
               </section>
             )}
           </section>

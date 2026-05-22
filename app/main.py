@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.backup import backup_database
-from app.models import ManagedDevice
-from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
-from app.security import require_analyst_or_admin, require_role, verify_local_admin
+from app.models import LdapConfig, ManagedDevice
+from app.schemas import LdapConfigPayload, LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
+from app.security import ldap_authenticate, require_analyst_or_admin, require_role, verify_local_admin
 from app.services import fetch_and_store_server_policies_by_device, load_server_policies_from_db
 
 app = FastAPI(title=settings.app_name)
@@ -60,6 +60,20 @@ def startup_event():
     Base.metadata.create_all(bind=engine)
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE managed_devices ADD COLUMN IF NOT EXISTS apikey VARCHAR(255)"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS ldap_config (
+                    id integer PRIMARY KEY,
+                    enabled varchar(8) NOT NULL DEFAULT 'false',
+                    server_uri varchar(255) NOT NULL,
+                    bind_dn varchar(255) NOT NULL,
+                    bind_password varchar(255) NOT NULL,
+                    search_base varchar(255) NOT NULL
+                )
+                """
+            )
+        )
         connection.execute(text("UPDATE managed_devices SET apikey = '' WHERE apikey IS NULL"))
         connection.execute(text("DROP TABLE IF EXISTS baseline_controls CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS exchange_rate_snapshots CASCADE"))
@@ -978,6 +992,19 @@ def startup_event():
                 ]
             )
             db.commit()
+        existing_ldap = db.query(LdapConfig).filter(LdapConfig.id == 1).first()
+        if not existing_ldap:
+            db.add(
+                LdapConfig(
+                    id=1,
+                    enabled="true" if settings.ldap_enabled else "false",
+                    server_uri=settings.ldap_server_uri,
+                    bind_dn=settings.ldap_bind_dn,
+                    bind_password=settings.ldap_bind_password,
+                    search_base=settings.ldap_search_base,
+                )
+            )
+            db.commit()
     finally:
         db.close()
 
@@ -1024,9 +1051,53 @@ def health_ready():
 
 @app.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest):
-    if not verify_local_admin(payload.username, payload.password):
+    if payload.username == "admin":
+        if not verify_local_admin(payload.username, payload.password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return LoginResponse(access_token="local-admin-token", username=payload.username)
+
+    db = SessionLocal()
+    ldap_ok = False
+    try:
+        ldap_ok = ldap_authenticate(payload.username, payload.password, get_ldap_runtime_config(db))
+    except Exception:
+        ldap_ok = False
+    finally:
+        db.close()
+
+    if not ldap_ok and not verify_local_admin(payload.username, payload.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return LoginResponse(access_token="local-admin-token", username=payload.username)
+
+
+@app.get("/platform/ldap-config", response_model=LdapConfigPayload)
+def get_ldap_config(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    return LdapConfigPayload(**get_ldap_runtime_config(db))
+
+
+@app.put("/platform/ldap-config", response_model=LdapConfigPayload)
+def update_ldap_config(
+    payload: LdapConfigPayload,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    validate_ldap_uri(payload.server_uri)
+    record = db.query(LdapConfig).filter(LdapConfig.id == 1).first()
+    if not record:
+        record = LdapConfig(id=1)
+        db.add(record)
+
+    record.enabled = "true" if payload.enabled else "false"
+    record.server_uri = payload.server_uri.strip()
+    record.bind_dn = payload.bind_dn.strip()
+    record.bind_password = payload.bind_password
+    record.search_base = payload.search_base.strip()
+    db.commit()
+    db.refresh(record)
+    return LdapConfigPayload(**get_ldap_runtime_config(db))
 
 
 @app.post("/fortiweb/server-policy/collect")
@@ -1093,3 +1164,27 @@ def delete_device(
     db.delete(device)
     db.commit()
     return {"status": "deleted", "id": device_id}
+
+
+def get_ldap_runtime_config(db: Session) -> dict:
+    record = db.query(LdapConfig).filter(LdapConfig.id == 1).first()
+    if not record:
+        return {
+            "enabled": settings.ldap_enabled,
+            "server_uri": settings.ldap_server_uri,
+            "bind_dn": settings.ldap_bind_dn,
+            "bind_password": settings.ldap_bind_password,
+            "search_base": settings.ldap_search_base,
+        }
+    return {
+        "enabled": record.enabled.lower() == "true",
+        "server_uri": record.server_uri,
+        "bind_dn": record.bind_dn,
+        "bind_password": record.bind_password,
+        "search_base": record.search_base,
+    }
+
+
+def validate_ldap_uri(uri: str) -> None:
+    if not (uri.startswith("ldap://") or uri.startswith("ldaps://")):
+        raise HTTPException(status_code=400, detail="LDAP server URI must start with ldap:// or ldaps://")
