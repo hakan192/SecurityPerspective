@@ -22,7 +22,7 @@ If the container is already running and you want to copy certs directly into it:
 # 1) Find the nginx container name
 docker compose ps nginx
 
-# 2) Copy cert/key from host into the mounted path inside container
+# 2) Copy cert/key from host into mounted path inside container
 docker cp certs/server.crt <nginx_container_name>:/etc/nginx/ssl/server.crt
 docker cp certs/server.key <nginx_container_name>:/etc/nginx/ssl/server.key
 
@@ -34,4 +34,18 @@ ls -l /etc/nginx/ssl
 nginx -s reload
 ```
 
-> Note: because `docker-compose.yml` already mounts `./certs:/etc/nginx/ssl:ro`, the preferred approach is to put files in the host `certs/` directory and restart/reload Nginx.
+> Note: even though direct `docker cp` now works with the read-write mount, the preferred approach is still to place files in the host `certs/` directory so they persist and are versioned with your local environment setup.
+
+### If you see `mounted volume is marked read-only`
+
+That error means your container is running with a read-only bind mount for `/etc/nginx/ssl`.
+
+Use one of these fixes:
+
+1. **Recommended**: copy certs to the host project folder `./certs` and recreate nginx:
+   ```bash
+   cp securityperspective.crt certs/server.crt
+   cp securityperspective.key certs/server.key
+   docker compose up -d --force-recreate nginx
+   ```
+2. Restart with updated compose config that mounts `./certs:/etc/nginx/ssl` (read-write), then `docker cp` works.

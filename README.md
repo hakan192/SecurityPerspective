@@ -65,6 +65,14 @@ ls -l /etc/nginx/ssl
 nginx -s reload
 ```
 
+If you get `Error response from daemon: mounted volume is marked read-only`, copy the files into the host `certs/` directory and recreate nginx:
+
+```bash
+cp securityperspective.crt certs/server.crt
+cp securityperspective.key certs/server.key
+docker compose up -d --force-recreate nginx
+```
+
 ## Health checks
 
 - `GET /health/live` — process liveness
