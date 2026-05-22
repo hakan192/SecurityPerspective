@@ -45,3 +45,11 @@ class ManagedDeviceOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class LdapConfigPayload(BaseModel):
+    enabled: bool
+    server_uri: str
+    bind_dn: str
+    bind_password: str
+    search_base: str

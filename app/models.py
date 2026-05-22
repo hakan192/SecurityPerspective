@@ -17,3 +17,14 @@ class ManagedDevice(Base):
     apikey: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(64), nullable=False, default="Online")
     last_sync: Mapped[str] = mapped_column(String(120), nullable=False, default="Just now")
+
+
+class LdapConfig(Base):
+    __tablename__ = "ldap_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    enabled: Mapped[str] = mapped_column(String(8), nullable=False, default="false")
+    server_uri: Mapped[str] = mapped_column(String(255), nullable=False)
+    bind_dn: Mapped[str] = mapped_column(String(255), nullable=False)
+    bind_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    search_base: Mapped[str] = mapped_column(String(255), nullable=False)
