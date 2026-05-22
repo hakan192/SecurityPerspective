@@ -25,11 +25,24 @@ cd /path/to/SecurityPerspective
 docker compose up --build
 ```
 
-- Nginx entrypoint (frontend + API proxy): http://localhost
+- Nginx entrypoint (frontend + API proxy): http://localhost (redirects to HTTPS)
+- Nginx HTTPS entrypoint (frontend + API proxy): https://localhost
 - Backend API (direct): http://localhost:8000
 - API docs (direct): http://localhost:8000/docs
 - API docs via Nginx: http://localhost/api/docs
 - PostgreSQL (host access): localhost:5433
+
+
+## HTTPS with Nginx
+
+Nginx is configured for HTTPS and listens on port `443` in Docker Compose.
+
+Before running `docker compose up --build`, place certificate files in `certs/`:
+
+- `certs/tls.crt` (PEM certificate chain)
+- `certs/tls.key` (PEM private key)
+
+These files are baked into the Nginx image during build, so HTTPS is available as soon as the container starts.
 
 ## Health checks
 
