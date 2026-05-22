@@ -47,6 +47,24 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -subj "/CN=localhost"
 ```
 
+If you need to go inside the running Nginx container and verify/upload certificates:
+
+```bash
+# show nginx container
+docker compose ps nginx
+
+# copy certificate files into container path
+docker cp certs/server.crt <nginx_container_name>:/etc/nginx/ssl/server.crt
+docker cp certs/server.key <nginx_container_name>:/etc/nginx/ssl/server.key
+
+# open shell in container and verify files
+docker exec -it <nginx_container_name> sh
+ls -l /etc/nginx/ssl
+
+# reload nginx in container
+nginx -s reload
+```
+
 ## Health checks
 
 - `GET /health/live` — process liveness
