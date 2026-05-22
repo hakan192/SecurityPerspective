@@ -25,11 +25,55 @@ cd /path/to/SecurityPerspective
 docker compose up --build
 ```
 
-- Nginx entrypoint (frontend + API proxy): http://localhost
+- Nginx entrypoint (frontend + API proxy): https://localhost
 - Backend API (direct): http://localhost:8000
 - API docs (direct): http://localhost:8000/docs
-- API docs via Nginx: http://localhost/api/docs
+- API docs via Nginx: https://localhost/api/docs
 - PostgreSQL (host access): localhost:5433
+
+### HTTPS setup for Nginx
+
+The Nginx gateway is configured to redirect HTTP (`:80`) to HTTPS (`:443`) and expects TLS files at:
+
+- `certs/server.crt`
+- `certs/server.key`
+
+At container startup, if these files are missing, the Nginx image now auto-generates a self-signed certificate so HTTPS still comes up on first build/run.
+
+For local development, you can generate a self-signed certificate:
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout certs/server.key \
+  -out certs/server.crt \
+  -subj "/CN=localhost"
+```
+
+If you need to go inside the running Nginx container and verify/replace certificates:
+
+```bash
+# show nginx container
+docker compose ps nginx
+
+# copy certificate files into container path
+docker cp certs/server.crt <nginx_container_name>:/etc/nginx/ssl/server.crt
+docker cp certs/server.key <nginx_container_name>:/etc/nginx/ssl/server.key
+
+# open shell in container and verify files
+docker exec -it <nginx_container_name> sh
+ls -l /etc/nginx/ssl
+
+# reload nginx in container
+nginx -s reload
+```
+
+If you get `Error response from daemon: mounted volume is marked read-only`, copy the files into the host `certs/` directory and recreate nginx:
+
+```bash
+cp securityperspective.crt certs/server.crt
+cp securityperspective.key certs/server.key
+docker compose up -d --force-recreate nginx
+```
 
 ## Health checks
 
