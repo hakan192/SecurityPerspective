@@ -2561,6 +2561,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [searchResult, setSearchResult] = useState('')
   const [wafResponse, setWafResponse] = useState(null)
   const [loadingWaf, setLoadingWaf] = useState(false)
+  const [collectingAllDevices, setCollectingAllDevices] = useState(false)
+  const [collectingDeviceId, setCollectingDeviceId] = useState(null)
   const [wafError, setWafError] = useState('')
   const [selectedLocation, setSelectedLocation] = useState('All')
   const [expandedPolicyCard, setExpandedPolicyCard] = useState('')
@@ -2684,12 +2686,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     } catch (err) {
       setWafError(err.message)
     } finally {
+      setCollectingDeviceId(null)
       setLoadingWaf(false)
     }
   }
 
   const collectWafResponse = async () => {
     setLoadingWaf(true)
+    setCollectingAllDevices(true)
+    setCollectingDeviceId(null)
     setWafError('')
     try {
       const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
@@ -2702,6 +2707,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     } catch (err) {
       setWafError(err.message)
     } finally {
+      setCollectingAllDevices(false)
       setLoadingWaf(false)
     }
   }
@@ -2815,6 +2821,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
   const collectDeviceWafResponse = async (deviceId) => {
     setLoadingWaf(true)
+    setCollectingAllDevices(false)
+    setCollectingDeviceId(deviceId)
     setWafError('')
     setDeviceError('')
     try {
@@ -2828,6 +2836,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     } catch (err) {
       setDeviceError(err.message)
     } finally {
+      setCollectingDeviceId(null)
       setLoadingWaf(false)
     }
   }
@@ -3352,7 +3361,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                   </div>
                   <div className="device-topbar-actions">
                     <button type="button" className="add-device-btn" onClick={() => setAddDeviceModalOpen(true)}>+ Add Device</button>
-                    <button type="button" className="add-device-btn" onClick={collectWafResponse} disabled={loadingWaf}>{loadingWaf ? 'Collecting...' : 'Collect From WAF'}</button>
+                    <button type="button" className="add-device-btn" onClick={collectWafResponse} disabled={loadingWaf}>{collectingAllDevices ? 'Collecting...' : 'Collect From WAF'}</button>
                   </div>
                 </div>
 
@@ -3386,7 +3395,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       <div><p className="device-label">Environment</p><strong>{device.environment}</strong></div>
                       <div><p className="device-label">Region</p><strong>{device.region}</strong></div>
                       <div><p className="device-label">Last Sync</p><strong>{device.last_sync}</strong></div>
-                      <div className="device-actions"><button type="button" onClick={() => viewDevice(device.id)}>View</button><button type="button" onClick={() => collectDeviceWafResponse(device.id)} disabled={loadingWaf}>{loadingWaf ? 'Collecting...' : 'Collect'}</button><button type="button" className="danger" onClick={() => deleteDevice(device.id)}>Delete</button></div>
+                      <div className="device-actions"><button type="button" onClick={() => viewDevice(device.id)}>View</button><button type="button" onClick={() => collectDeviceWafResponse(device.id)} disabled={loadingWaf}>{collectingAllDevices || collectingDeviceId === device.id ? 'Collecting...' : 'Collect'}</button><button type="button" className="danger" onClick={() => deleteDevice(device.id)}>Delete</button></div>
                     </article>
                   ))}
                 </div>
