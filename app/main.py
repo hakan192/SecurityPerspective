@@ -1048,6 +1048,21 @@ def latest_fortiweb_server_policy(
     return {"payload": load_server_policies_from_db(db)}
 
 
+
+@app.post("/devices/{device_id}/collect")
+def collect_device_fortiweb_server_policy(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    backup_database()
+    device = db.query(ManagedDevice).filter(ManagedDevice.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    fetch_and_store_server_policies_by_device(db, [device])
+    return {"payload": load_server_policies_from_db(db)}
+
+
 @app.get("/devices", response_model=list[ManagedDeviceOut])
 def list_devices(
     db: Session = Depends(get_db),

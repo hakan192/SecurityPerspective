@@ -2813,6 +2813,25 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
   }
 
+  const collectDeviceWafResponse = async (deviceId) => {
+    setLoadingWaf(true)
+    setWafError('')
+    setDeviceError('')
+    try {
+      const response = await fetch(`${API_BASE}/devices/${deviceId}/collect`, {
+        method: 'POST',
+        headers: { 'X-Role': 'admin' }
+      })
+      if (!response.ok) throw new Error('Failed to collect WAF data for device')
+      const data = await response.json()
+      setWafResponse(data.payload)
+    } catch (err) {
+      setDeviceError(err.message)
+    } finally {
+      setLoadingWaf(false)
+    }
+  }
+
   const deleteDevice = async (deviceId) => {
     setDeviceError('')
     try {
@@ -3367,7 +3386,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                       <div><p className="device-label">Environment</p><strong>{device.environment}</strong></div>
                       <div><p className="device-label">Region</p><strong>{device.region}</strong></div>
                       <div><p className="device-label">Last Sync</p><strong>{device.last_sync}</strong></div>
-                      <div className="device-actions"><button type="button" onClick={() => viewDevice(device.id)}>View</button><button type="button" className="danger" onClick={() => deleteDevice(device.id)}>Delete</button></div>
+                      <div className="device-actions"><button type="button" onClick={() => viewDevice(device.id)}>View</button><button type="button" onClick={() => collectDeviceWafResponse(device.id)} disabled={loadingWaf}>{loadingWaf ? 'Collecting...' : 'Collect'}</button><button type="button" className="danger" onClick={() => deleteDevice(device.id)}>Delete</button></div>
                     </article>
                   ))}
                 </div>
