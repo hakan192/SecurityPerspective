@@ -32,6 +32,17 @@ class ManagedDeviceCreate(BaseModel):
         return value
 
 
+class ManagedDeviceUpdate(BaseModel):
+    apikey: str
+
+    @field_validator("apikey")
+    @classmethod
+    def validate_apikey_not_empty(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("APIKEY cannot be Empty")
+        return value
+
+
 class ManagedDeviceOut(BaseModel):
     id: int
     name: str
@@ -40,6 +51,7 @@ class ManagedDeviceOut(BaseModel):
     environment: str
     region: str
     firmware: str
+    apikey: str
     status: str
     last_sync: str
 

@@ -2577,6 +2577,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false)
   const [viewedDevice, setViewedDevice] = useState(null)
+  const [viewedDeviceApikey, setViewedDeviceApikey] = useState('')
   const [deviceError, setDeviceError] = useState('')
   const [loadingDevices, setLoadingDevices] = useState(false)
   const [newDevice, setNewDevice] = useState({
@@ -2814,6 +2815,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!res.ok) throw new Error('Failed to load device details')
       const device = await res.json()
       setViewedDevice(device)
+      setViewedDeviceApikey(device.apikey || '')
     } catch (err) {
       setDeviceError(err.message)
     }
@@ -2841,7 +2843,28 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
   }
 
+  const saveViewedDevice = async () => {
+    if (!viewedDevice) return
+    setDeviceError('')
+    try {
+      const res = await fetch(`${API_BASE}/devices/${viewedDevice.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+        body: JSON.stringify({ apikey: viewedDeviceApikey })
+      })
+      if (!res.ok) throw new Error('Failed to save device')
+      const updated = await res.json()
+      setViewedDevice(updated)
+      setViewedDeviceApikey(updated.apikey || '')
+      setDevices((prev) => prev.map((device) => (device.id === updated.id ? updated : device)))
+      await collectDeviceWafResponse(updated.id)
+    } catch (err) {
+      setDeviceError(err.message)
+    }
+  }
+
   const deleteDevice = async (deviceId) => {
+    if (!window.confirm('Are you sure to delete the device?')) return
     setDeviceError('')
     try {
       const res = await fetch(`${API_BASE}/devices/${deviceId}`, {
@@ -3436,7 +3459,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                           <h3>{viewedDevice.name}</h3>
                           <p>Device details from database record.</p>
                         </div>
-                        <button type="button" className="device-modal-close" onClick={() => setViewedDevice(null)}>×</button>
+                        <button type="button" className="device-modal-close" onClick={() => { setViewedDevice(null); setViewedDeviceApikey('') }}>×</button>
                       </div>
                       <div className="device-modal-grid">
                         <label>Management IP<input value={viewedDevice.ip} readOnly /></label>
@@ -3445,6 +3468,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         <label>Region<input value={viewedDevice.region} readOnly /></label>
                         <label>Model<input value={viewedDevice.model} readOnly /></label>
                         <label>Firmware<input value={viewedDevice.firmware} readOnly /></label>
+                        <label>APIKEY<input value={viewedDeviceApikey} onChange={(e) => setViewedDeviceApikey(e.target.value)} /></label>
+                      </div>
+                      <div className="device-modal-actions">
+                        <button type="button" onClick={() => { setViewedDevice(null); setViewedDeviceApikey('') }}>Cancel</button>
+                        <button type="button" className="primary" onClick={saveViewedDevice}>Save</button>
                       </div>
                     </div>
                   </div>

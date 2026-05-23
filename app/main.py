@@ -13,7 +13,7 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.backup import backup_database
 from app.models import ManagedDevice
-from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut
+from app.schemas import LoginRequest, LoginResponse, ManagedDeviceCreate, ManagedDeviceOut, ManagedDeviceUpdate
 from app.security import require_analyst_or_admin, require_role, verify_local_admin
 from app.services import fetch_and_store_server_policies_by_device, load_server_policies_from_db
 
@@ -1093,6 +1093,22 @@ def create_device(
 ):
     device = ManagedDevice(**payload.model_dump())
     db.add(device)
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@app.put("/devices/{device_id}", response_model=ManagedDeviceOut)
+def update_device(
+    device_id: int,
+    payload: ManagedDeviceUpdate,
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    device = db.query(ManagedDevice).filter(ManagedDevice.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    device.apikey = payload.apikey
     db.commit()
     db.refresh(device)
     return device
