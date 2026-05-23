@@ -4067,6 +4067,7 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             unique_allow_hosts = {row["allow_hosts"] for row in rows if row["allow_hosts"]}
             for allow_hosts_name in unique_allow_hosts:
                 _fetch_and_upsert_allow_hosts(db, device, allow_hosts_name, headers)
+            device.last_sync = datetime.now().strftime("%Y-%m-%d %H:%M")
             db.commit()
             device_result["server_policies"] = [row["server_policy_name"] for row in rows]
         except Exception as exc:
