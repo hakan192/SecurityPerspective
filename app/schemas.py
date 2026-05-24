@@ -40,8 +40,28 @@ class ManagedDeviceOut(BaseModel):
     environment: str
     region: str
     firmware: str
+    apikey: str
     status: str
     last_sync: str
 
     class Config:
         from_attributes = True
+
+
+class ManagedDeviceUpdate(BaseModel):
+    name: str
+    ip: str
+    model: str
+    environment: str
+    region: str
+    firmware: str
+    apikey: str
+    status: str
+    last_sync: str
+
+    @field_validator("apikey")
+    @classmethod
+    def validate_apikey_not_empty(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("APIKEY cannot be Empty")
+        return value

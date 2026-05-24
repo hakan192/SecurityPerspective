@@ -2813,7 +2813,34 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     }
   }
 
+  const updateViewedDeviceField = (field, value) => {
+    setViewedDevice((prev) => (prev ? { ...prev, [field]: value } : prev))
+  }
+
+  const saveViewedDevice = async () => {
+    if (!viewedDevice) return
+    setDeviceError('')
+    try {
+      if (!viewedDevice.apikey?.trim()) {
+        throw new Error('APIKEY cannot be Empty')
+      }
+      const res = await fetch(`${API_BASE}/devices/${viewedDevice.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+        body: JSON.stringify(viewedDevice)
+      })
+      if (!res.ok) throw new Error('Failed to update device')
+      const updated = await res.json()
+      setViewedDevice(updated)
+      setDevices((prev) => prev.map((device) => (device.id === updated.id ? updated : device)))
+    } catch (err) {
+      setDeviceError(err.message)
+    }
+  }
+
   const deleteDevice = async (deviceId) => {
+    const confirmed = window.confirm('Are you certain to delete device?')
+    if (!confirmed) return
     setDeviceError('')
     try {
       const res = await fetch(`${API_BASE}/devices/${deviceId}`, {
@@ -3411,12 +3438,18 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                         <button type="button" className="device-modal-close" onClick={() => setViewedDevice(null)}>×</button>
                       </div>
                       <div className="device-modal-grid">
-                        <label>Management IP<input value={viewedDevice.ip} readOnly /></label>
-                        <label>Status<input value={viewedDevice.status} readOnly /></label>
-                        <label>Environment<input value={viewedDevice.environment} readOnly /></label>
-                        <label>Region<input value={viewedDevice.region} readOnly /></label>
-                        <label>Model<input value={viewedDevice.model} readOnly /></label>
-                        <label>Firmware<input value={viewedDevice.firmware} readOnly /></label>
+                        <label>Device Name<input value={viewedDevice.name} onChange={(e) => updateViewedDeviceField('name', e.target.value)} /></label>
+                        <label>Management IP<input value={viewedDevice.ip} onChange={(e) => updateViewedDeviceField('ip', e.target.value)} /></label>
+                        <label>Status<input value={viewedDevice.status} onChange={(e) => updateViewedDeviceField('status', e.target.value)} /></label>
+                        <label>Environment<input value={viewedDevice.environment} onChange={(e) => updateViewedDeviceField('environment', e.target.value)} /></label>
+                        <label>Region<input value={viewedDevice.region} onChange={(e) => updateViewedDeviceField('region', e.target.value)} /></label>
+                        <label>Model<input value={viewedDevice.model} onChange={(e) => updateViewedDeviceField('model', e.target.value)} /></label>
+                        <label>Firmware<input value={viewedDevice.firmware} onChange={(e) => updateViewedDeviceField('firmware', e.target.value)} /></label>
+                        <label>APIKEY<input value={viewedDevice.apikey || ''} onChange={(e) => updateViewedDeviceField('apikey', e.target.value)} /></label>
+                      </div>
+                      <div className="device-modal-actions">
+                        <button type="button" onClick={() => setViewedDevice(null)}>Close</button>
+                        <button type="button" className="primary" onClick={saveViewedDevice}>Save Changes</button>
                       </div>
                     </div>
                   </div>
