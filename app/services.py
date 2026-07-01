@@ -3844,6 +3844,9 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             "device_id": device.id,
             "device_name": device.name,
             "device_ip": device.ip,
+            "device_region": device.region,
+            "region": device.region,
+            "location": device.region,
             "server_policies": [],
             "error": "",
         }
@@ -4092,6 +4095,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 d.id AS device_id,
                 d.name AS device_name,
                 d.ip AS device_ip,
+                d.region AS device_region,
                 sp.server_policy_name,
                 sp.web_protection_profile_name,
                 sp.server_pool_name,
@@ -4593,6 +4597,9 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "device_id": row["device_id"],
                 "device_name": row["device_name"],
                 "device_ip": row["device_ip"],
+                "device_region": row["device_region"],
+                "region": row["device_region"],
+                "location": row["device_region"],
                 "server_policies": [],
                 "error": "",
             }
