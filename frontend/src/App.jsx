@@ -2074,12 +2074,42 @@ function ScoreBadge({ status }) {
   return <span className={`score-status-badge ${strong ? 'strong' : 'needs-improvement'}`}>{status}</span>
 }
 
-function ScoringPolicyCard({ policy, onOpenDetails }) {
-  const [expanded, setExpanded] = useState(false)
+const calculatePolicyMaturityPercentage = (policy = {}) => {
   const maturityPoints = getMaturityPoints(policy)
   const totalPoints = maturityPoints.reduce((total, point) => total + point.points, 0)
   const maxPoints = maturityPoints.reduce((total, point) => total + point.maxPoints, 0)
-  const maturityPercentage = Math.round((totalPoints / maxPoints) * 100)
+
+  return maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 0
+}
+
+const getPolicyLocation = (policy = {}) => policy.location || policy._deviceLocation || policy.region || 'Unknown'
+
+const getAverageMaturityPercentage = (policies = [], location = 'overall') => {
+  const normalizedLocation = toMaturityText(location)
+  const locationPolicies = policies.filter((policy) => {
+    if (typeof policy === 'string') return false
+    if (normalizedLocation === 'overall' || normalizedLocation === 'all') return true
+    return toMaturityText(getPolicyLocation(policy)) === normalizedLocation
+  })
+
+  if (locationPolicies.length === 0) return null
+
+  const totalPercentage = locationPolicies.reduce((total, policy) => total + calculatePolicyMaturityPercentage(policy), 0)
+  return Math.round(totalPercentage / locationPolicies.length)
+}
+
+const getMaturityLevel = (score) => {
+  if (score == null) return 'Pending'
+  if (score >= 85) return 'Optimized'
+  if (score >= 70) return 'Managed'
+  if (score >= 50) return 'Defined'
+  return 'Developing'
+}
+
+function ScoringPolicyCard({ policy, onOpenDetails }) {
+  const [expanded, setExpanded] = useState(false)
+  const maturityPoints = getMaturityPoints(policy)
+  const maturityPercentage = calculatePolicyMaturityPercentage(policy)
   const policyName = typeof policy === 'string' ? policy : policy.server_policy_name || 'Policy Details'
   const deviceName = typeof policy === 'string' ? 'Unknown Device' : policy._deviceName || policy.device_name || policy.deviceName || 'Unknown Device'
   const policyLocation = typeof policy === 'string' ? 'Unknown' : policy.location || policy._deviceLocation || policy.region || 'Unknown'
@@ -2185,7 +2215,7 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
   const selectedLocationName = normalizedScoreId === 'pendik' ? 'Pendik' : normalizedScoreId === 'ankara' ? 'Ankara' : 'Overall'
   const filteredPolicies = policies.filter((policy) => {
     if (normalizedScoreId === 'overall' || normalizedScoreId === 'all') return true
-    const policyLocation = toMaturityText(policy?.location || policy?._deviceLocation || 'Unknown')
+    const policyLocation = toMaturityText(getPolicyLocation(policy))
     return policyLocation === normalizedScoreId
   })
   const subtitle = normalizedScoreId === 'overall' || normalizedScoreId === 'all'
@@ -2245,8 +2275,36 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 }
 
 
-function ExecutiveOverviewPage({ onDeepDive }) {
-  const [overallCard, ...siteCards] = executiveMaturityCards
+function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
+  const [overallCard, ...siteCards] = useMemo(() => {
+    const siteScoresById = executiveMaturityCards
+      .filter((card) => card.id !== 'overall')
+      .reduce((scores, card) => ({
+        ...scores,
+        [card.id]: getAverageMaturityPercentage(policies, card.id)
+      }), {})
+    const availableSiteScores = Object.values(siteScoresById).filter((score) => score != null)
+    const overallAverageScore = availableSiteScores.length > 0
+      ? Math.round(availableSiteScores.reduce((total, score) => total + score, 0) / availableSiteScores.length)
+      : null
+
+    return executiveMaturityCards.map((card) => {
+      const averageScore = card.id === 'overall' ? overallAverageScore : siteScoresById[card.id]
+      const score = averageScore ?? 0
+      const cardScope = card.id === 'overall' ? 'Pendik and Ankara maturity levels' : `${card.title.replace(' WAF Maturity Level', '')} policies`
+
+      return {
+        ...card,
+        score,
+        series: [score, score, score],
+        level: getMaturityLevel(averageScore),
+        summary: averageScore == null
+          ? `No backend policy maturity scores are available yet for ${cardScope}.`
+          : `Calculated from the average Total Maturity Score across ${cardScope}.`,
+        trend: { direction: 'stable', value: averageScore == null ? 'Pending' : `${averageScore}%`, label: averageScore == null ? 'Awaiting backend data' : 'Current maturity average' }
+      }
+    })
+  }, [policies])
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
@@ -2707,7 +2765,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+    if (activeNav === 'waf' || activeNav === 'home' || activeNav === 'overview' || activePage === 'scoring') loadWafResponse()
   }, [activeNav, activePage])
 
   useEffect(() => {
@@ -3322,7 +3380,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} policies={wafPolicies} />}
             {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
