@@ -2276,10 +2276,22 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 
 
 function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
-  const [overallCard, ...siteCards] = useMemo(() => (
-    executiveMaturityCards.map((card) => {
-      const averageScore = getAverageMaturityPercentage(policies, card.id)
+  const [overallCard, ...siteCards] = useMemo(() => {
+    const siteScoresById = executiveMaturityCards
+      .filter((card) => card.id !== 'overall')
+      .reduce((scores, card) => ({
+        ...scores,
+        [card.id]: getAverageMaturityPercentage(policies, card.id)
+      }), {})
+    const availableSiteScores = Object.values(siteScoresById).filter((score) => score != null)
+    const overallAverageScore = availableSiteScores.length > 0
+      ? Math.round(availableSiteScores.reduce((total, score) => total + score, 0) / availableSiteScores.length)
+      : null
+
+    return executiveMaturityCards.map((card) => {
+      const averageScore = card.id === 'overall' ? overallAverageScore : siteScoresById[card.id]
       const score = averageScore ?? 0
+      const cardScope = card.id === 'overall' ? 'Pendik and Ankara maturity levels' : `${card.title.replace(' WAF Maturity Level', '')} policies`
 
       return {
         ...card,
@@ -2287,12 +2299,12 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
         series: [score, score, score],
         level: getMaturityLevel(averageScore),
         summary: averageScore == null
-          ? `No backend policy maturity scores are available yet for ${card.id === 'overall' ? 'all locations' : card.title.replace(' WAF Maturity Level', '')}.`
-          : `Calculated from the average Total Maturity Score across ${card.id === 'overall' ? 'all' : card.title.replace(' WAF Maturity Level', '')} policies.`,
-        trend: { direction: 'stable', value: averageScore == null ? 'Pending' : `${averageScore}%`, label: averageScore == null ? 'Awaiting backend data' : 'Current policy average' }
+          ? `No backend policy maturity scores are available yet for ${cardScope}.`
+          : `Calculated from the average Total Maturity Score across ${cardScope}.`,
+        trend: { direction: 'stable', value: averageScore == null ? 'Pending' : `${averageScore}%`, label: averageScore == null ? 'Awaiting backend data' : 'Current maturity average' }
       }
     })
-  ), [policies])
+  }, [policies])
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
