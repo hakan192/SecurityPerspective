@@ -117,6 +117,72 @@ const executiveMaturityCards = [
   }
 ]
 
+
+const getMaturityLevel = (score) => {
+  if (score >= 85) return 'Optimized'
+  if (score >= 70) return 'Managed'
+  if (score >= 50) return 'Defined'
+  if (score >= 25) return 'Developing'
+  return 'Initial'
+}
+
+const getMaturityTone = (score) => {
+  if (score >= 85) return 'strong'
+  if (score >= 70) return 'steady'
+  return 'attention'
+}
+
+const getPolicyMaturityScore = (policy) => {
+  const backendScore = Number(policy?.maturity_score ?? policy?.maturity_assessment?.percentage)
+  if (Number.isFinite(backendScore)) return Math.max(0, Math.min(100, Math.round(backendScore)))
+
+  const maturityPoints = getMaturityPoints(policy)
+  const totalPoints = maturityPoints.reduce((total, point) => total + point.points, 0)
+  const maxPoints = maturityPoints.reduce((total, point) => total + point.maxPoints, 0)
+  return maxPoints ? Math.round((totalPoints / maxPoints) * 100) : null
+}
+
+const calculateAverageMaturityScore = (policies) => {
+  const scores = policies
+    .map(getPolicyMaturityScore)
+    .filter((score) => Number.isFinite(score))
+
+  if (scores.length === 0) return null
+  return Math.round(scores.reduce((total, score) => total + score, 0) / scores.length)
+}
+
+const buildExecutiveMaturityCards = (policies = []) => {
+  const cards = executiveMaturityCards.map((card) => ({ ...card, trend: { ...card.trend }, signals: [...card.signals], series: [...card.series] }))
+  return cards.map((card) => {
+    const scopedPolicies = card.id === 'overall'
+      ? policies
+      : policies.filter((policy) => toMaturityText(policy?.location || policy?._deviceLocation || 'Unknown') === card.id)
+    const averageScore = calculateAverageMaturityScore(scopedPolicies)
+
+    if (averageScore === null) {
+      return card
+    }
+
+    return {
+      ...card,
+      score: averageScore,
+      series: [...card.series.slice(0, -1), averageScore],
+      level: getMaturityLevel(averageScore),
+      tone: getMaturityTone(averageScore),
+      trend: {
+        direction: 'stable',
+        value: `${averageScore}%`,
+        label: `Average across ${scopedPolicies.length} ${scopedPolicies.length === 1 ? 'policy' : 'policies'}`
+      },
+      signals: [
+        `Average total maturity score ${averageScore}%`,
+        `${scopedPolicies.length} ${scopedPolicies.length === 1 ? 'policy' : 'policies'} assessed`,
+        'Calculated from Deep Dive policy scores'
+      ]
+    }
+  })
+}
+
 const timelineStatusOptions = ['Planned', 'In progress', 'Pending review', 'Moved to Blocking', 'Completed']
 
 const executiveTimelineItems = [
@@ -2245,8 +2311,9 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 }
 
 
-function ExecutiveOverviewPage({ onDeepDive }) {
-  const [overallCard, ...siteCards] = executiveMaturityCards
+function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
+  const executiveCards = useMemo(() => buildExecutiveMaturityCards(policies), [policies])
+  const [overallCard, ...siteCards] = executiveCards
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
@@ -2707,7 +2774,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+    if (activeNav === 'waf' || activeNav === 'home' || activeNav === 'overview' || activePage === 'scoring') loadWafResponse()
   }, [activeNav, activePage])
 
   useEffect(() => {
@@ -3322,7 +3389,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} policies={wafPolicies} />}
             {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
