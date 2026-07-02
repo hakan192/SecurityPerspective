@@ -92,6 +92,46 @@ def test_extract_policy_rows_parses_monitor_mode():
     assert rows[0]["monitor_mode"] == "enable"
 
 
+def test_extract_policy_rows_accepts_single_result_object_with_aliases():
+    payload = {
+        "results": {
+            "server-policy-name": "ankara-policy",
+            "web-protection-profile-inline-protection": "ankara-profile",
+            "server-pool-policy": "ankara-pool",
+            "monitor-mode": "disable",
+        }
+    }
+
+    rows = _extract_policy_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["server_policy_name"] == "ankara-policy"
+    assert rows[0]["web_protection_profile_name"] == "ankara-profile"
+    assert rows[0]["server_pool_name"] == "ankara-pool"
+    assert rows[0]["monitor_mode"] == "disable"
+
+
+def test_extract_policy_rows_accepts_nested_data_results():
+    payload = {
+        "results": {
+            "data": [
+                {
+                    "policy-name": "pendik-policy",
+                    "web-protection-profile": "pendik-profile",
+                    "server-pool": "pendik-pool",
+                }
+            ]
+        }
+    }
+
+    rows = _extract_policy_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["server_policy_name"] == "pendik-policy"
+    assert rows[0]["web_protection_profile_name"] == "pendik-profile"
+    assert rows[0]["server_pool_name"] == "pendik-pool"
+
+
 def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate():
     payload = {
         "results": [

@@ -1436,17 +1436,27 @@ def _extract_by_normalized_aliases(item: dict, aliases: list[str]):
     return None
 
 
-def _extract_web_protection_profile_rows(payload: dict) -> list[dict]:
-    results = payload.get("results", []) if isinstance(payload, dict) else []
-    rows = []
-    if isinstance(results, dict):
-        results = [results]
-    if not isinstance(results, list):
-        return rows
 
-    for item in results:
-        if not isinstance(item, dict):
-            continue
+def _coerce_result_items(payload) -> list[dict]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+
+    results = payload.get("results", payload.get("data", payload.get("items", [])))
+    if isinstance(results, dict):
+        nested = results.get("data", results.get("items", results.get("results")))
+        if isinstance(nested, list):
+            return [item for item in nested if isinstance(item, dict)]
+        return [results]
+    if isinstance(results, list):
+        return [item for item in results if isinstance(item, dict)]
+    return []
+
+def _extract_web_protection_profile_rows(payload: dict) -> list[dict]:
+    rows = []
+
+    for item in _coerce_result_items(payload):
         profile_name = _normalize_optional_text(item.get("name") or item.get("web-protection-profile") or item.get("web_protection_profile"))
         if not profile_name:
             continue
@@ -2735,19 +2745,18 @@ def _upsert_signature_row(db: Session, device_id: int, row: dict):
 
 
 def _extract_policy_rows(payload: dict) -> list[dict]:
-    results = payload.get("results", []) if isinstance(payload, dict) else []
     rows = []
-    for item in results:
-        if not isinstance(item, dict):
-            continue
-        policy_name = item.get("name")
-        if not isinstance(policy_name, str) or not policy_name.strip():
+    for item in _coerce_result_items(payload):
+        policy_name = _normalize_optional_text(
+            _extract_by_aliases(item, ["name", "server_policy_name", "server-policy-name", "policy_name", "policy-name"])
+        )
+        if not policy_name:
             continue
 
         web_protection_profile_name = _normalize_optional_text(
-            _extract_by_aliases(item, ["web_protection_profile_name", "web_protection_profile", "web-protection-profile"])
+            _extract_by_aliases(item, ["web_protection_profile_name", "web_protection_profile", "web-protection-profile", "web_protection_profile_inline_protection", "web-protection-profile-inline-protection"])
         )
-        server_pool_name = _normalize_optional_text(_extract_by_aliases(item, ["server_pool_name", "server_pool", "server-pool"]))
+        server_pool_name = _normalize_optional_text(_extract_by_aliases(item, ["server_pool_name", "server_pool", "server-pool", "server_pool_policy", "server-pool-policy"]))
         allow_hosts = _normalize_optional_text(_extract_by_aliases(item, ["allow_hosts", "allow-hosts", "allowhosts"]))
         rows.append(
             {
