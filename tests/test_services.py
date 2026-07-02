@@ -9,6 +9,7 @@ from app.services import (
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
+    _extract_web_protection_profile_rows,
     _extract_server_pool_row,
     _format_allow_method_value,
     _format_policy_status_label,
@@ -199,6 +200,47 @@ def test_extract_certificate_sni_member_rows_parses_each_result_entry():
     assert rows[1]["seq"] == 2
     assert rows[1]["domain"] == "webforms.example.com"
     assert rows[1]["local_cert"] == "cert-b"
+
+
+def test_extract_web_protection_profile_rows_accepts_single_mkey_result():
+    rows = _extract_web_protection_profile_rows({
+        "results": {
+            "name": "ankara-profile",
+            "signature-rule": "sig-main",
+            "http-protocol-parameter-restriction": "http-rfc-main",
+            "syntax-based-attack-detection": "syntax-main",
+        }
+    })
+
+    assert rows == [
+        {
+            "web_protection_profile_name": "ankara-profile",
+            "signature_rule": "sig-main",
+            "http_protocol_parameter_restriction": "http-rfc-main",
+            "cookie_security_policy": None,
+            "custom_access_policy": None,
+            "csrf_protection": None,
+            "syntax_based_attack_detection": "syntax-main",
+            "parameter_validation_rule": None,
+            "hidden_fields_protection": None,
+            "file_upload_policy": None,
+            "webshell_detection_policy": None,
+            "allow_method_policy": None,
+            "bot_mitigate_policy": None,
+            "xml_validation_policy": None,
+            "json_validation_policy": None,
+            "graphql_validation_policy": None,
+            "openapi_validation_policy": None,
+            "application_layer_dos_prevention": None,
+            "ip_list_policy": None,
+            "ip_intelligence": None,
+            "geo_block_list_policy": None,
+            "waiting_room_policy": None,
+            "user_tracking_policy": None,
+            "websocket_security_policy": None,
+            "cors_protection_policy": None,
+        }
+    ]
 
 
 def test_build_device_base_url_uses_configured_https_port(monkeypatch):
