@@ -9,6 +9,7 @@ from app.services import (
     _extract_certificate_local_row,
     _extract_certificate_sni_member_rows,
     _extract_policy_rows,
+    _extract_web_protection_profile_rows,
     _extract_server_pool_row,
     _format_allow_method_value,
     _format_policy_status_label,
@@ -89,6 +90,46 @@ def test_extract_policy_rows_parses_monitor_mode():
 
     assert len(rows) == 1
     assert rows[0]["monitor_mode"] == "enable"
+
+
+def test_extract_policy_rows_accepts_single_result_object_with_aliases():
+    payload = {
+        "results": {
+            "server-policy-name": "ankara-policy",
+            "web-protection-profile-inline-protection": "ankara-profile",
+            "server-pool-policy": "ankara-pool",
+            "monitor-mode": "disable",
+        }
+    }
+
+    rows = _extract_policy_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["server_policy_name"] == "ankara-policy"
+    assert rows[0]["web_protection_profile_name"] == "ankara-profile"
+    assert rows[0]["server_pool_name"] == "ankara-pool"
+    assert rows[0]["monitor_mode"] == "disable"
+
+
+def test_extract_policy_rows_accepts_nested_data_results():
+    payload = {
+        "results": {
+            "data": [
+                {
+                    "policy-name": "pendik-policy",
+                    "web-protection-profile": "pendik-profile",
+                    "server-pool": "pendik-pool",
+                }
+            ]
+        }
+    }
+
+    rows = _extract_policy_rows(payload)
+
+    assert len(rows) == 1
+    assert rows[0]["server_policy_name"] == "pendik-policy"
+    assert rows[0]["web_protection_profile_name"] == "pendik-profile"
+    assert rows[0]["server_pool_name"] == "pendik-pool"
 
 
 def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate():
@@ -199,6 +240,47 @@ def test_extract_certificate_sni_member_rows_parses_each_result_entry():
     assert rows[1]["seq"] == 2
     assert rows[1]["domain"] == "webforms.example.com"
     assert rows[1]["local_cert"] == "cert-b"
+
+
+def test_extract_web_protection_profile_rows_accepts_single_mkey_result():
+    rows = _extract_web_protection_profile_rows({
+        "results": {
+            "name": "ankara-profile",
+            "signature-rule": "sig-main",
+            "http-protocol-parameter-restriction": "http-rfc-main",
+            "syntax-based-attack-detection": "syntax-main",
+        }
+    })
+
+    assert rows == [
+        {
+            "web_protection_profile_name": "ankara-profile",
+            "signature_rule": "sig-main",
+            "http_protocol_parameter_restriction": "http-rfc-main",
+            "cookie_security_policy": None,
+            "custom_access_policy": None,
+            "csrf_protection": None,
+            "syntax_based_attack_detection": "syntax-main",
+            "parameter_validation_rule": None,
+            "hidden_fields_protection": None,
+            "file_upload_policy": None,
+            "webshell_detection_policy": None,
+            "allow_method_policy": None,
+            "bot_mitigate_policy": None,
+            "xml_validation_policy": None,
+            "json_validation_policy": None,
+            "graphql_validation_policy": None,
+            "openapi_validation_policy": None,
+            "application_layer_dos_prevention": None,
+            "ip_list_policy": None,
+            "ip_intelligence": None,
+            "geo_block_list_policy": None,
+            "waiting_room_policy": None,
+            "user_tracking_policy": None,
+            "websocket_security_policy": None,
+            "cors_protection_policy": None,
+        }
+    ]
 
 
 def test_build_device_base_url_uses_configured_https_port(monkeypatch):
