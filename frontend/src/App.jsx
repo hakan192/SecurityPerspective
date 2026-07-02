@@ -2671,7 +2671,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const locationOptions = useMemo(() => {
     const regionSet = new Set(['All'])
     wafDevices.forEach((device) => {
-      regionSet.add(deviceRegionByName[device.device_name] || device.location || device.region || 'Unknown')
+      regionSet.add(device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown')
     })
     return Array.from(regionSet)
   }, [deviceRegionByName, wafDevices])
@@ -2682,14 +2682,14 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
           return [{
             server_policy_name: `Error: ${device.error}`,
             _deviceName: device.device_name,
-            _deviceLocation: deviceRegionByName[device.device_name] || device.location || device.region || 'Unknown'
+            _deviceLocation: device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown'
           }]
         }
         const policies = Array.isArray(device.server_policies) ? device.server_policies : []
         return policies.map((policy) => ({
           ...policy,
           _deviceName: device.device_name,
-          _deviceLocation: deviceRegionByName[device.device_name] || device.location || device.region || 'Unknown'
+          _deviceLocation: device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown'
         }))
       }),
     [deviceRegionByName, wafDevices]
