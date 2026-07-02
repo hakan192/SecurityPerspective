@@ -156,7 +156,7 @@ const buildExecutiveMaturityCards = (policies = []) => {
   return cards.map((card) => {
     const scopedPolicies = card.id === 'overall'
       ? policies
-      : policies.filter((policy) => toMaturityText(policy?.location || policy?._deviceLocation || 'Unknown') === card.id)
+      : policies.filter((policy) => getCanonicalLocationId(policy?.location || policy?._deviceLocation || 'Unknown') === card.id)
     const averageScore = calculateAverageMaturityScore(scopedPolicies)
 
     if (averageScore === null) {
@@ -1753,6 +1753,22 @@ const hasStrongMaturityValue = (value) => {
 
 const hasAnyMaturityValue = (...values) => values.some(hasStrongMaturityValue)
 
+const getCanonicalLocationId = (value) => {
+  const normalized = toMaturityText(value)
+  if (normalized.includes('pendik')) return 'pendik'
+  if (normalized.includes('ankara')) return 'ankara'
+  if (normalized === 'all' || normalized === 'overall') return normalized
+  return normalized
+}
+
+const formatLocationOption = (value) => {
+  const canonical = getCanonicalLocationId(value)
+  if (canonical === 'pendik') return 'Pendik'
+  if (canonical === 'ankara') return 'Ankara'
+  if (canonical === 'all') return 'All'
+  return value || 'Unknown'
+}
+
 function getMaturityPoints(policy = {}) {
   const backendCategories = policy?.maturity_assessment?.categories
   if (Array.isArray(backendCategories) && backendCategories.length > 0) {
@@ -2251,8 +2267,8 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
   const selectedLocationName = normalizedScoreId === 'pendik' ? 'Pendik' : normalizedScoreId === 'ankara' ? 'Ankara' : 'Overall'
   const filteredPolicies = policies.filter((policy) => {
     if (normalizedScoreId === 'overall' || normalizedScoreId === 'all') return true
-    const policyLocation = toMaturityText(policy?.location || policy?._deviceLocation || 'Unknown')
-    return policyLocation === normalizedScoreId
+    const policyLocation = getCanonicalLocationId(policy?.location || policy?._deviceLocation || 'Unknown')
+    return policyLocation === getCanonicalLocationId(normalizedScoreId)
   })
   const subtitle = normalizedScoreId === 'overall' || normalizedScoreId === 'all'
     ? 'Enterprise-wide policy maturity scoring across all WAF locations.'
@@ -2671,7 +2687,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const locationOptions = useMemo(() => {
     const regionSet = new Set(['All'])
     wafDevices.forEach((device) => {
-      regionSet.add(device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown')
+      regionSet.add(formatLocationOption(device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown'))
     })
     return Array.from(regionSet)
   }, [deviceRegionByName, wafDevices])
@@ -2682,14 +2698,14 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
           return [{
             server_policy_name: `Error: ${device.error}`,
             _deviceName: device.device_name,
-            _deviceLocation: device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown'
+            _deviceLocation: formatLocationOption(device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown')
           }]
         }
         const policies = Array.isArray(device.server_policies) ? device.server_policies : []
         return policies.map((policy) => ({
           ...policy,
           _deviceName: device.device_name,
-          _deviceLocation: device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown'
+          _deviceLocation: formatLocationOption(device.location || device.region || device.device_region || deviceRegionByName[device.device_name] || 'Unknown')
         }))
       }),
     [deviceRegionByName, wafDevices]
@@ -2697,8 +2713,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const filteredWafPolicies = useMemo(() => {
     const query = wafSearch.trim().toLowerCase()
     return wafPolicies.filter((policy) => {
-      const policyLocation = (policy._deviceLocation || 'Unknown').toLowerCase()
-      if (selectedLocation !== 'All' && selectedLocation.toLowerCase() !== policyLocation) return false
+      const policyLocation = getCanonicalLocationId(policy._deviceLocation || policy.location || policy.region || 'Unknown')
+      if (selectedLocation !== 'All' && getCanonicalLocationId(selectedLocation) !== policyLocation) return false
       if (!query) return true
       if (typeof policy === 'string') return policy.toLowerCase().includes(query)
       const policyName = (policy.server_policy_name || '').toLowerCase()
