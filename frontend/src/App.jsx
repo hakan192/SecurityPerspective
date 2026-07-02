@@ -2734,8 +2734,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }, [activeNav])
 
   useEffect(() => {
-    if (activeNav === 'waf' && devices.length === 0) loadDevices()
-  }, [activeNav, devices.length])
+    const needsDeviceRegions = activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring'
+    if (needsDeviceRegions && devices.length === 0) loadDevices()
+  }, [activeNav, activePage, devices.length])
 
   const submitSearch = (event) => {
     event.preventDefault()
