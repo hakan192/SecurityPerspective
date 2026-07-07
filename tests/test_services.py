@@ -1442,3 +1442,59 @@ def test_upsert_server_policy_rows_creates_server_pool_placeholder_before_policy
         "server_pool_name": "pool-a",
         "raw_json": "{}",
     }
+
+
+def test_collection_lock_uses_postgres_advisory_lock_and_unlock():
+    from app.services import FORTIWEB_COLLECTION_LOCK_NAME, _acquire_collection_lock, _release_collection_lock
+
+    class Dialect:
+        name = "postgresql"
+
+    class Bind:
+        dialect = Dialect()
+
+    class CapturingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get_bind(self):
+            return Bind()
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+
+    session = CapturingSession()
+
+    assert _acquire_collection_lock(session) is True
+    _release_collection_lock(session)
+
+    assert "pg_advisory_lock" in session.calls[0][0]
+    assert "pg_advisory_unlock" in session.calls[1][0]
+    assert session.calls[0][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
+    assert session.calls[1][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
+
+
+def test_collection_lock_skips_non_postgres_sessions():
+    from app.services import _acquire_collection_lock, _release_collection_lock
+
+    class Dialect:
+        name = "sqlite"
+
+    class Bind:
+        dialect = Dialect()
+
+    class CapturingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get_bind(self):
+            return Bind()
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+
+    session = CapturingSession()
+
+    assert _acquire_collection_lock(session) is False
+    _release_collection_lock(session)
+    assert session.calls == []

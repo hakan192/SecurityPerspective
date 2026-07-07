@@ -6,11 +6,18 @@ from urllib.parse import urlparse
 from urllib.parse import quote
 
 import requests
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import ManagedDevice
+
+if not settings.fortiweb_verify_ssl:
+    urllib3.disable_warnings(InsecureRequestWarning)
+
+FORTIWEB_COLLECTION_LOCK_NAME = "security_perspective_fortiweb_server_policy_collection"
 
 BACKUP_FILENAME_PATTERN = re.compile(r"security_perspective_backup_(\d{2}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.sql$")
 FALLBACK_INSERT_SERVER_POLICY_PATTERN = re.compile(
@@ -1739,6 +1746,30 @@ def _extract_custom_access_policy_row(payload: dict, custom_access_policy_name: 
         "rule_names": rule_names,
         "raw_json": payload if isinstance(payload, dict) else {},
     }
+
+
+def _uses_postgresql(db: Session) -> bool:
+    bind = db.get_bind()
+    return getattr(getattr(bind, "dialect", None), "name", "") == "postgresql"
+
+
+def _acquire_collection_lock(db: Session) -> bool:
+    if not _uses_postgresql(db):
+        return False
+    db.execute(
+        text("SELECT pg_advisory_lock(hashtext(:lock_name))"),
+        {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME},
+    )
+    return True
+
+
+def _release_collection_lock(db: Session):
+    if not _uses_postgresql(db):
+        return
+    db.execute(
+        text("SELECT pg_advisory_unlock(hashtext(:lock_name))"),
+        {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME},
+    )
 
 
 def _fetch_json_with_fallback_endpoints(device: ManagedDevice, headers: dict, endpoints: list[str]) -> dict:
@@ -3850,264 +3881,269 @@ def _fetch_and_upsert_signature(
 
 
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
-    per_device = []
-    endpoint = settings.fortiweb_server_policy_endpoint
+    lock_acquired = _acquire_collection_lock(db)
+    try:
+        per_device = []
+        endpoint = settings.fortiweb_server_policy_endpoint
 
-    for device in devices:
-        headers = {}
-        if device.apikey:
-            headers["Authorization"] = device.apikey
-        elif settings.fortiweb_token:
-            headers["Authorization"] = settings.fortiweb_token
+        for device in devices:
+            headers = {}
+            if device.apikey:
+                headers["Authorization"] = device.apikey
+            elif settings.fortiweb_token:
+                headers["Authorization"] = settings.fortiweb_token
 
-        device_result = {
-            "device_id": device.id,
-            "device_name": device.name,
-            "device_ip": device.ip,
-            "server_policies": [],
-            "error": "",
-        }
+            device_result = {
+                "device_id": device.id,
+                "device_name": device.name,
+                "device_ip": device.ip,
+                "server_policies": [],
+                "error": "",
+            }
 
-        try:
-            web_protection_profile_rows = []
             try:
-                web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
-            except Exception:
-                db.rollback()
                 web_protection_profile_rows = []
+                try:
+                    web_protection_profile_rows = _fetch_and_upsert_web_protection_profiles(db, device, headers)
+                except Exception:
+                    db.rollback()
+                    web_protection_profile_rows = []
 
-            try:
-                _fetch_and_upsert_http_protocol_parameter_restrictions(db, device, headers)
-            except Exception:
+                try:
+                    _fetch_and_upsert_http_protocol_parameter_restrictions(db, device, headers)
+                except Exception:
+                    db.rollback()
+
+                try:
+                    _fetch_and_upsert_syntax_based_attack_detection(db, device, headers)
+                except Exception:
+                    db.rollback()
+
+                try:
+                    _fetch_and_upsert_allow_method_policy(db, device, headers)
+                except Exception:
+                    db.rollback()
+
+                try:
+                    _fetch_and_upsert_xml_validation_policy(db, device, headers)
+                except Exception:
+                    db.rollback()
+
+                try:
+                    _fetch_and_upsert_json_validation_policy(db, device, headers)
+                except Exception:
+                    db.rollback()
+
+                unique_custom_access_policies = {row["custom_access_policy"] for row in web_protection_profile_rows if row.get("custom_access_policy")}
+                unique_custom_access_rules = set()
+                for custom_access_policy_name in unique_custom_access_policies:
+                    try:
+                        custom_access_policy_row = _fetch_and_upsert_custom_access_policy(db, device, custom_access_policy_name, headers)
+                        unique_custom_access_rules.update(custom_access_policy_row.get("rule_names") or [])
+                    except Exception:
+                        db.rollback()
+                for custom_access_rule_name in unique_custom_access_rules:
+                    try:
+                        _fetch_and_upsert_custom_access_rule(db, device, custom_access_rule_name, headers)
+                    except Exception:
+                        db.rollback()
+
+                unique_cookie_security_policies = {row["cookie_security_policy"] for row in web_protection_profile_rows if row.get("cookie_security_policy")}
+                for cookie_security_name in unique_cookie_security_policies:
+                    try:
+                        _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)
+                    except Exception:
+                        db.rollback()
+                unique_geo_ip_policies = {row["geo_block_list_policy"] for row in web_protection_profile_rows if row.get("geo_block_list_policy")}
+                for geo_ip_name in unique_geo_ip_policies:
+                    try:
+                        _fetch_and_upsert_geo_ip(db, device, geo_ip_name, headers)
+                    except Exception:
+                        db.rollback()
+                unique_bot_mitigate_policies = {row["bot_mitigate_policy"] for row in web_protection_profile_rows if row.get("bot_mitigate_policy")}
+                fetched_bot_mitigate_rows = []
+                for bot_mitigate_policy_name in unique_bot_mitigate_policies:
+                    try:
+                        fetched_row = _fetch_and_upsert_bot_mitigate_policy(db, device, bot_mitigate_policy_name, headers)
+                        fetched_bot_mitigate_rows.append(fetched_row)
+                    except Exception:
+                        db.rollback()
+                biometric_policy_names = {
+                    row["biometrics_based_detection"]
+                    for row in fetched_bot_mitigate_rows
+                    if row.get("biometrics_based_detection")
+                }
+                try:
+                    _fetch_and_upsert_biometric_based_detection(db, device, biometric_policy_names, headers)
+                except Exception:
+                    db.rollback()
+                threshold_based_detection_names = {
+                    row["threshold_based_detection"]
+                    for row in fetched_bot_mitigate_rows
+                    if row.get("threshold_based_detection")
+                }
+                for threshold_based_detection_name in threshold_based_detection_names:
+                    try:
+                        _fetch_and_upsert_threshold_based_detection(
+                            db,
+                            device,
+                            threshold_based_detection_name,
+                            headers,
+                        )
+                    except Exception:
+                        db.rollback()
+                known_bots_names = {
+                    row["known_bots"]
+                    for row in fetched_bot_mitigate_rows
+                    if row.get("known_bots")
+                }
+                for known_bots_name in known_bots_names:
+                    try:
+                        _fetch_and_upsert_known_bots(
+                            db,
+                            device,
+                            known_bots_name,
+                            headers,
+                        )
+                    except Exception:
+                        db.rollback()
+
+                unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
+                for signature_rule in unique_signature_rules:
+                    try:
+                        _fetch_and_upsert_signature(db, device, signature_rule, headers)
+                    except Exception:
+                        db.rollback()
+                unique_application_layer_dos_prevention_policies = {
+                    row["application_layer_dos_prevention"] for row in web_protection_profile_rows if row.get("application_layer_dos_prevention")
+                }
+                fetched_application_layer_dos_rows = []
+                unique_ip_list_policies = {row["ip_list_policy"] for row in web_protection_profile_rows if row.get("ip_list_policy")}
+                for ip_list_policy_name in unique_ip_list_policies:
+                    try:
+                        _fetch_and_upsert_ip_list_policy(db, device, ip_list_policy_name, headers)
+                    except Exception:
+                        db.rollback()
+                for application_layer_dos_prevention_name in unique_application_layer_dos_prevention_policies:
+                    try:
+                        fetched_row = _fetch_and_upsert_application_layer_dos_prevention(
+                            db,
+                            device,
+                            application_layer_dos_prevention_name,
+                            headers,
+                        )
+                        fetched_application_layer_dos_rows.append(fetched_row)
+                    except Exception:
+                        db.rollback()
+                unique_http_request_flood_prevention_rules = {
+                    row["http_request_flood_prevention_rule"]
+                    for row in fetched_application_layer_dos_rows
+                    if row.get("http_request_flood_prevention_rule")
+                }
+                for http_request_flood_prevention_rule_name in unique_http_request_flood_prevention_rules:
+                    try:
+                        _fetch_and_upsert_http_request_flood_prevention_rule(
+                            db,
+                            device,
+                            http_request_flood_prevention_rule_name,
+                            headers,
+                        )
+                    except Exception:
+                        db.rollback()
+                unique_layer4_access_limit_rules = {
+                    row["layer4_access_limit_rule"] for row in fetched_application_layer_dos_rows if row.get("layer4_access_limit_rule")
+                }
+                for layer4_access_limit_rule_name in unique_layer4_access_limit_rules:
+                    try:
+                        _fetch_and_upsert_layer4_access_limit_rule(
+                            db,
+                            device,
+                            layer4_access_limit_rule_name,
+                            headers,
+                        )
+                    except Exception:
+                        db.rollback()
+                unique_layer4_connection_flood_check_rules = {
+                    row["layer4_connection_flood_check_rule"]
+                    for row in fetched_application_layer_dos_rows
+                    if row.get("layer4_connection_flood_check_rule")
+                }
+                for layer4_connection_flood_check_rule_name in unique_layer4_connection_flood_check_rules:
+                    try:
+                        _fetch_and_upsert_tcp_flood_prevention(
+                            db,
+                            device,
+                            layer4_connection_flood_check_rule_name,
+                            headers,
+                        )
+                    except Exception:
+                        db.rollback()
+
+                url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    timeout=30,
+                    verify=settings.fortiweb_verify_ssl,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                rows = _extract_policy_rows(payload)
+                _delete_missing_server_policy_rows(db, device.id, rows)
+                _upsert_server_policy_rows(db, device.id, rows)
+
+                unique_server_pools = {row["server_pool_name"] for row in rows if row["server_pool_name"]}
+                fetched_server_pool_rows = []
+                for server_pool_name in unique_server_pools:
+                    try:
+                        fetched_server_pool_rows.append(_fetch_and_upsert_server_pool(db, device, server_pool_name, headers))
+                    except Exception:
+                        db.rollback()
+                        _delete_missing_server_policy_rows(db, device.id, rows)
+                        _upsert_server_policy_rows(db, device.id, rows)
+                certificate_local_names = {
+                    certificate_name
+                    for row in fetched_server_pool_rows
+                    for certificate_name in [row.get("certificate_name"), row.get("client_certificate")]
+                    if certificate_name
+                }
+                for certificate_name in certificate_local_names:
+                    try:
+                        _fetch_and_upsert_certificate_local(db, device, certificate_name, headers)
+                    except Exception:
+                        db.rollback()
+                certificate_sni_names = {
+                    sni_name
+                    for row in fetched_server_pool_rows
+                    for sni_name in [row.get("sni_certificate")]
+                    if sni_name
+                }
+                for sni_name in certificate_sni_names:
+                    try:
+                        _fetch_and_upsert_certificate_sni_members(db, device, sni_name, headers)
+                    except Exception:
+                        db.rollback()
+                unique_allow_hosts = {row["allow_hosts"] for row in rows if row["allow_hosts"]}
+                for allow_hosts_name in unique_allow_hosts:
+                    try:
+                        _fetch_and_upsert_allow_hosts(db, device, allow_hosts_name, headers)
+                    except Exception:
+                        db.rollback()
+                        _delete_missing_server_policy_rows(db, device.id, rows)
+                        _upsert_server_policy_rows(db, device.id, rows)
+                db.commit()
+                device_result["server_policies"] = [row["server_policy_name"] for row in rows]
+            except Exception as exc:
                 db.rollback()
+                device_result["error"] = str(exc)
 
-            try:
-                _fetch_and_upsert_syntax_based_attack_detection(db, device, headers)
-            except Exception:
-                db.rollback()
+            per_device.append(device_result)
 
-            try:
-                _fetch_and_upsert_allow_method_policy(db, device, headers)
-            except Exception:
-                db.rollback()
+        return {"devices": per_device}
 
-            try:
-                _fetch_and_upsert_xml_validation_policy(db, device, headers)
-            except Exception:
-                db.rollback()
-
-            try:
-                _fetch_and_upsert_json_validation_policy(db, device, headers)
-            except Exception:
-                db.rollback()
-
-            unique_custom_access_policies = {row["custom_access_policy"] for row in web_protection_profile_rows if row.get("custom_access_policy")}
-            unique_custom_access_rules = set()
-            for custom_access_policy_name in unique_custom_access_policies:
-                try:
-                    custom_access_policy_row = _fetch_and_upsert_custom_access_policy(db, device, custom_access_policy_name, headers)
-                    unique_custom_access_rules.update(custom_access_policy_row.get("rule_names") or [])
-                except Exception:
-                    db.rollback()
-            for custom_access_rule_name in unique_custom_access_rules:
-                try:
-                    _fetch_and_upsert_custom_access_rule(db, device, custom_access_rule_name, headers)
-                except Exception:
-                    db.rollback()
-
-            unique_cookie_security_policies = {row["cookie_security_policy"] for row in web_protection_profile_rows if row.get("cookie_security_policy")}
-            for cookie_security_name in unique_cookie_security_policies:
-                try:
-                    _fetch_and_upsert_cookie_security_policy(db, device, cookie_security_name, headers)
-                except Exception:
-                    db.rollback()
-            unique_geo_ip_policies = {row["geo_block_list_policy"] for row in web_protection_profile_rows if row.get("geo_block_list_policy")}
-            for geo_ip_name in unique_geo_ip_policies:
-                try:
-                    _fetch_and_upsert_geo_ip(db, device, geo_ip_name, headers)
-                except Exception:
-                    db.rollback()
-            unique_bot_mitigate_policies = {row["bot_mitigate_policy"] for row in web_protection_profile_rows if row.get("bot_mitigate_policy")}
-            fetched_bot_mitigate_rows = []
-            for bot_mitigate_policy_name in unique_bot_mitigate_policies:
-                try:
-                    fetched_row = _fetch_and_upsert_bot_mitigate_policy(db, device, bot_mitigate_policy_name, headers)
-                    fetched_bot_mitigate_rows.append(fetched_row)
-                except Exception:
-                    db.rollback()
-            biometric_policy_names = {
-                row["biometrics_based_detection"]
-                for row in fetched_bot_mitigate_rows
-                if row.get("biometrics_based_detection")
-            }
-            try:
-                _fetch_and_upsert_biometric_based_detection(db, device, biometric_policy_names, headers)
-            except Exception:
-                db.rollback()
-            threshold_based_detection_names = {
-                row["threshold_based_detection"]
-                for row in fetched_bot_mitigate_rows
-                if row.get("threshold_based_detection")
-            }
-            for threshold_based_detection_name in threshold_based_detection_names:
-                try:
-                    _fetch_and_upsert_threshold_based_detection(
-                        db,
-                        device,
-                        threshold_based_detection_name,
-                        headers,
-                    )
-                except Exception:
-                    db.rollback()
-            known_bots_names = {
-                row["known_bots"]
-                for row in fetched_bot_mitigate_rows
-                if row.get("known_bots")
-            }
-            for known_bots_name in known_bots_names:
-                try:
-                    _fetch_and_upsert_known_bots(
-                        db,
-                        device,
-                        known_bots_name,
-                        headers,
-                    )
-                except Exception:
-                    db.rollback()
-
-            unique_signature_rules = {row["signature_rule"] for row in web_protection_profile_rows if row.get("signature_rule")}
-            for signature_rule in unique_signature_rules:
-                try:
-                    _fetch_and_upsert_signature(db, device, signature_rule, headers)
-                except Exception:
-                    db.rollback()
-            unique_application_layer_dos_prevention_policies = {
-                row["application_layer_dos_prevention"] for row in web_protection_profile_rows if row.get("application_layer_dos_prevention")
-            }
-            fetched_application_layer_dos_rows = []
-            unique_ip_list_policies = {row["ip_list_policy"] for row in web_protection_profile_rows if row.get("ip_list_policy")}
-            for ip_list_policy_name in unique_ip_list_policies:
-                try:
-                    _fetch_and_upsert_ip_list_policy(db, device, ip_list_policy_name, headers)
-                except Exception:
-                    db.rollback()
-            for application_layer_dos_prevention_name in unique_application_layer_dos_prevention_policies:
-                try:
-                    fetched_row = _fetch_and_upsert_application_layer_dos_prevention(
-                        db,
-                        device,
-                        application_layer_dos_prevention_name,
-                        headers,
-                    )
-                    fetched_application_layer_dos_rows.append(fetched_row)
-                except Exception:
-                    db.rollback()
-            unique_http_request_flood_prevention_rules = {
-                row["http_request_flood_prevention_rule"]
-                for row in fetched_application_layer_dos_rows
-                if row.get("http_request_flood_prevention_rule")
-            }
-            for http_request_flood_prevention_rule_name in unique_http_request_flood_prevention_rules:
-                try:
-                    _fetch_and_upsert_http_request_flood_prevention_rule(
-                        db,
-                        device,
-                        http_request_flood_prevention_rule_name,
-                        headers,
-                    )
-                except Exception:
-                    db.rollback()
-            unique_layer4_access_limit_rules = {
-                row["layer4_access_limit_rule"] for row in fetched_application_layer_dos_rows if row.get("layer4_access_limit_rule")
-            }
-            for layer4_access_limit_rule_name in unique_layer4_access_limit_rules:
-                try:
-                    _fetch_and_upsert_layer4_access_limit_rule(
-                        db,
-                        device,
-                        layer4_access_limit_rule_name,
-                        headers,
-                    )
-                except Exception:
-                    db.rollback()
-            unique_layer4_connection_flood_check_rules = {
-                row["layer4_connection_flood_check_rule"]
-                for row in fetched_application_layer_dos_rows
-                if row.get("layer4_connection_flood_check_rule")
-            }
-            for layer4_connection_flood_check_rule_name in unique_layer4_connection_flood_check_rules:
-                try:
-                    _fetch_and_upsert_tcp_flood_prevention(
-                        db,
-                        device,
-                        layer4_connection_flood_check_rule_name,
-                        headers,
-                    )
-                except Exception:
-                    db.rollback()
-
-            url = f"{_build_device_base_url(device.ip).rstrip('/')}{endpoint}"
-            response = requests.get(
-                url,
-                headers=headers,
-                timeout=30,
-                verify=settings.fortiweb_verify_ssl,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            rows = _extract_policy_rows(payload)
-            _delete_missing_server_policy_rows(db, device.id, rows)
-            _upsert_server_policy_rows(db, device.id, rows)
-
-            unique_server_pools = {row["server_pool_name"] for row in rows if row["server_pool_name"]}
-            fetched_server_pool_rows = []
-            for server_pool_name in unique_server_pools:
-                try:
-                    fetched_server_pool_rows.append(_fetch_and_upsert_server_pool(db, device, server_pool_name, headers))
-                except Exception:
-                    db.rollback()
-                    _delete_missing_server_policy_rows(db, device.id, rows)
-                    _upsert_server_policy_rows(db, device.id, rows)
-            certificate_local_names = {
-                certificate_name
-                for row in fetched_server_pool_rows
-                for certificate_name in [row.get("certificate_name"), row.get("client_certificate")]
-                if certificate_name
-            }
-            for certificate_name in certificate_local_names:
-                try:
-                    _fetch_and_upsert_certificate_local(db, device, certificate_name, headers)
-                except Exception:
-                    db.rollback()
-            certificate_sni_names = {
-                sni_name
-                for row in fetched_server_pool_rows
-                for sni_name in [row.get("sni_certificate")]
-                if sni_name
-            }
-            for sni_name in certificate_sni_names:
-                try:
-                    _fetch_and_upsert_certificate_sni_members(db, device, sni_name, headers)
-                except Exception:
-                    db.rollback()
-            unique_allow_hosts = {row["allow_hosts"] for row in rows if row["allow_hosts"]}
-            for allow_hosts_name in unique_allow_hosts:
-                try:
-                    _fetch_and_upsert_allow_hosts(db, device, allow_hosts_name, headers)
-                except Exception:
-                    db.rollback()
-                    _delete_missing_server_policy_rows(db, device.id, rows)
-                    _upsert_server_policy_rows(db, device.id, rows)
-            db.commit()
-            device_result["server_policies"] = [row["server_policy_name"] for row in rows]
-        except Exception as exc:
-            db.rollback()
-            device_result["error"] = str(exc)
-
-        per_device.append(device_result)
-
-    return {"devices": per_device}
-
+    finally:
+        if lock_acquired:
+            _release_collection_lock(db)
 
 def load_server_policies_from_db(db: Session) -> dict:
     def _normalize_policy_lookup_key(value):
