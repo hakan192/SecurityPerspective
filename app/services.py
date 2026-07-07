@@ -1753,23 +1753,42 @@ def _uses_postgresql(db: Session) -> bool:
     return getattr(getattr(bind, "dialect", None), "name", "") == "postgresql"
 
 
-def _acquire_collection_lock(db: Session) -> bool:
+def _acquire_collection_lock(db: Session):
     if not _uses_postgresql(db):
-        return False
-    db.execute(
+        return None
+
+    bind = db.get_bind()
+    connection = bind.connect()
+    locked = connection.execute(
+        text("SELECT pg_try_advisory_lock(hashtext(:lock_name))"),
+        {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME},
+    ).scalar()
+    if locked:
+        return connection
+
+    connection.close()
+    dispose = getattr(bind, "dispose", None)
+    if callable(dispose):
+        dispose()
+
+    connection = bind.connect()
+    connection.execute(
         text("SELECT pg_advisory_lock(hashtext(:lock_name))"),
         {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME},
     )
-    return True
+    return connection
 
 
-def _release_collection_lock(db: Session):
-    if not _uses_postgresql(db):
+def _release_collection_lock(connection):
+    if connection is None:
         return
-    db.execute(
-        text("SELECT pg_advisory_unlock(hashtext(:lock_name))"),
-        {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME},
-    )
+    try:
+        connection.execute(
+            text("SELECT pg_advisory_unlock(hashtext(:lock_name))"),
+            {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME},
+        )
+    finally:
+        connection.close()
 
 
 def _fetch_json_with_fallback_endpoints(device: ManagedDevice, headers: dict, endpoints: list[str]) -> dict:
@@ -3881,7 +3900,7 @@ def _fetch_and_upsert_signature(
 
 
 def fetch_and_store_server_policies_by_device(db: Session, devices: list[ManagedDevice]) -> dict:
-    lock_acquired = _acquire_collection_lock(db)
+    collection_lock = _acquire_collection_lock(db)
     try:
         per_device = []
         endpoint = settings.fortiweb_server_policy_endpoint
@@ -4142,8 +4161,7 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
         return {"devices": per_device}
 
     finally:
-        if lock_acquired:
-            _release_collection_lock(db)
+        _release_collection_lock(collection_lock)
 
 def load_server_policies_from_db(db: Session) -> dict:
     def _normalize_policy_lookup_key(value):

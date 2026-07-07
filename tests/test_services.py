@@ -1444,34 +1444,118 @@ def test_upsert_server_policy_rows_creates_server_pool_placeholder_before_policy
     }
 
 
-def test_collection_lock_uses_postgres_advisory_lock_and_unlock():
+def test_collection_lock_uses_dedicated_postgres_connection_for_lock_and_unlock():
     from app.services import FORTIWEB_COLLECTION_LOCK_NAME, _acquire_collection_lock, _release_collection_lock
+
+    class Result:
+        def scalar(self):
+            return True
 
     class Dialect:
         name = "postgresql"
 
-    class Bind:
-        dialect = Dialect()
-
-    class CapturingSession:
+    class CapturingConnection:
         def __init__(self):
             self.calls = []
-
-        def get_bind(self):
-            return Bind()
+            self.closed = False
 
         def execute(self, statement, params=None):
             self.calls.append((str(statement), params or {}))
+            return Result()
+
+        def close(self):
+            self.closed = True
+
+    class Bind:
+        dialect = Dialect()
+
+        def __init__(self):
+            self.connection = CapturingConnection()
+
+        def connect(self):
+            return self.connection
+
+    class CapturingSession:
+        def __init__(self):
+            self.bind = Bind()
+
+        def get_bind(self):
+            return self.bind
 
     session = CapturingSession()
 
-    assert _acquire_collection_lock(session) is True
-    _release_collection_lock(session)
+    connection = _acquire_collection_lock(session)
+    assert connection is session.bind.connection
+    _release_collection_lock(connection)
 
-    assert "pg_advisory_lock" in session.calls[0][0]
-    assert "pg_advisory_unlock" in session.calls[1][0]
-    assert session.calls[0][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
-    assert session.calls[1][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
+    assert "pg_try_advisory_lock" in connection.calls[0][0]
+    assert "pg_advisory_unlock" in connection.calls[1][0]
+    assert connection.calls[0][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
+    assert connection.calls[1][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
+    assert connection.closed is True
+
+
+def test_collection_lock_disposes_pool_and_retries_when_try_lock_fails():
+    from app.services import _acquire_collection_lock, _release_collection_lock
+
+    class TryLockResult:
+        def scalar(self):
+            return False
+
+    class BlockingLockResult:
+        def scalar(self):
+            return None
+
+    class Dialect:
+        name = "postgresql"
+
+    class CapturingConnection:
+        def __init__(self, result):
+            self.result = result
+            self.calls = []
+            self.closed = False
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+            return self.result
+
+        def close(self):
+            self.closed = True
+
+    class Bind:
+        dialect = Dialect()
+
+        def __init__(self):
+            self.connections = [CapturingConnection(TryLockResult()), CapturingConnection(BlockingLockResult())]
+            self.consumed_connections = []
+            self.disposed = False
+
+        def connect(self):
+            connection = self.connections.pop(0)
+            self.consumed_connections.append(connection)
+            return connection
+
+        def dispose(self):
+            self.disposed = True
+
+    class CapturingSession:
+        def __init__(self):
+            self.bind = Bind()
+
+        def get_bind(self):
+            return self.bind
+
+    session = CapturingSession()
+
+    connection = _acquire_collection_lock(session)
+    _release_collection_lock(connection)
+
+    first_connection, second_connection = session.bind.consumed_connections
+    assert session.bind.disposed is True
+    assert first_connection.closed is True
+    assert connection is second_connection
+    assert "pg_advisory_lock" in connection.calls[0][0]
+    assert connection.closed is True
 
 
 def test_collection_lock_skips_non_postgres_sessions():
@@ -1495,6 +1579,6 @@ def test_collection_lock_skips_non_postgres_sessions():
 
     session = CapturingSession()
 
-    assert _acquire_collection_lock(session) is False
-    _release_collection_lock(session)
+    assert _acquire_collection_lock(session) is None
+    _release_collection_lock(None)
     assert session.calls == []
