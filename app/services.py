@@ -2858,22 +2858,42 @@ def _delete_missing_server_policy_rows(db: Session, device_id: int, rows: list[d
     )
 
 
+def _ensure_server_policy_parent_rows(db: Session, device_id: int, row: dict):
+    if row["web_protection_profile_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO web_protection_profiles (device_id, web_protection_profile_name)
+                VALUES (:device_id, :web_protection_profile_name)
+                ON CONFLICT (device_id, web_protection_profile_name) DO NOTHING
+                """
+            ),
+            {
+                "device_id": device_id,
+                "web_protection_profile_name": row["web_protection_profile_name"],
+            },
+        )
+
+    if row["server_pool_name"]:
+        db.execute(
+            text(
+                """
+                INSERT INTO server_pool (device_id, server_pool_name, raw_json)
+                VALUES (:device_id, :server_pool_name, CAST(:raw_json AS jsonb))
+                ON CONFLICT (device_id, server_pool_name) DO NOTHING
+                """
+            ),
+            {
+                "device_id": device_id,
+                "server_pool_name": row["server_pool_name"],
+                "raw_json": json.dumps({}),
+            },
+        )
+
+
 def _upsert_server_policy_rows(db: Session, device_id: int, rows: list[dict]):
     for row in rows:
-        if row["web_protection_profile_name"]:
-            db.execute(
-                text(
-                    """
-                    INSERT INTO web_protection_profiles (device_id, web_protection_profile_name)
-                    VALUES (:device_id, :web_protection_profile_name)
-                    ON CONFLICT (device_id, web_protection_profile_name) DO NOTHING
-                    """
-                ),
-                {
-                    "device_id": device_id,
-                    "web_protection_profile_name": row["web_protection_profile_name"],
-                },
-            )
+        _ensure_server_policy_parent_rows(db, device_id, row)
 
         db.execute(
             text(

@@ -1406,3 +1406,39 @@ def test_build_policy_maturity_assessment_scores_bot_mitigation_zero_when_no_fea
     assert "biometric_based_detection" not in bot_mitigation["components"]
     assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 0
     assert bot_mitigation["components"]["known_bot"]["points"] == 0
+
+
+def test_upsert_server_policy_rows_creates_server_pool_placeholder_before_policy_insert():
+    from app.services import _upsert_server_policy_rows
+
+    class CapturingSession:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+
+    session = CapturingSession()
+    rows = [
+        {
+            "server_policy_name": "policy-a",
+            "web_protection_profile_name": "profile-a",
+            "server_pool_name": "pool-a",
+            "allow_hosts": "hosts-a",
+            "traffic_mirror": "disable",
+            "monitor_mode": "disable",
+            "raw_json": {"name": "policy-a"},
+        }
+    ]
+
+    _upsert_server_policy_rows(session, 59, rows)
+
+    statements = [statement for statement, _ in session.calls]
+    server_pool_index = next(index for index, statement in enumerate(statements) if "INSERT INTO server_pool" in statement)
+    server_policy_index = next(index for index, statement in enumerate(statements) if "INSERT INTO server_policy" in statement)
+    assert server_pool_index < server_policy_index
+    assert session.calls[server_pool_index][1] == {
+        "device_id": 59,
+        "server_pool_name": "pool-a",
+        "raw_json": "{}",
+    }
