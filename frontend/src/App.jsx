@@ -2673,16 +2673,39 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const loadWafResponse = async () => {
+  const hasServerPolicies = (payload) => {
+    const payloadDevices = Array.isArray(payload?.devices) ? payload.devices : []
+    return payloadDevices.some((device) => Array.isArray(device.server_policies) && device.server_policies.length > 0)
+  }
+
+  const fetchCollectedWafResponse = async () => {
+    const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
+      method: 'POST',
+      headers: { 'X-Role': 'admin' }
+    })
+    if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
+    const data = await response.json()
+    return data.payload
+  }
+
+  const loadWafResponse = async ({ collectIfEmpty = false, showErrors = true } = {}) => {
     setLoadingWaf(true)
     setWafError('')
     try {
       const res = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
-      if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
-      const data = await res.json()
-      setWafResponse(data.payload)
+      let payload = null
+      if (res.ok) {
+        const data = await res.json()
+        payload = data.payload
+      }
+      if (collectIfEmpty && !hasServerPolicies(payload)) {
+        payload = await fetchCollectedWafResponse()
+      }
+      if (!payload && showErrors) throw new Error('No WAF API response found. Collect from WAF first.')
+      setWafResponse(payload || { devices: [] })
     } catch (err) {
-      setWafError(err.message)
+      if (showErrors) setWafError(err.message)
+      setWafResponse((prev) => prev || { devices: [] })
     } finally {
       setLoadingWaf(false)
     }
@@ -2692,13 +2715,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setLoadingWaf(true)
     setWafError('')
     try {
-      const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
-        method: 'POST',
-        headers: { 'X-Role': 'admin' }
-      })
-      if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
-      const data = await response.json()
-      setWafResponse(data.payload)
+      const payload = await fetchCollectedWafResponse()
+      setWafResponse(payload)
     } catch (err) {
       setWafError(err.message)
     } finally {
@@ -2707,7 +2725,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+    if (activeNav === 'waf') loadWafResponse()
+    if (activeNav === 'home' || activePage === 'scoring') loadWafResponse({ collectIfEmpty: true, showErrors: false })
   }, [activeNav, activePage])
 
   useEffect(() => {
