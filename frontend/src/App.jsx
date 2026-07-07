@@ -24,11 +24,6 @@ const navItems = [
     description: 'Policies, gaps, and remediation priorities'
   },
   {
-    id: 'automation',
-    label: 'Automation',
-    description: 'Security automation controls and quick actions'
-  },
-  {
     id: 'overview',
     label: 'Executive Overview',
     description: 'Leadership-ready security posture summaries'
@@ -2245,8 +2240,53 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 }
 
 
-function ExecutiveOverviewPage({ onDeepDive }) {
-  const [overallCard, ...siteCards] = executiveMaturityCards
+const getPolicyMaturityScore = (policy = {}) => {
+  const maturityPoints = getMaturityPoints(policy)
+  const totalPoints = maturityPoints.reduce((total, point) => total + Number(point.points || 0), 0)
+  const maxPoints = maturityPoints.reduce((total, point) => total + Number(point.maxPoints || 0), 0)
+  return maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 0
+}
+
+const averagePolicyMaturityScore = (policies = [], locationName = '') => {
+  const normalizedLocation = toMaturityText(locationName)
+  const matchingPolicies = policies.filter((policy) => {
+    if (!policy || typeof policy === 'string') return false
+    return toMaturityText(policy.location || policy._deviceLocation || policy.region || 'Unknown') === normalizedLocation
+  })
+  if (matchingPolicies.length === 0) return 0
+  const totalScore = matchingPolicies.reduce((total, policy) => total + getPolicyMaturityScore(policy), 0)
+  return Math.round(totalScore / matchingPolicies.length)
+}
+
+const getMaturityLevel = (score) => {
+  if (score >= 85) return 'Optimized'
+  if (score >= 70) return 'Managed'
+  if (score >= 50) return 'Developing'
+  return 'Needs Focus'
+}
+
+const getMaturityTone = (score) => {
+  if (score >= 85) return 'strong'
+  if (score >= 70) return 'steady'
+  return 'decreased'
+}
+
+function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
+  const pendikScore = averagePolicyMaturityScore(policies, 'Pendik')
+  const ankaraScore = averagePolicyMaturityScore(policies, 'Ankara')
+  const overallScore = Math.round((pendikScore + ankaraScore) / 2)
+  const dynamicScores = { overall: overallScore, pendik: pendikScore, ankara: ankaraScore }
+  const [overallCard, ...siteCards] = executiveMaturityCards.map((card) => {
+    const score = dynamicScores[card.id] ?? 0
+    return {
+      ...card,
+      score,
+      series: [score, score, score],
+      level: getMaturityLevel(score),
+      tone: getMaturityTone(score),
+      trend: { direction: 'stable', value: `${score}%`, label: 'Current policy average' }
+    }
+  })
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
@@ -3341,7 +3381,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} policies={wafPolicies} />}
             {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
