@@ -110,6 +110,56 @@ def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate()
     assert row["client_certificate"] == "client-cert-01"
 
 
+def test_extract_server_pool_row_parses_dict_results_and_host_aliases():
+    payload = {
+        "results": {
+            "host": "10.20.30.40",
+            "sni": "disable",
+            "tls-v10": "enable",
+            "tls-v11": "disable",
+            "tls-v12": "enable",
+            "tls-v13": "disable",
+            "http2": "enable",
+        }
+    }
+
+    row = _extract_server_pool_row(payload, "pool-b")
+
+    assert row["ip"] == "10.20.30.40"
+    assert row["sni"] == "disable"
+    assert row["tls_v10"] is True
+    assert row["tls_v11"] is False
+    assert row["tls_v12"] is True
+    assert row["tls_v13"] is False
+    assert row["http2"] is True
+
+
+
+
+def test_extract_server_pool_row_parses_nested_member_results():
+    payload = {"results": {"pserver-list": [{"server-address": "10.30.40.50"}]}}
+
+    row = _extract_server_pool_row(payload, "pool-c")
+
+    assert row["ip"] == "10.30.40.50"
+
+def test_extract_certificate_local_row_parses_dict_results():
+    payload = {
+        "results": {
+            "subject": "CN=www.example.com,O=Example",
+            "issuer": "CN=Example CA,O=Example",
+            "validTo": "2027-07-07T12:00:00Z",
+            "serialNumber": "ABC123",
+        }
+    }
+
+    row = _extract_certificate_local_row(payload, "cert-dict")
+
+    assert row["subject"] == "CN=www.example.com,O=Example"
+    assert row["issuer"] == "CN=Example CA,O=Example"
+    assert row["valid_to"] == "2027-07-07"
+    assert row["serial_number"] == "ABC123"
+
 def test_extract_certificate_common_name_returns_only_cn_from_distinguished_name():
     subject = "C=TR, L=Istanbul, O=Example Org, CN=app.example.com"
 

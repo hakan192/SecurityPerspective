@@ -3053,13 +3053,31 @@ def _upsert_allow_hosts_rows(db: Session, device_id: int, allow_hosts_name: str,
         )
 
 
+def _first_result_dict(payload: dict) -> dict:
+    results = payload.get("results", {}) if isinstance(payload, dict) else {}
+    if isinstance(results, dict):
+        for nested_key in ("pserver-list", "pserver_list", "server-list", "server_list", "members", "member"):
+            nested_results = results.get(nested_key)
+            if isinstance(nested_results, list) and nested_results and isinstance(nested_results[0], dict):
+                return nested_results[0]
+        return results
+    if isinstance(results, list) and results and isinstance(results[0], dict):
+        return results[0]
+    return {}
+
+
 def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
-    results = payload.get("results", []) if isinstance(payload, dict) else []
-    result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
+    result = _first_result_dict(payload)
 
     return {
         "server_pool_name": server_pool_name,
-        "ip": _normalize_optional_text(result.get("ip") or result.get("address")),
+        "ip": _normalize_optional_text(
+            result.get("ip")
+            or result.get("address")
+            or result.get("host")
+            or result.get("server-address")
+            or result.get("server_address")
+        ),
         "sni": _normalize_optional_text(result.get("sni")),
         "sni_certificate": _normalize_optional_text(result.get("sni-certificate") or result.get("sni_certificate")),
         "client_certificate": _normalize_optional_text(result.get("client-certificate") or result.get("client_certificate")),
@@ -3084,8 +3102,7 @@ def _extract_server_pool_row(payload: dict, server_pool_name: str) -> dict:
 
 
 def _extract_certificate_local_row(payload: dict, certificate_name: str) -> dict:
-    results = payload.get("results", []) if isinstance(payload, dict) else []
-    result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else {}
+    result = _first_result_dict(payload)
     return {
         "certificate_name": certificate_name,
         "subject": _normalize_optional_text(result.get("subject") or result.get("subject_name")),
@@ -3129,7 +3146,7 @@ def _upsert_certificate_local_row(db: Session, device_id: int, row: dict):
                 :issuer,
                 :valid_from,
                 CAST(:valid_to AS date),
-                CASE WHEN :valid_to IS NULL THEN NULL ELSE CURRENT_DATE - CAST(:valid_to AS date) END,
+                CASE WHEN :valid_to IS NULL THEN NULL ELSE CAST(:valid_to AS date) - CURRENT_DATE END,
                 :serial_number,
                 CAST(:raw_json AS jsonb)
             )
@@ -4126,6 +4143,16 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     for certificate_name in [row.get("certificate_name"), row.get("client_certificate")]
                     if certificate_name
                 }
+                certificate_local_names.update(
+                    _normalize_optional_text(
+                        _extract_by_normalized_aliases(
+                            row.get("raw_json", {}),
+                            ["client-certificate", "client_certificate", "certificate"],
+                        )
+                    )
+                    for row in rows
+                )
+                certificate_local_names.discard(None)
                 for certificate_name in certificate_local_names:
                     try:
                         _fetch_and_upsert_certificate_local(db, device, certificate_name, headers)
@@ -4137,6 +4164,16 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     for sni_name in [row.get("sni_certificate")]
                     if sni_name
                 }
+                certificate_sni_names.update(
+                    _normalize_optional_text(
+                        _extract_by_normalized_aliases(
+                            row.get("raw_json", {}),
+                            ["sni-certificate", "sni_certificate"],
+                        )
+                    )
+                    for row in rows
+                )
+                certificate_sni_names.discard(None)
                 for sni_name in certificate_sni_names:
                     try:
                         _fetch_and_upsert_certificate_sni_members(db, device, sni_name, headers)
@@ -4183,6 +4220,7 @@ def load_server_policies_from_db(db: Session) -> dict:
                 sp.allow_hosts,
                 sp.traffic_mirror,
                 sp.monitor_mode,
+                sp.raw_json AS server_policy_raw_json,
                 wpp.signature_rule,
                 wpp.http_protocol_parameter_restriction,
                 wpp.cookie_security_policy,
@@ -4376,6 +4414,27 @@ def load_server_policies_from_db(db: Session) -> dict:
                 "raw_json": row["raw_json"],
             }
         )
+
+    certificate_local_rows = db.execute(
+        text(
+            """
+            SELECT
+                device_id,
+                certificate_name,
+                subject,
+                issuer,
+                valid_from,
+                valid_to,
+                days_left,
+                serial_number
+            FROM certificate_local
+            """
+        )
+    ).mappings().all()
+    certificate_local_by_name = {
+        (row["device_id"], row["certificate_name"]): row
+        for row in certificate_local_rows
+    }
 
     sni_member_rows = db.execute(
         text(
@@ -4707,10 +4766,45 @@ def load_server_policies_from_db(db: Session) -> dict:
                 (device_id, _normalize_policy_lookup_key(known_bots_policy_name)),
                 {},
             )
+            server_policy_raw_json = row.get("server_policy_raw_json")
+            if isinstance(server_policy_raw_json, str):
+                try:
+                    server_policy_raw_json = json.loads(server_policy_raw_json)
+                except json.JSONDecodeError:
+                    server_policy_raw_json = {}
+            if not isinstance(server_policy_raw_json, dict):
+                server_policy_raw_json = {}
+            resolved_sni = row["sni"] or _as_enable_disable(_extract_by_normalized_aliases(server_policy_raw_json, ["sni"]))
+            resolved_sni_certificate = row["sni_certificate"] or _normalize_optional_text(
+                _extract_by_normalized_aliases(server_policy_raw_json, ["sni-certificate", "sni_certificate"])
+            )
+            resolved_client_certificate = row["client_certificate"] or _normalize_optional_text(
+                _extract_by_normalized_aliases(server_policy_raw_json, ["client-certificate", "client_certificate", "certificate"])
+            )
+            resolved_tls_v10 = row["tls_v10"] if row["tls_v10"] is not None else _as_bool(_extract_by_normalized_aliases(server_policy_raw_json, ["tls-v10", "tls_v10"]))
+            resolved_tls_v11 = row["tls_v11"] if row["tls_v11"] is not None else _as_bool(_extract_by_normalized_aliases(server_policy_raw_json, ["tls-v11", "tls_v11"]))
+            resolved_tls_v12 = row["tls_v12"] if row["tls_v12"] is not None else _as_bool(_extract_by_normalized_aliases(server_policy_raw_json, ["tls-v12", "tls_v12"]))
+            resolved_tls_v13 = row["tls_v13"] if row["tls_v13"] is not None else _as_bool(_extract_by_normalized_aliases(server_policy_raw_json, ["tls-v13", "tls_v13"]))
+            resolved_http2 = row["http2"] if row["http2"] is not None else _as_bool(_extract_by_normalized_aliases(server_policy_raw_json, ["http2"]))
+            resolved_tls13_custom_cipher = row["tls13_custom_cipher"] or _normalize_optional_text(
+                _extract_by_normalized_aliases(server_policy_raw_json, ["tls13-custom-cipher", "tls13_custom_cipher"])
+            )
+            certificate_lookup = certificate_local_by_name.get((device_id, resolved_client_certificate), {})
+            certificate_subject = row["client_certificate_subject"] or certificate_lookup.get("subject")
+            certificate_issuer = row["client_certificate_issuer"] or certificate_lookup.get("issuer")
+            certificate_valid_from = row["client_certificate_valid_from"] or certificate_lookup.get("valid_from")
+            certificate_valid_to = row["client_certificate_valid_to"] or certificate_lookup.get("valid_to")
+            certificate_days_left = row["client_certificate_days_left"]
+            if certificate_days_left is None:
+                certificate_days_left = certificate_lookup.get("days_left")
+            certificate_serial_number = row["client_certificate_serial_number"] or certificate_lookup.get("serial_number")
+
             allow_method_info = _format_allow_method_value(row.get("allow_method_value"))
             signature_set_status = _build_signature_set_status(row)
             http_rfc_control_status = _build_http_rfc_control_status(row)
-            http2_rfc_control_status = _build_http2_rfc_control_status(row)
+            http2_row = dict(row)
+            http2_row["http2"] = resolved_http2
+            http2_rfc_control_status = _build_http2_rfc_control_status(http2_row)
             standard_protection_state = {
                 "signature": signature_set_status["status"],
                 "http_rfc": http_rfc_control_status["status"],
@@ -4785,7 +4879,7 @@ def load_server_policies_from_db(db: Session) -> dict:
             )
             maturity_assessment = _build_policy_maturity_assessment(
                 standard_protection_state,
-                row["http2"],
+                resolved_http2,
                 advanced_protection_state,
                 application_dos_protection_state,
                 bot_mitigation_state,
@@ -4804,28 +4898,28 @@ def load_server_policies_from_db(db: Session) -> dict:
                     "monitor_mode": row["monitor_mode"],
                     "monitor-mode": row["monitor_mode"],
                     "ip": row["server_pool_ip"],
-                    "sni": row["sni"],
-                    "sni-certificate": row["sni_certificate"],
-                    "sni_certificate": row["sni_certificate"],
-                    "sni_entries": sni_members_by_name.get((device_id, row["sni_certificate"]), []),
-                    "client-certificate": row["client_certificate"],
-                    "client_certificate": row["client_certificate"],
+                    "sni": resolved_sni,
+                    "sni-certificate": resolved_sni_certificate,
+                    "sni_certificate": resolved_sni_certificate,
+                    "sni_entries": sni_members_by_name.get((device_id, resolved_sni_certificate), []),
+                    "client-certificate": resolved_client_certificate,
+                    "client_certificate": resolved_client_certificate,
                     "client_certificate_details": {
-                        "subject": row["client_certificate_subject"],
-                        "cn": _extract_certificate_common_name(row["client_certificate_subject"]),
-                        "issuer": row["client_certificate_issuer"],
-                        "issuer_cn": _extract_certificate_common_name(row["client_certificate_issuer"]),
-                        "valid_from": row["client_certificate_valid_from"],
-                        "valid_to": row["client_certificate_valid_to"],
-                        "days_left": row["client_certificate_days_left"],
-                        "serial_number": row["client_certificate_serial_number"],
+                        "subject": certificate_subject,
+                        "cn": _extract_certificate_common_name(certificate_subject),
+                        "issuer": certificate_issuer,
+                        "issuer_cn": _extract_certificate_common_name(certificate_issuer),
+                        "valid_from": certificate_valid_from,
+                        "valid_to": certificate_valid_to,
+                        "days_left": certificate_days_left,
+                        "serial_number": certificate_serial_number,
                     },
-                    "tls13_custom_cipher": row["tls13_custom_cipher"],
-                    "tls_v10": row["tls_v10"],
-                    "tls_v11": row["tls_v11"],
-                    "tls_v12": row["tls_v12"],
-                    "tls_v13": row["tls_v13"],
-                    "http2": row["http2"],
+                    "tls13_custom_cipher": resolved_tls13_custom_cipher,
+                    "tls_v10": resolved_tls_v10,
+                    "tls_v11": resolved_tls_v11,
+                    "tls_v12": resolved_tls_v12,
+                    "tls_v13": resolved_tls_v13,
+                    "http2": resolved_http2,
                     "http_rfc": http_rfc_control_status["status"],
                     "http_rfc_selected_count": http_rfc_control_status["selected_count"],
                     "http2_rfc_control": http2_rfc_control_status["status"],
