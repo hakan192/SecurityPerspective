@@ -2308,7 +2308,11 @@ const getHostStatusTotals = (policies = [], locationName = '') => {
   }
 }
 
-const formatHostStatusTotals = (totals) => `${totals.blocking} Blocking · ${totals.monitoring} Monitoring · ${totals.notProtected} Not Protected`
+const buildHostStatusMetrics = (totals = {}) => [
+  { label: 'Blocking', value: totals.blocking || 0 },
+  { label: 'Monitoring', value: totals.monitoring || 0 },
+  { label: 'Not protected', value: totals.notProtected || 0 }
+]
 
 function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
   const pendikScore = averagePolicyMaturityScore(policies, 'Pendik')
@@ -2331,8 +2335,8 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
         ? null
         : {
             direction: 'stable',
-            value: formatHostStatusTotals(hostStatusTotals[card.id]),
-            label: 'Host status totals'
+            label: 'Host status totals',
+            metrics: buildHostStatusMetrics(hostStatusTotals[card.id])
           }
     }
   })
@@ -2612,8 +2616,19 @@ function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive
         {card.trend && (
           <div className={`maturity-trend ${card.trend.direction}`}>
             <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-            <span className="maturity-trend-copy">
-              <strong>{card.trend.value}</strong>
+            <span className={`maturity-trend-copy ${card.trend.metrics ? 'host-status-summary' : ''}`}>
+              {card.trend.metrics ? (
+                <span className="host-status-grid" aria-label={card.trend.label}>
+                  {card.trend.metrics.map((metric) => (
+                    <span className="host-status-item" key={metric.label}>
+                      <strong>{metric.value}</strong>
+                      <small>{metric.label}</small>
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <strong>{card.trend.value}</strong>
+              )}
               <small>{card.trend.label}</small>
             </span>
           </div>

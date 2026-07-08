@@ -1809,6 +1809,50 @@ input,
   font-weight: 800;
 }
 
+.maturity-trend-copy.host-status-summary {
+  width: 100%;
+  min-width: 0;
+}
+
+.host-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.host-status-item {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.08rem;
+  padding: 0.45rem 0.35rem;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  text-align: center;
+}
+
+.dark .host-status-item {
+  background: rgba(15, 23, 42, 0.42);
+  border-color: rgba(71, 85, 105, 0.64);
+}
+
+.host-status-item strong {
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.host-status-item small {
+  max-width: 100%;
+  color: inherit;
+  font-size: clamp(0.56rem, 0.72vw, 0.68rem);
+  line-height: 1.1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .dark .maturity-trend-copy small {
   color: #94a3b8;
 }
