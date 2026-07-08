@@ -1779,8 +1779,8 @@ input,
 }
 
 .maturity-trend-icon {
-  width: 4.6rem;
-  height: 4.6rem;
+  width: 3.15rem;
+  height: 3.15rem;
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
@@ -1788,8 +1788,8 @@ input,
 }
 
 .maturity-trend-icon svg {
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 1.65rem;
+  height: 1.65rem;
 }
 
 .maturity-trend-copy {
@@ -1816,21 +1816,22 @@ input,
 
 .host-status-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: 1fr;
+  gap: 0.32rem;
   width: 100%;
 }
 
 .host-status-item {
   min-width: 0;
-  display: grid;
-  justify-items: center;
-  gap: 0.08rem;
-  padding: 0.45rem 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.34rem 0.5rem;
   border-radius: 0.8rem;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(203, 213, 225, 0.72);
-  text-align: center;
+  text-align: left;
 }
 
 .dark .host-status-item {
