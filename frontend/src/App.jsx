@@ -11,6 +11,8 @@ const API_BASE =
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
 
+const hasServerPolicies = (payload) => (payload?.devices || []).some((device) => Array.isArray(device.server_policies) && device.server_policies.length > 0)
+
 const getCertificateCommonName = (subject) => {
   if (!subject) return ''
   const match = String(subject).trim().match(/(?:^|[,/]\s*)\s*CN\s*=\s*((?:\\.|[^,/])*)/i)
@@ -2740,23 +2742,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const loadWafResponse = async () => {
-    setLoadingWaf(true)
-    setWafError('')
-    try {
-      const res = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
-      if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
-      const data = await res.json()
-      setWafResponse(data.payload)
-    } catch (err) {
-      setWafError(err.message)
-    } finally {
-      setLoadingWaf(false)
-    }
-  }
-
-  const collectWafResponse = async () => {
-    setLoadingWaf(true)
+  const collectWafResponse = async ({ manageLoading = true } = {}) => {
+    if (manageLoading) setLoadingWaf(true)
     setWafError('')
     try {
       const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
@@ -2766,15 +2753,41 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
       const data = await response.json()
       setWafResponse(data.payload)
+      return data.payload
     } catch (err) {
       setWafError(err.message)
+      return null
+    } finally {
+      if (manageLoading) setLoadingWaf(false)
+    }
+  }
+
+  const loadWafResponse = async ({ collectIfEmpty = false } = {}) => {
+    setLoadingWaf(true)
+    setWafError('')
+    try {
+      const res = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
+      if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
+      const data = await res.json()
+      setWafResponse(data.payload)
+      if (collectIfEmpty && !hasServerPolicies(data.payload)) {
+        await collectWafResponse({ manageLoading: false })
+      }
+    } catch (err) {
+      if (collectIfEmpty) {
+        await collectWafResponse({ manageLoading: false })
+      } else {
+        setWafError(err.message)
+      }
     } finally {
       setLoadingWaf(false)
     }
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home' || activeNav === 'overview' || activePage === 'scoring') loadWafResponse()
+    if (activeNav === 'waf' || activeNav === 'home' || activeNav === 'overview' || activePage === 'scoring') {
+      loadWafResponse({ collectIfEmpty: activeNav === 'overview' || activePage === 'scoring' })
+    }
   }, [activeNav, activePage])
 
   useEffect(() => {
@@ -2797,7 +2810,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'device-config') loadDevices()
+    if (activeNav === 'device-config' || activeNav === 'overview') loadDevices()
   }, [activeNav])
 
   useEffect(() => {
