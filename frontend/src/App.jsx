@@ -88,7 +88,6 @@ const executiveMaturityCards = [
     level: 'Optimized',
     tone: 'strong',
     summary: 'Protection is consistently enforced across core application tiers with mature policy coverage and response-ready controls.',
-    trend: { direction: 'improved', value: '+6 pts', label: 'Improved this quarter' },
     signals: ['Policy coverage 91%', 'Attack signatures current', 'Bot controls aligned']
   },
   {
@@ -112,7 +111,7 @@ const executiveMaturityCards = [
     level: 'Optimized',
     tone: 'strong',
     summary: 'Ankara maintains enterprise-grade coverage while final planned services move through monitoring-to-blocking readiness.',
-    trend: { direction: 'decreased', value: '-2 pts', label: 'Normalized this quarter' },
+    trend: { direction: 'stable', value: 'Host protection', label: 'Current host posture' },
     signals: ['Blocking migration active', 'Profiles normalized', 'High-priority apps covered']
   }
 ]
@@ -2245,12 +2244,45 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 }
 
 
-function ExecutiveOverviewPage({ onDeepDive }) {
-  const [overallCard, ...siteCards] = executiveMaturityCards
+function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
+  const [overallCard, ...baseSiteCards] = executiveMaturityCards
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
   const [activeOverviewTabId, setActiveOverviewTabId] = useState('executive-overview-main')
+
+  const hostStatusCountsByLocation = useMemo(() => {
+    const counts = {
+      pendik: { blocking: 0, monitoring: 0, notProtected: 0 },
+      ankara: { blocking: 0, monitoring: 0, notProtected: 0 }
+    }
+
+    policies.forEach((policy) => {
+      const location = String(policy?._deviceLocation || '').trim().toLowerCase()
+      const locationKey = location.includes('pendik') ? 'pendik' : location.includes('ankara') ? 'ankara' : ''
+      if (!locationKey) return
+
+      const hostnames = Array.isArray(policy.allow_hosts_entries)
+        ? policy.allow_hosts_entries.map((entry) => String(entry?.host || '').trim()).filter(Boolean)
+        : []
+      const hostCount = new Set(hostnames).size
+      if (hostCount === 0) return
+
+      const status = getPolicyProtectionStatus(policy)
+      counts[locationKey][status] += hostCount
+    })
+
+    return counts
+  }, [policies])
+
+  const siteCards = useMemo(
+    () => baseSiteCards.map((card) => ({
+      ...card,
+      hostStatusCounts: hostStatusCountsByLocation[card.id] || { blocking: 0, monitoring: 0, notProtected: 0 },
+      trend: { ...card.trend, direction: 'stable' }
+    })),
+    [baseSiteCards, hostStatusCountsByLocation]
+  )
 
   const handleTimelineChange = (id, field, value) => {
     setTimelineItems((items) => (
@@ -2500,6 +2532,33 @@ function TrendArrowIcon({ direction }) {
   )
 }
 
+function getPolicyProtectionStatus(policy) {
+  const ip = typeof policy === 'string' ? '' : (policy?.ip || '').trim()
+  if (!ip) return 'notProtected'
+  const monitorMode = typeof policy === 'string' ? '' : String(policy?.['monitor-mode'] ?? policy?.monitor_mode ?? '').toLowerCase()
+  if (monitorMode === 'enable') return 'monitoring'
+  return 'blocking'
+}
+
+function HostProtectionCounts({ counts }) {
+  const items = [
+    { key: 'blocking', label: 'Blocking', value: counts?.blocking || 0 },
+    { key: 'monitoring', label: 'Monitoring', value: counts?.monitoring || 0 },
+    { key: 'not-protected', label: 'Not protected', value: counts?.notProtected || 0 }
+  ]
+
+  return (
+    <div className="host-protection-counts" aria-label="Host protection status totals">
+      {items.map((item) => (
+        <span key={item.key} className={`host-protection-count ${item.key}`}>
+          <strong>{item.value}</strong>
+          <small>{item.label}</small>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive, contentWrapped = true }) {
   const cardContent = (
     <>
@@ -2520,13 +2579,21 @@ function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive
           <p>{card.summary}</p>
         </div>
 
-        <div className={`maturity-trend ${card.trend.direction}`}>
-          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-          <span className="maturity-trend-copy">
-            <strong>{card.trend.value}</strong>
-            <small>{card.trend.label}</small>
-          </span>
-        </div>
+        {card.trend && (
+          <div className={`maturity-trend ${card.trend.direction}`}>
+            {card.hostStatusCounts ? (
+              <HostProtectionCounts counts={card.hostStatusCounts} />
+            ) : (
+              <>
+                <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+                <span className="maturity-trend-copy">
+                  <strong>{card.trend.value}</strong>
+                  <small>{card.trend.label}</small>
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
       {showDeepDive && (
         <div className="maturity-card-actions">
@@ -2707,7 +2774,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+    if (activeNav === 'waf' || activeNav === 'home' || activeNav === 'overview' || activePage === 'scoring') loadWafResponse()
   }, [activeNav, activePage])
 
   useEffect(() => {
@@ -3322,7 +3389,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} policies={wafPolicies} />}
             {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">

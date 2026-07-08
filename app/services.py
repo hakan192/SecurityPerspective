@@ -4036,10 +4036,17 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
             response.raise_for_status()
             payload = response.json()
             rows = _extract_policy_rows(payload)
+            _delete_missing_server_policy_rows(db, device.id, rows)
+            _upsert_server_policy_rows(db, device.id, rows)
+            db.commit()
+
             unique_server_pools = {row["server_pool_name"] for row in rows if row["server_pool_name"]}
             fetched_server_pool_rows = []
             for server_pool_name in unique_server_pools:
-                fetched_server_pool_rows.append(_fetch_and_upsert_server_pool(db, device, server_pool_name, headers))
+                try:
+                    fetched_server_pool_rows.append(_fetch_and_upsert_server_pool(db, device, server_pool_name, headers))
+                except Exception:
+                    db.rollback()
             certificate_local_names = {
                 certificate_name
                 for row in fetched_server_pool_rows
@@ -4062,11 +4069,12 @@ def fetch_and_store_server_policies_by_device(db: Session, devices: list[Managed
                     _fetch_and_upsert_certificate_sni_members(db, device, sni_name, headers)
                 except Exception:
                     db.rollback()
-            _delete_missing_server_policy_rows(db, device.id, rows)
-            _upsert_server_policy_rows(db, device.id, rows)
             unique_allow_hosts = {row["allow_hosts"] for row in rows if row["allow_hosts"]}
             for allow_hosts_name in unique_allow_hosts:
-                _fetch_and_upsert_allow_hosts(db, device, allow_hosts_name, headers)
+                try:
+                    _fetch_and_upsert_allow_hosts(db, device, allow_hosts_name, headers)
+                except Exception:
+                    db.rollback()
             db.commit()
             device_result["server_policies"] = [row["server_policy_name"] for row in rows]
         except Exception as exc:
