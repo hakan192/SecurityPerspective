@@ -110,6 +110,56 @@ def test_extract_server_pool_row_parses_sni_certificate_and_client_certificate()
     assert row["client_certificate"] == "client-cert-01"
 
 
+def test_extract_server_pool_row_parses_dict_results_and_host_aliases():
+    payload = {
+        "results": {
+            "host": "10.20.30.40",
+            "sni": "disable",
+            "tls-v10": "enable",
+            "tls-v11": "disable",
+            "tls-v12": "enable",
+            "tls-v13": "disable",
+            "http2": "enable",
+        }
+    }
+
+    row = _extract_server_pool_row(payload, "pool-b")
+
+    assert row["ip"] == "10.20.30.40"
+    assert row["sni"] == "disable"
+    assert row["tls_v10"] is True
+    assert row["tls_v11"] is False
+    assert row["tls_v12"] is True
+    assert row["tls_v13"] is False
+    assert row["http2"] is True
+
+
+
+
+def test_extract_server_pool_row_parses_nested_member_results():
+    payload = {"results": {"pserver-list": [{"server-address": "10.30.40.50"}]}}
+
+    row = _extract_server_pool_row(payload, "pool-c")
+
+    assert row["ip"] == "10.30.40.50"
+
+def test_extract_certificate_local_row_parses_dict_results():
+    payload = {
+        "results": {
+            "subject": "CN=www.example.com,O=Example",
+            "issuer": "CN=Example CA,O=Example",
+            "validTo": "2027-07-07T12:00:00Z",
+            "serialNumber": "ABC123",
+        }
+    }
+
+    row = _extract_certificate_local_row(payload, "cert-dict")
+
+    assert row["subject"] == "CN=www.example.com,O=Example"
+    assert row["issuer"] == "CN=Example CA,O=Example"
+    assert row["valid_to"] == "2027-07-07"
+    assert row["serial_number"] == "ABC123"
+
 def test_extract_certificate_common_name_returns_only_cn_from_distinguished_name():
     subject = "C=TR, L=Istanbul, O=Example Org, CN=app.example.com"
 
@@ -1406,3 +1456,179 @@ def test_build_policy_maturity_assessment_scores_bot_mitigation_zero_when_no_fea
     assert "biometric_based_detection" not in bot_mitigation["components"]
     assert bot_mitigation["components"]["threshold_based_detection"]["points"] == 0
     assert bot_mitigation["components"]["known_bot"]["points"] == 0
+
+
+def test_upsert_server_policy_rows_creates_server_pool_placeholder_before_policy_insert():
+    from app.services import _upsert_server_policy_rows
+
+    class CapturingSession:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+
+    session = CapturingSession()
+    rows = [
+        {
+            "server_policy_name": "policy-a",
+            "web_protection_profile_name": "profile-a",
+            "server_pool_name": "pool-a",
+            "allow_hosts": "hosts-a",
+            "traffic_mirror": "disable",
+            "monitor_mode": "disable",
+            "raw_json": {"name": "policy-a"},
+        }
+    ]
+
+    _upsert_server_policy_rows(session, 59, rows)
+
+    statements = [statement for statement, _ in session.calls]
+    server_pool_index = next(index for index, statement in enumerate(statements) if "INSERT INTO server_pool" in statement)
+    server_policy_index = next(index for index, statement in enumerate(statements) if "INSERT INTO server_policy" in statement)
+    assert server_pool_index < server_policy_index
+    assert session.calls[server_pool_index][1] == {
+        "device_id": 59,
+        "server_pool_name": "pool-a",
+        "raw_json": "{}",
+    }
+
+
+def test_collection_lock_uses_dedicated_postgres_connection_for_lock_and_unlock():
+    from app.services import FORTIWEB_COLLECTION_LOCK_NAME, _acquire_collection_lock, _release_collection_lock
+
+    class Result:
+        def scalar(self):
+            return True
+
+    class Dialect:
+        name = "postgresql"
+
+    class CapturingConnection:
+        def __init__(self):
+            self.calls = []
+            self.closed = False
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+            return Result()
+
+        def close(self):
+            self.closed = True
+
+    class Bind:
+        dialect = Dialect()
+
+        def __init__(self):
+            self.connection = CapturingConnection()
+
+        def connect(self):
+            return self.connection
+
+    class CapturingSession:
+        def __init__(self):
+            self.bind = Bind()
+
+        def get_bind(self):
+            return self.bind
+
+    session = CapturingSession()
+
+    connection = _acquire_collection_lock(session)
+    assert connection is session.bind.connection
+    _release_collection_lock(connection)
+
+    assert "pg_try_advisory_lock" in connection.calls[0][0]
+    assert "pg_advisory_unlock" in connection.calls[1][0]
+    assert connection.calls[0][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
+    assert connection.calls[1][1] == {"lock_name": FORTIWEB_COLLECTION_LOCK_NAME}
+    assert connection.closed is True
+
+
+def test_collection_lock_disposes_pool_and_retries_when_try_lock_fails():
+    from app.services import _acquire_collection_lock, _release_collection_lock
+
+    class TryLockResult:
+        def scalar(self):
+            return False
+
+    class BlockingLockResult:
+        def scalar(self):
+            return None
+
+    class Dialect:
+        name = "postgresql"
+
+    class CapturingConnection:
+        def __init__(self, result):
+            self.result = result
+            self.calls = []
+            self.closed = False
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+            return self.result
+
+        def close(self):
+            self.closed = True
+
+    class Bind:
+        dialect = Dialect()
+
+        def __init__(self):
+            self.connections = [CapturingConnection(TryLockResult()), CapturingConnection(BlockingLockResult())]
+            self.consumed_connections = []
+            self.disposed = False
+
+        def connect(self):
+            connection = self.connections.pop(0)
+            self.consumed_connections.append(connection)
+            return connection
+
+        def dispose(self):
+            self.disposed = True
+
+    class CapturingSession:
+        def __init__(self):
+            self.bind = Bind()
+
+        def get_bind(self):
+            return self.bind
+
+    session = CapturingSession()
+
+    connection = _acquire_collection_lock(session)
+    _release_collection_lock(connection)
+
+    first_connection, second_connection = session.bind.consumed_connections
+    assert session.bind.disposed is True
+    assert first_connection.closed is True
+    assert connection is second_connection
+    assert "pg_advisory_lock" in connection.calls[0][0]
+    assert connection.closed is True
+
+
+def test_collection_lock_skips_non_postgres_sessions():
+    from app.services import _acquire_collection_lock, _release_collection_lock
+
+    class Dialect:
+        name = "sqlite"
+
+    class Bind:
+        dialect = Dialect()
+
+    class CapturingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get_bind(self):
+            return Bind()
+
+        def execute(self, statement, params=None):
+            self.calls.append((str(statement), params or {}))
+
+    session = CapturingSession()
+
+    assert _acquire_collection_lock(session) is None
+    _release_collection_lock(None)
+    assert session.calls == []

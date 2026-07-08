@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from typing import Annotated
 
@@ -21,6 +22,8 @@ app = FastAPI(title=settings.app_name)
 scheduler = BackgroundScheduler()
 redis_client = redis.from_url(settings.redis_url)
 logger = logging.getLogger(__name__)
+collection_job_lock = threading.Lock()
+collection_job_running = False
 cors_origins = [origin.strip() for origin in settings.cors_allow_origins.split(",") if origin.strip()]
 
 app.add_middleware(
@@ -41,6 +44,27 @@ def run_collection_job():
         fetch_and_store_server_policies_by_device(db, devices)
     finally:
         db.close()
+
+
+def _finish_collection_job():
+    global collection_job_running
+    try:
+        run_collection_job()
+    finally:
+        with collection_job_lock:
+            collection_job_running = False
+
+
+def start_collection_job() -> bool:
+    global collection_job_running
+    with collection_job_lock:
+        if collection_job_running:
+            logger.info("FortiWeb collection is already running; skipping duplicate request")
+            return False
+        collection_job_running = True
+
+    threading.Thread(target=_finish_collection_job, daemon=True).start()
+    return True
 
 
 @app.on_event("startup")
@@ -983,7 +1007,7 @@ def startup_event():
 
     if settings.scheduler_enabled:
         scheduler.add_job(
-            run_collection_job,
+            start_collection_job,
             "cron",
             hour=settings.scheduler_hour,
             minute=settings.scheduler_minute,
@@ -1034,10 +1058,8 @@ def collect_fortiweb_server_policy(
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
-    backup_database()
-    devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
-    fetch_and_store_server_policies_by_device(db, devices)
-    return {"payload": load_server_policies_from_db(db)}
+    collection_started = start_collection_job()
+    return {"payload": load_server_policies_from_db(db), "collection_started": collection_started}
 
 
 @app.get("/fortiweb/server-policy/latest")

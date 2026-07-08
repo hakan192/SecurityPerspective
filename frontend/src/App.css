@@ -1779,8 +1779,8 @@ input,
 }
 
 .maturity-trend-icon {
-  width: 4.6rem;
-  height: 4.6rem;
+  width: 3.15rem;
+  height: 3.15rem;
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
@@ -1788,8 +1788,8 @@ input,
 }
 
 .maturity-trend-icon svg {
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 1.65rem;
+  height: 1.65rem;
 }
 
 .maturity-trend-copy {
@@ -1807,6 +1807,51 @@ input,
   color: #64748b;
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.maturity-trend-copy.host-status-summary {
+  width: 100%;
+  min-width: 0;
+}
+
+.host-status-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.32rem;
+  width: 100%;
+}
+
+.host-status-item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.34rem 0.5rem;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  text-align: left;
+}
+
+.dark .host-status-item {
+  background: rgba(15, 23, 42, 0.42);
+  border-color: rgba(71, 85, 105, 0.64);
+}
+
+.host-status-item strong {
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.host-status-item small {
+  max-width: 100%;
+  color: inherit;
+  font-size: clamp(0.56rem, 0.72vw, 0.68rem);
+  line-height: 1.1;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .dark .maturity-trend-copy small {

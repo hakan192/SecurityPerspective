@@ -24,11 +24,6 @@ const navItems = [
     description: 'Policies, gaps, and remediation priorities'
   },
   {
-    id: 'automation',
-    label: 'Automation',
-    description: 'Security automation controls and quick actions'
-  },
-  {
     id: 'overview',
     label: 'Executive Overview',
     description: 'Leadership-ready security posture summaries'
@@ -2245,8 +2240,106 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 }
 
 
-function ExecutiveOverviewPage({ onDeepDive }) {
-  const [overallCard, ...siteCards] = executiveMaturityCards
+const getPolicyMaturityScore = (policy = {}) => {
+  const maturityPoints = getMaturityPoints(policy)
+  const totalPoints = maturityPoints.reduce((total, point) => total + Number(point.points || 0), 0)
+  const maxPoints = maturityPoints.reduce((total, point) => total + Number(point.maxPoints || 0), 0)
+  return maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 0
+}
+
+const averagePolicyMaturityScore = (policies = [], locationName = '') => {
+  const normalizedLocation = toMaturityText(locationName)
+  const matchingPolicies = policies.filter((policy) => {
+    if (!policy || typeof policy === 'string') return false
+    return toMaturityText(policy.location || policy._deviceLocation || policy.region || 'Unknown') === normalizedLocation
+  })
+  if (matchingPolicies.length === 0) return 0
+  const totalScore = matchingPolicies.reduce((total, policy) => total + getPolicyMaturityScore(policy), 0)
+  return Math.round(totalScore / matchingPolicies.length)
+}
+
+const getMaturityLevel = (score) => {
+  if (score >= 85) return 'Optimized'
+  if (score >= 70) return 'Managed'
+  if (score >= 50) return 'Developing'
+  return 'Needs Focus'
+}
+
+const getMaturityTone = (score) => {
+  if (score >= 85) return 'strong'
+  if (score >= 70) return 'steady'
+  return 'decreased'
+}
+
+const getPolicyProtectionStatusLabel = (policy = {}) => {
+  const ip = String(policy?.ip || '').trim()
+  if (!ip) return 'Not Protected'
+  const monitorMode = String(policy?.['monitor-mode'] ?? policy?.monitor_mode ?? '').toLowerCase()
+  return monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
+}
+
+const getPolicyHostnames = (policy = {}) => {
+  const allowHostsEntries = Array.isArray(policy?.allow_hosts_entries) ? policy.allow_hosts_entries : []
+  const hostnames = allowHostsEntries
+    .map((entry) => String(entry?.host || '').trim())
+    .filter(Boolean)
+  if (hostnames.length > 0) return hostnames
+  return [policy?.hostname, policy?.domainname, policy?.host]
+    .map((hostname) => String(hostname || '').trim())
+    .filter(Boolean)
+}
+
+const getHostStatusTotals = (policies = [], locationName = '') => {
+  const normalizedLocation = toMaturityText(locationName)
+  const totals = { Blocking: new Set(), Monitoring: new Set(), 'Not Protected': new Set() }
+
+  policies.forEach((policy) => {
+    if (!policy || typeof policy === 'string') return
+    const policyLocation = toMaturityText(policy.location || policy._deviceLocation || policy.region || 'Unknown')
+    if (policyLocation !== normalizedLocation) return
+    const status = getPolicyProtectionStatusLabel(policy)
+    getPolicyHostnames(policy).forEach((hostname) => totals[status]?.add(hostname))
+  })
+
+  return {
+    blocking: totals.Blocking.size,
+    monitoring: totals.Monitoring.size,
+    notProtected: totals['Not Protected'].size
+  }
+}
+
+const buildHostStatusMetrics = (totals = {}) => [
+  { label: 'Blocking', value: totals.blocking || 0 },
+  { label: 'Monitoring', value: totals.monitoring || 0 },
+  { label: 'Not protected', value: totals.notProtected || 0 }
+]
+
+function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
+  const pendikScore = averagePolicyMaturityScore(policies, 'Pendik')
+  const ankaraScore = averagePolicyMaturityScore(policies, 'Ankara')
+  const overallScore = Math.round((pendikScore + ankaraScore) / 2)
+  const dynamicScores = { overall: overallScore, pendik: pendikScore, ankara: ankaraScore }
+  const hostStatusTotals = {
+    pendik: getHostStatusTotals(policies, 'Pendik'),
+    ankara: getHostStatusTotals(policies, 'Ankara')
+  }
+  const [overallCard, ...siteCards] = executiveMaturityCards.map((card) => {
+    const score = dynamicScores[card.id] ?? 0
+    return {
+      ...card,
+      score,
+      series: [score, score, score],
+      level: getMaturityLevel(score),
+      tone: getMaturityTone(score),
+      trend: card.id === 'overall'
+        ? null
+        : {
+            direction: 'stable',
+            label: 'Host status totals',
+            metrics: buildHostStatusMetrics(hostStatusTotals[card.id])
+          }
+    }
+  })
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
@@ -2520,13 +2613,26 @@ function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive
           <p>{card.summary}</p>
         </div>
 
-        <div className={`maturity-trend ${card.trend.direction}`}>
-          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-          <span className="maturity-trend-copy">
-            <strong>{card.trend.value}</strong>
-            <small>{card.trend.label}</small>
-          </span>
-        </div>
+        {card.trend && (
+          <div className={`maturity-trend ${card.trend.direction}`}>
+            <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+            <span className={`maturity-trend-copy ${card.trend.metrics ? 'host-status-summary' : ''}`}>
+              {card.trend.metrics ? (
+                <span className="host-status-grid" aria-label={card.trend.label}>
+                  {card.trend.metrics.map((metric) => (
+                    <span className="host-status-item" key={metric.label}>
+                      <strong>{metric.value}</strong>
+                      <small>{metric.label}</small>
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <strong>{card.trend.value}</strong>
+              )}
+              <small>{card.trend.label}</small>
+            </span>
+          </div>
+        )}
       </div>
       {showDeepDive && (
         <div className="maturity-card-actions">
@@ -2587,6 +2693,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     apikey: ''
   })
   const menuRef = useRef(null)
+  const collectionInFlightRef = useRef(false)
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
@@ -2673,16 +2780,70 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const loadWafResponse = async () => {
+  const hasServerPolicies = (payload) => {
+    const payloadDevices = Array.isArray(payload?.devices) ? payload.devices : []
+    return payloadDevices.some((device) => Array.isArray(device.server_policies) && device.server_policies.length > 0)
+  }
+
+  const waitForWafCollectionPayload = async (initialPayload = null) => {
+    let latestPayload = initialPayload
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      if (hasServerPolicies(latestPayload)) return latestPayload
+      await new Promise((resolve) => window.setTimeout(resolve, 5000))
+      try {
+        const response = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
+        if (response.ok) {
+          const data = await response.json()
+          latestPayload = data.payload
+        }
+      } catch {
+        // Keep polling until attempts are exhausted; the collect job may still be running.
+      }
+    }
+    return latestPayload || { devices: [] }
+  }
+
+  const fetchCollectedWafResponse = async () => {
+    let payload = wafResponse
+    if (!collectionInFlightRef.current) {
+      collectionInFlightRef.current = true
+      const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
+        method: 'POST',
+        headers: { 'X-Role': 'admin' }
+      })
+      if (!response.ok) {
+        collectionInFlightRef.current = false
+        throw new Error('Failed to start WAF data collection from FortiWeb')
+      }
+      const data = await response.json()
+      payload = data.payload
+    }
+
+    try {
+      return await waitForWafCollectionPayload(payload)
+    } finally {
+      collectionInFlightRef.current = false
+    }
+  }
+
+  const loadWafResponse = async ({ collectIfEmpty = false, showErrors = true } = {}) => {
     setLoadingWaf(true)
     setWafError('')
     try {
       const res = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
-      if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
-      const data = await res.json()
-      setWafResponse(data.payload)
+      let payload = null
+      if (res.ok) {
+        const data = await res.json()
+        payload = data.payload
+      }
+      if (collectIfEmpty && !hasServerPolicies(payload)) {
+        payload = await fetchCollectedWafResponse()
+      }
+      if (!payload && showErrors) throw new Error('No WAF API response found. Collect from WAF first.')
+      setWafResponse(payload || { devices: [] })
     } catch (err) {
-      setWafError(err.message)
+      if (showErrors) setWafError(err.message)
+      setWafResponse((prev) => prev || { devices: [] })
     } finally {
       setLoadingWaf(false)
     }
@@ -2692,13 +2853,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setLoadingWaf(true)
     setWafError('')
     try {
-      const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
-        method: 'POST',
-        headers: { 'X-Role': 'admin' }
-      })
-      if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
-      const data = await response.json()
-      setWafResponse(data.payload)
+      const payload = await fetchCollectedWafResponse()
+      setWafResponse(payload)
     } catch (err) {
       setWafError(err.message)
     } finally {
@@ -2707,7 +2863,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+    if (activeNav === 'waf') loadWafResponse()
+    if (activeNav === 'home' || activePage === 'scoring') loadWafResponse({ collectIfEmpty: true, showErrors: false })
   }, [activeNav, activePage])
 
   useEffect(() => {
@@ -2829,11 +2986,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   const getPolicyStatus = (policy) => {
-    const ip = typeof policy === 'string' ? '' : (policy.ip || '').trim()
-    if (!ip) return { label: 'Not Protected', className: 'not-protected' }
-    const monitorMode = typeof policy === 'string' ? '' : String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
-    if (monitorMode === 'enable') return { label: 'Monitoring', className: 'monitoring' }
-    return { label: 'Blocking', className: 'blocking' }
+    const label = typeof policy === 'string' ? 'Not Protected' : getPolicyProtectionStatusLabel(policy)
+    return { label, className: label.toLowerCase().replace(/\s+/g, '-') }
   }
 
   const getPolicyTabId = (policy) => {
@@ -3322,7 +3476,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} policies={wafPolicies} />}
             {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
