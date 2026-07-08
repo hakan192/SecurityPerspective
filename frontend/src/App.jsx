@@ -11,9 +11,6 @@ const API_BASE =
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
 
-const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000
-const SESSION_LAST_ACTIVITY_KEY = 'sp_session_last_activity'
-
 const getCertificateCommonName = (subject) => {
   if (!subject) return ''
   const match = String(subject).trim().match(/(?:^|[,/]\s*)\s*CN\s*=\s*((?:\\.|[^,/])*)/i)
@@ -3597,14 +3594,7 @@ export default function App() {
 
   const [session, setSession] = useState(() => {
     const raw = localStorage.getItem('sp_session')
-    if (!raw) return null
-    try {
-      return JSON.parse(raw)
-    } catch {
-      localStorage.removeItem('sp_session')
-      localStorage.removeItem(SESSION_LAST_ACTIVITY_KEY)
-      return null
-    }
+    return raw ? JSON.parse(raw) : null
   })
 
   useEffect(() => {
@@ -3615,68 +3605,15 @@ export default function App() {
     setDarkMode((prev) => !prev)
   }
 
-  const updateSessionActivity = () => {
-    localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, String(Date.now()))
-  }
-
   const handleLogin = (data) => {
     localStorage.setItem('sp_session', JSON.stringify(data))
-    updateSessionActivity()
     setSession(data)
   }
 
   const handleLogout = () => {
     localStorage.removeItem('sp_session')
-    localStorage.removeItem(SESSION_LAST_ACTIVITY_KEY)
     setSession(null)
   }
-
-  useEffect(() => {
-    if (!session) return undefined
-
-    let timeoutId
-    const activityEvents = ['click', 'pointerdown', 'keydown', 'touchstart', 'scroll']
-
-    const clearSessionTimer = () => {
-      if (timeoutId) window.clearTimeout(timeoutId)
-    }
-
-    const scheduleSessionTimeout = () => {
-      clearSessionTimer()
-      const lastActivity = Number(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY)) || Date.now()
-      const remainingTime = SESSION_IDLE_TIMEOUT_MS - (Date.now() - lastActivity)
-
-      if (remainingTime <= 0) {
-        handleLogout()
-        return
-      }
-
-      timeoutId = window.setTimeout(() => {
-        const latestActivity = Number(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY)) || 0
-        if (Date.now() - latestActivity >= SESSION_IDLE_TIMEOUT_MS) {
-          handleLogout()
-        } else {
-          scheduleSessionTimeout()
-        }
-      }, remainingTime)
-    }
-
-    const handleUserActivity = () => {
-      updateSessionActivity()
-      scheduleSessionTimeout()
-    }
-
-    if (!localStorage.getItem(SESSION_LAST_ACTIVITY_KEY)) updateSessionActivity()
-    activityEvents.forEach((eventName) => window.addEventListener(eventName, handleUserActivity, { passive: true }))
-    window.addEventListener('visibilitychange', scheduleSessionTimeout)
-    scheduleSessionTimeout()
-
-    return () => {
-      clearSessionTimer()
-      activityEvents.forEach((eventName) => window.removeEventListener(eventName, handleUserActivity))
-      window.removeEventListener('visibilitychange', scheduleSessionTimeout)
-    }
-  }, [session])
 
   return session
     ? <AppShell session={session} onLogout={handleLogout} darkMode={darkMode} onToggleTheme={toggleTheme} />
