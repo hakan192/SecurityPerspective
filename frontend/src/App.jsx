@@ -10,6 +10,7 @@ const API_BASE =
     : configuredApiBase || `http://${resolvedHost}:8000`
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
+const EXECUTIVE_TIMELINE_ENDPOINT = '/executive/timeline'
 
 const CACHE_TTL_MS = 60_000
 const WAF_RESPONSE_CACHE_KEY = 'securityPerspective.wafResponse'
@@ -2382,6 +2383,29 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
   }, [maturityStatsByLocation, overallCard])
 
   useEffect(() => {
+    let cancelled = false
+
+    const loadSavedTimeline = async () => {
+      try {
+        const response = await fetch(`${API_BASE}${EXECUTIVE_TIMELINE_ENDPOINT}`)
+        if (!response.ok) return
+        const data = await response.json()
+        if (!cancelled && Array.isArray(data.items) && data.items.length > 0) {
+          setTimelineItems(data.items)
+          writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, data.items)
+        }
+      } catch (err) {
+        // Keep locally cached/default timeline if the shared timeline cannot be loaded.
+      }
+    }
+
+    loadSavedTimeline()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, timelineItems)
   }, [timelineItems])
 
@@ -2429,8 +2453,26 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
     }
   }
 
-  const saveTimeline = () => {
-    setTimelineEditMode(false)
+  const saveTimeline = async () => {
+    writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, timelineItems)
+    try {
+      const response = await fetch(`${API_BASE}${EXECUTIVE_TIMELINE_ENDPOINT}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+        body: JSON.stringify(timelineItems)
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (Array.isArray(data.items)) {
+          setTimelineItems(data.items)
+          writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, data.items)
+        }
+      }
+    } catch (err) {
+      // Keep local edits available even if shared save is temporarily unavailable.
+    } finally {
+      setTimelineEditMode(false)
+    }
   }
 
   const activeOverviewTab = overviewTabs.find((tab) => tab.id === activeOverviewTabId) || overviewTabs[0]
