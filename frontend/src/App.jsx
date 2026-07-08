@@ -11,6 +11,39 @@ const API_BASE =
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
 
+const CACHE_TTL_MS = 60_000
+const WAF_RESPONSE_CACHE_KEY = 'securityPerspective.wafResponse'
+const DEVICES_CACHE_KEY = 'securityPerspective.devices'
+const EXECUTIVE_TIMELINE_STORAGE_KEY = 'securityPerspective.executiveTimelineItems'
+
+const readStoredJson = (key, fallback = null) => {
+  try {
+    const rawValue = window.localStorage.getItem(key)
+    return rawValue ? JSON.parse(rawValue) : fallback
+  } catch (err) {
+    return fallback
+  }
+}
+
+const writeStoredJson = (key, value) => {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  } catch (err) {
+    // Ignore storage quota/privacy errors; live state remains available.
+  }
+}
+
+const getCachedValue = (key, ttlMs = CACHE_TTL_MS) => {
+  const cached = readStoredJson(key)
+  if (!cached || typeof cached.cachedAt !== 'number') return null
+  if (Date.now() - cached.cachedAt > ttlMs) return null
+  return cached.value ?? null
+}
+
+const setCachedValue = (key, value) => {
+  writeStoredJson(key, { cachedAt: Date.now(), value })
+}
+
 const getCertificateCommonName = (subject) => {
   if (!subject) return ''
   const match = String(subject).trim().match(/(?:^|[,/]\s*)\s*CN\s*=\s*((?:\\.|[^,/])*)/i)
@@ -2262,7 +2295,7 @@ const getMaturityLevel = (score) => {
 
 function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
   const [overallCard, ...baseSiteCards] = executiveMaturityCards
-  const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
+  const [timelineItems, setTimelineItems] = useState(() => readStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, executiveTimelineItems))
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
   const [activeOverviewTabId, setActiveOverviewTabId] = useState('executive-overview-main')
@@ -2347,6 +2380,10 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
       summary: 'Overall maturity is the average of Pendik and Ankara WAF maturity scores.'
     }
   }, [maturityStatsByLocation, overallCard])
+
+  useEffect(() => {
+    writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, timelineItems)
+  }, [timelineItems])
 
   const handleTimelineChange = (id, field, value) => {
     setTimelineItems((items) => (
@@ -2690,7 +2727,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [searchResult, setSearchResult] = useState('')
-  const [wafResponse, setWafResponse] = useState(null)
+  const [wafResponse, setWafResponse] = useState(() => getCachedValue(WAF_RESPONSE_CACHE_KEY))
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
   const [selectedLocation, setSelectedLocation] = useState('All')
@@ -2701,7 +2738,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [expandedAutomationCard, setExpandedAutomationCard] = useState('')
   const [automationTabs, setAutomationTabs] = useState([{ id: MAIN_AUTOMATION_TAB_ID, title: 'Automation', type: 'main' }])
   const [activeAutomationTabId, setActiveAutomationTabId] = useState(MAIN_AUTOMATION_TAB_ID)
-  const [devices, setDevices] = useState([])
+  const [devices, setDevices] = useState(() => getCachedValue(DEVICES_CACHE_KEY) || [])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false)
@@ -2718,6 +2755,14 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     apikey: ''
   })
   const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (wafResponse) setCachedValue(WAF_RESPONSE_CACHE_KEY, wafResponse)
+  }, [wafResponse])
+
+  useEffect(() => {
+    if (devices.length > 0) setCachedValue(DEVICES_CACHE_KEY, devices)
+  }, [devices])
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
@@ -2822,6 +2867,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!response.ok) throw new Error('Failed to start WAF collection')
       const data = await response.json()
       setWafResponse(data.payload)
+      setCachedValue(WAF_RESPONSE_CACHE_KEY, data.payload)
       return data.payload
     } catch (err) {
       setWafError(err.message)
@@ -2835,8 +2881,15 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setLoadingWaf(true)
     setWafError('')
     try {
+      const cachedPayload = getCachedValue(WAF_RESPONSE_CACHE_KEY)
+      if (cachedPayload) {
+        setWafResponse(cachedPayload)
+        return
+      }
+
       const payload = await loadLatestWafPayload()
       setWafResponse(payload)
+      setCachedValue(WAF_RESPONSE_CACHE_KEY, payload)
     } catch (err) {
       setWafError(err.message)
     } finally {
@@ -2858,10 +2911,17 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setLoadingDevices(true)
     setDeviceError('')
     try {
+      const cachedDevices = getCachedValue(DEVICES_CACHE_KEY)
+      if (cachedDevices) {
+        setDevices(cachedDevices)
+        return
+      }
+
       const res = await fetch(`${API_BASE}/devices`)
       if (!res.ok) throw new Error('Failed to load devices')
       const data = await res.json()
       setDevices(data)
+      setCachedValue(DEVICES_CACHE_KEY, data)
     } catch (err) {
       setDeviceError(err.message)
     } finally {
