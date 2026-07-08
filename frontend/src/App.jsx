@@ -2271,11 +2271,54 @@ const getMaturityTone = (score) => {
   return 'decreased'
 }
 
+const getPolicyProtectionStatusLabel = (policy = {}) => {
+  const ip = String(policy?.ip || '').trim()
+  if (!ip) return 'Not Protected'
+  const monitorMode = String(policy?.['monitor-mode'] ?? policy?.monitor_mode ?? '').toLowerCase()
+  return monitorMode === 'enable' ? 'Monitoring' : 'Blocking'
+}
+
+const getPolicyHostnames = (policy = {}) => {
+  const allowHostsEntries = Array.isArray(policy?.allow_hosts_entries) ? policy.allow_hosts_entries : []
+  const hostnames = allowHostsEntries
+    .map((entry) => String(entry?.host || '').trim())
+    .filter(Boolean)
+  if (hostnames.length > 0) return hostnames
+  return [policy?.hostname, policy?.domainname, policy?.host]
+    .map((hostname) => String(hostname || '').trim())
+    .filter(Boolean)
+}
+
+const getHostStatusTotals = (policies = [], locationName = '') => {
+  const normalizedLocation = toMaturityText(locationName)
+  const totals = { Blocking: new Set(), Monitoring: new Set(), 'Not Protected': new Set() }
+
+  policies.forEach((policy) => {
+    if (!policy || typeof policy === 'string') return
+    const policyLocation = toMaturityText(policy.location || policy._deviceLocation || policy.region || 'Unknown')
+    if (policyLocation !== normalizedLocation) return
+    const status = getPolicyProtectionStatusLabel(policy)
+    getPolicyHostnames(policy).forEach((hostname) => totals[status]?.add(hostname))
+  })
+
+  return {
+    blocking: totals.Blocking.size,
+    monitoring: totals.Monitoring.size,
+    notProtected: totals['Not Protected'].size
+  }
+}
+
+const formatHostStatusTotals = (totals) => `${totals.blocking} Blocking · ${totals.monitoring} Monitoring · ${totals.notProtected} Not Protected`
+
 function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
   const pendikScore = averagePolicyMaturityScore(policies, 'Pendik')
   const ankaraScore = averagePolicyMaturityScore(policies, 'Ankara')
   const overallScore = Math.round((pendikScore + ankaraScore) / 2)
   const dynamicScores = { overall: overallScore, pendik: pendikScore, ankara: ankaraScore }
+  const hostStatusTotals = {
+    pendik: getHostStatusTotals(policies, 'Pendik'),
+    ankara: getHostStatusTotals(policies, 'Ankara')
+  }
   const [overallCard, ...siteCards] = executiveMaturityCards.map((card) => {
     const score = dynamicScores[card.id] ?? 0
     return {
@@ -2284,7 +2327,13 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
       series: [score, score, score],
       level: getMaturityLevel(score),
       tone: getMaturityTone(score),
-      trend: { direction: 'stable', value: `${score}%`, label: 'Current policy average' }
+      trend: card.id === 'overall'
+        ? null
+        : {
+            direction: 'stable',
+            value: formatHostStatusTotals(hostStatusTotals[card.id]),
+            label: 'Host status totals'
+          }
     }
   })
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
@@ -2560,13 +2609,15 @@ function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive
           <p>{card.summary}</p>
         </div>
 
-        <div className={`maturity-trend ${card.trend.direction}`}>
-          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-          <span className="maturity-trend-copy">
-            <strong>{card.trend.value}</strong>
-            <small>{card.trend.label}</small>
-          </span>
-        </div>
+        {card.trend && (
+          <div className={`maturity-trend ${card.trend.direction}`}>
+            <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+            <span className="maturity-trend-copy">
+              <strong>{card.trend.value}</strong>
+              <small>{card.trend.label}</small>
+            </span>
+          </div>
+        )}
       </div>
       {showDeepDive && (
         <div className="maturity-card-actions">
@@ -2888,11 +2939,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   const getPolicyStatus = (policy) => {
-    const ip = typeof policy === 'string' ? '' : (policy.ip || '').trim()
-    if (!ip) return { label: 'Not Protected', className: 'not-protected' }
-    const monitorMode = typeof policy === 'string' ? '' : String(policy['monitor-mode'] ?? policy.monitor_mode ?? '').toLowerCase()
-    if (monitorMode === 'enable') return { label: 'Monitoring', className: 'monitoring' }
-    return { label: 'Blocking', className: 'blocking' }
+    const label = typeof policy === 'string' ? 'Not Protected' : getPolicyProtectionStatusLabel(policy)
+    return { label, className: label.toLowerCase().replace(/\s+/g, '-') }
   }
 
   const getPolicyTabId = (policy) => {
