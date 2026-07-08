@@ -5,7 +5,7 @@ from typing import Annotated
 
 import redis
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -46,18 +46,25 @@ def run_collection_job():
         db.close()
 
 
-def run_collection_job_once():
+def _finish_collection_job():
     global collection_job_running
-    with collection_job_lock:
-        if collection_job_running:
-            logger.info("FortiWeb collection is already running; skipping duplicate request")
-            return
-        collection_job_running = True
     try:
         run_collection_job()
     finally:
         with collection_job_lock:
             collection_job_running = False
+
+
+def start_collection_job() -> bool:
+    global collection_job_running
+    with collection_job_lock:
+        if collection_job_running:
+            logger.info("FortiWeb collection is already running; skipping duplicate request")
+            return False
+        collection_job_running = True
+
+    threading.Thread(target=_finish_collection_job, daemon=True).start()
+    return True
 
 
 @app.on_event("startup")
@@ -1000,7 +1007,7 @@ def startup_event():
 
     if settings.scheduler_enabled:
         scheduler.add_job(
-            run_collection_job_once,
+            start_collection_job,
             "cron",
             hour=settings.scheduler_hour,
             minute=settings.scheduler_minute,
@@ -1048,12 +1055,11 @@ def login(payload: LoginRequest):
 
 @app.post("/fortiweb/server-policy/collect")
 def collect_fortiweb_server_policy(
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
-    background_tasks.add_task(run_collection_job_once)
-    return {"payload": load_server_policies_from_db(db), "collection_started": True}
+    collection_started = start_collection_job()
+    return {"payload": load_server_policies_from_db(db), "collection_started": collection_started}
 
 
 @app.get("/fortiweb/server-policy/latest")
