@@ -2696,6 +2696,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     apikey: ''
   })
   const menuRef = useRef(null)
+  const collectionInFlightRef = useRef(false)
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
@@ -2787,14 +2788,45 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return payloadDevices.some((device) => Array.isArray(device.server_policies) && device.server_policies.length > 0)
   }
 
+  const waitForWafCollectionPayload = async (initialPayload = null) => {
+    let latestPayload = initialPayload
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      if (hasServerPolicies(latestPayload)) return latestPayload
+      await new Promise((resolve) => window.setTimeout(resolve, 5000))
+      try {
+        const response = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
+        if (response.ok) {
+          const data = await response.json()
+          latestPayload = data.payload
+        }
+      } catch {
+        // Keep polling until attempts are exhausted; the collect job may still be running.
+      }
+    }
+    return latestPayload || { devices: [] }
+  }
+
   const fetchCollectedWafResponse = async () => {
-    const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
-      method: 'POST',
-      headers: { 'X-Role': 'admin' }
-    })
-    if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
-    const data = await response.json()
-    return data.payload
+    let payload = wafResponse
+    if (!collectionInFlightRef.current) {
+      collectionInFlightRef.current = true
+      const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
+        method: 'POST',
+        headers: { 'X-Role': 'admin' }
+      })
+      if (!response.ok) {
+        collectionInFlightRef.current = false
+        throw new Error('Failed to start WAF data collection from FortiWeb')
+      }
+      const data = await response.json()
+      payload = data.payload
+    }
+
+    try {
+      return await waitForWafCollectionPayload(payload)
+    } finally {
+      collectionInFlightRef.current = false
+    }
   }
 
   const loadWafResponse = async ({ collectIfEmpty = false, showErrors = true } = {}) => {
