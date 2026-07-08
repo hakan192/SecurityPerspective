@@ -4,7 +4,7 @@ from typing import Annotated
 
 import redis
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -1033,13 +1033,12 @@ def login(payload: LoginRequest):
 
 @app.post("/fortiweb/server-policy/collect")
 def collect_fortiweb_server_policy(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
-    backup_database()
-    devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
-    fetch_and_store_server_policies_by_device(db, devices)
-    return {"payload": load_server_policies_from_db(db)}
+    background_tasks.add_task(run_collection_job)
+    return {"payload": load_server_policies_from_db(db), "collection_started": True}
 
 
 @app.get("/fortiweb/server-policy/latest")
