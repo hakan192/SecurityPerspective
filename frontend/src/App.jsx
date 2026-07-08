@@ -32,11 +32,6 @@ const navItems = [
     description: 'Policies, gaps, and remediation priorities'
   },
   {
-    id: 'automation',
-    label: 'Automation',
-    description: 'Security automation controls and quick actions'
-  },
-  {
     id: 'overview',
     label: 'Executive Overview',
     description: 'Leadership-ready security posture summaries'
