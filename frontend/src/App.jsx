@@ -2246,12 +2246,61 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 }
 
 
+
+const getExecutiveLocationKey = (policy) => {
+  const location = String(policy?._deviceLocation || policy?.location || policy?.region || '').trim().toLowerCase()
+  if (location.includes('pendik')) return 'pendik'
+  if (location.includes('ankara')) return 'ankara'
+  return ''
+}
+
+const getPolicyMaturityScore = (policy) => {
+  const score = Number(policy?.maturity_score ?? policy?.maturity_assessment?.percentage)
+  return Number.isFinite(score) ? score : null
+}
+
+const getMaturityLevel = (score) => {
+  if (score >= 85) return 'Optimized'
+  if (score >= 70) return 'Managed'
+  if (score >= 50) return 'Developing'
+  if (score > 0) return 'At Risk'
+  return 'No Data'
+}
+
 function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
   const [overallCard, ...baseSiteCards] = executiveMaturityCards
   const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
   const [activeOverviewTabId, setActiveOverviewTabId] = useState('executive-overview-main')
+
+  const maturityStatsByLocation = useMemo(() => {
+    const stats = {
+      pendik: { total: 0, count: 0 },
+      ankara: { total: 0, count: 0 }
+    }
+
+    policies.forEach((policy) => {
+      const locationKey = getExecutiveLocationKey(policy)
+      if (!locationKey) return
+
+      const score = getPolicyMaturityScore(policy)
+      if (score === null) return
+
+      stats[locationKey].total += score
+      stats[locationKey].count += 1
+    })
+
+    return Object.fromEntries(
+      Object.entries(stats).map(([locationKey, stat]) => [
+        locationKey,
+        {
+          ...stat,
+          average: stat.count > 0 ? Math.round(stat.total / stat.count) : 0
+        }
+      ])
+    )
+  }, [policies])
 
   const hostStatusCountsByLocation = useMemo(() => {
     const counts = {
@@ -2260,8 +2309,7 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
     }
 
     policies.forEach((policy) => {
-      const location = String(policy?._deviceLocation || '').trim().toLowerCase()
-      const locationKey = location.includes('pendik') ? 'pendik' : location.includes('ankara') ? 'ankara' : ''
+      const locationKey = getExecutiveLocationKey(policy)
       if (!locationKey) return
 
       const hostnames = Array.isArray(policy.allow_hosts_entries)
@@ -2278,13 +2326,34 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
   }, [policies])
 
   const siteCards = useMemo(
-    () => baseSiteCards.map((card) => ({
-      ...card,
-      hostStatusCounts: hostStatusCountsByLocation[card.id] || { blocking: 0, monitoring: 0, notProtected: 0 },
-      trend: { ...card.trend, direction: 'stable' }
-    })),
-    [baseSiteCards, hostStatusCountsByLocation]
+    () => baseSiteCards.map((card) => {
+      const stat = maturityStatsByLocation[card.id] || { average: 0, count: 0 }
+      return {
+        ...card,
+        score: stat.average,
+        level: getMaturityLevel(stat.average),
+        summary: stat.count > 0
+          ? `${card.location} maturity is calculated from ${stat.count} collected server ${stat.count === 1 ? 'policy' : 'policies'}.`
+          : `${card.location} has no collected server policies yet.`,
+        hostStatusCounts: hostStatusCountsByLocation[card.id] || { blocking: 0, monitoring: 0, notProtected: 0 },
+        trend: { ...card.trend, direction: 'stable' }
+      }
+    }),
+    [baseSiteCards, hostStatusCountsByLocation, maturityStatsByLocation]
   )
+
+  const derivedOverallCard = useMemo(() => {
+    const pendikAverage = maturityStatsByLocation.pendik?.average || 0
+    const ankaraAverage = maturityStatsByLocation.ankara?.average || 0
+    const overallAverage = Math.round((pendikAverage + ankaraAverage) / 2)
+
+    return {
+      ...overallCard,
+      score: overallAverage,
+      level: getMaturityLevel(overallAverage),
+      summary: 'Overall maturity is the average of Pendik and Ankara WAF maturity scores.'
+    }
+  }, [maturityStatsByLocation, overallCard])
 
   const handleTimelineChange = (id, field, value) => {
     setTimelineItems((items) => (
@@ -2378,7 +2447,7 @@ function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
         />
       ) : (
         <div className="maturity-layout" aria-label="WAF protection maturity levels">
-          <MaturityCard card={overallCard} featured />
+          <MaturityCard card={derivedOverallCard} featured />
           <div className="maturity-site-grid">
             {siteCards.map((card) => (
               <MaturityCard key={card.id} card={card} showDeepDive onDeepDive={onDeepDive} />
