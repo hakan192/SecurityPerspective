@@ -11,14 +11,6 @@ const API_BASE =
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
 
-const hasServerPolicies = (payload) => (payload?.devices || []).some((device) => Array.isArray(device.server_policies) && device.server_policies.length > 0)
-const hasServerPoliciesForLocation = (payload, locationName) => (payload?.devices || []).some((device) => {
-  const deviceLocation = String(device?.location || device?.region || '').trim().toLowerCase()
-  return deviceLocation.includes(locationName) && Array.isArray(device.server_policies) && device.server_policies.length > 0
-})
-const hasExecutivePolicyCoverage = (payload) => hasServerPoliciesForLocation(payload, 'pendik') && hasServerPoliciesForLocation(payload, 'ankara')
-const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms))
-
 const getCertificateCommonName = (subject) => {
   if (!subject) return ''
   const match = String(subject).trim().match(/(?:^|[,/]\s*)\s*CN\s*=\s*((?:\\.|[^,/])*)/i)
@@ -2819,23 +2811,8 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return data.payload
   }
 
-  const pollLatestWafPayload = async ({ attempts = 10, intervalMs = 3000, isComplete = hasServerPolicies } = {}) => {
-    let latestPayload = null
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      if (attempt > 0) await wait(intervalMs)
-      try {
-        latestPayload = await loadLatestWafPayload()
-        setWafResponse(latestPayload)
-        if (isComplete(latestPayload)) return latestPayload
-      } catch (err) {
-        if (attempt === attempts - 1) throw err
-      }
-    }
-    return latestPayload
-  }
-
-  const collectWafResponse = async ({ manageLoading = true, isComplete = hasServerPolicies } = {}) => {
-    if (manageLoading) setLoadingWaf(true)
+  const collectWafResponse = async () => {
+    setLoadingWaf(true)
     setWafError('')
     try {
       const response = await fetch(`${API_BASE}/fortiweb/server-policy/collect`, {
@@ -2845,33 +2822,23 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
       if (!response.ok) throw new Error('Failed to start WAF collection')
       const data = await response.json()
       setWafResponse(data.payload)
-      if (data.collection_started) {
-        return await pollLatestWafPayload({ isComplete })
-      }
       return data.payload
     } catch (err) {
       setWafError(err.message)
       return null
     } finally {
-      if (manageLoading) setLoadingWaf(false)
+      setLoadingWaf(false)
     }
   }
 
-  const loadWafResponse = async ({ collectIfEmpty = false, isComplete = hasServerPolicies } = {}) => {
+  const loadWafResponse = async () => {
     setLoadingWaf(true)
     setWafError('')
     try {
       const payload = await loadLatestWafPayload()
       setWafResponse(payload)
-      if (collectIfEmpty && !isComplete(payload)) {
-        await collectWafResponse({ manageLoading: false, isComplete })
-      }
     } catch (err) {
-      if (collectIfEmpty) {
-        await collectWafResponse({ manageLoading: false, isComplete })
-      } else {
-        setWafError(err.message)
-      }
+      setWafError(err.message)
     } finally {
       setLoadingWaf(false)
     }
@@ -2879,15 +2846,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
 
   useEffect(() => {
     if (activeNav === 'waf' || activeNav === 'home' || activeNav === 'overview' || activePage === 'scoring') {
-      const requiredCoverage = activePage === 'scoring' && selectedScoreId !== 'overall'
-        ? (payload) => hasServerPoliciesForLocation(payload, selectedScoreId)
-        : hasExecutivePolicyCoverage
-      loadWafResponse({
-        collectIfEmpty: activeNav === 'overview' || activePage === 'scoring',
-        isComplete: activeNav === 'overview' || activePage === 'scoring' ? requiredCoverage : hasServerPolicies
-      })
+      loadWafResponse()
     }
-  }, [activeNav, activePage, selectedScoreId])
+  }, [activeNav, activePage])
 
   useEffect(() => {
     setExpandedPolicyCard('')
@@ -3512,7 +3473,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
                   </div>
                   <div className="device-topbar-actions">
                     <button type="button" className="add-device-btn" onClick={() => setAddDeviceModalOpen(true)}>+ Add Device</button>
-                    <button type="button" className="add-device-btn" onClick={() => collectWafResponse({ isComplete: hasExecutivePolicyCoverage })} disabled={loadingWaf}>{loadingWaf ? 'Collecting...' : 'Collect From WAF'}</button>
+                    <button type="button" className="add-device-btn" onClick={collectWafResponse} disabled={loadingWaf}>{loadingWaf ? 'Collecting...' : 'Collect From WAF'}</button>
                   </div>
                 </div>
 
