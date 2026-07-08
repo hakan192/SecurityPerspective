@@ -1413,7 +1413,7 @@ def test_fetch_and_store_persists_server_policies_when_related_fetch_fails(monke
 
     import app.services as services
 
-    calls = {"delete": 0, "upsert": 0, "commit": 0, "rollback": 0}
+    calls = {"delete": 0, "upsert": 0, "commit": 0, "rollback": 0, "upsert_rows": []}
 
     class FakeDb:
         def commit(self):
@@ -1442,7 +1442,7 @@ def test_fetch_and_store_persists_server_policies_when_related_fetch_fails(monke
     monkeypatch.setattr(services.requests, "get", lambda *args, **kwargs: FakeResponse())
     monkeypatch.setattr(services, "_fetch_and_upsert_server_pool", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("pool unavailable")))
     monkeypatch.setattr(services, "_delete_missing_server_policy_rows", lambda *args, **kwargs: calls.__setitem__("delete", calls["delete"] + 1))
-    monkeypatch.setattr(services, "_upsert_server_policy_rows", lambda *args, **kwargs: calls.__setitem__("upsert", calls["upsert"] + 1))
+    monkeypatch.setattr(services, "_upsert_server_policy_rows", lambda db, device_id, rows: (calls.__setitem__("upsert", calls["upsert"] + 1), calls["upsert_rows"].extend(rows)))
 
     result = services.fetch_and_store_server_policies_by_device(
         FakeDb(),
@@ -1453,5 +1453,23 @@ def test_fetch_and_store_persists_server_policies_when_related_fetch_fails(monke
     assert result["devices"][0]["server_policies"] == ["aa-policy"]
     assert calls["delete"] == 1
     assert calls["upsert"] == 1
+    assert calls["upsert_rows"][0]["server_pool_name"] is None
     assert calls["commit"] >= 1
     assert calls["rollback"] >= 1
+
+
+def test_clear_unfetched_server_pool_references_preserves_only_fetched_pools():
+    from app.services import _clear_unfetched_server_pool_references
+
+    rows = [
+        {"server_policy_name": "kept", "server_pool_name": "pool-a"},
+        {"server_policy_name": "cleared", "server_pool_name": "pool-b"},
+        {"server_policy_name": "empty", "server_pool_name": None},
+    ]
+
+    sanitized = _clear_unfetched_server_pool_references(rows, {"pool-a"})
+
+    assert sanitized[0]["server_pool_name"] == "pool-a"
+    assert sanitized[1]["server_pool_name"] is None
+    assert sanitized[2]["server_pool_name"] is None
+    assert rows[1]["server_pool_name"] == "pool-b"

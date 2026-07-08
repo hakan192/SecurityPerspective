@@ -987,6 +987,8 @@ def startup_event():
             "cron",
             hour=settings.scheduler_hour,
             minute=settings.scheduler_minute,
+            max_instances=1,
+            coalesce=True,
         )
         scheduler.start()
 
