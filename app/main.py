@@ -1,10 +1,11 @@
+import json
 import logging
 import time
 from typing import Annotated
 
 import redis
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -61,6 +62,17 @@ def startup_event():
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE managed_devices ADD COLUMN IF NOT EXISTS apikey VARCHAR(255)"))
         connection.execute(text("UPDATE managed_devices SET apikey = '' WHERE apikey IS NULL"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key text PRIMARY KEY,
+                    value jsonb NOT NULL,
+                    updated_at timestamptz NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
         connection.execute(text("DROP TABLE IF EXISTS baseline_controls CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS exchange_rate_snapshots CASCADE"))
         connection.execute(text("DROP TABLE IF EXISTS fortiweb_snapshots CASCADE"))
@@ -987,6 +999,8 @@ def startup_event():
             "cron",
             hour=settings.scheduler_hour,
             minute=settings.scheduler_minute,
+            max_instances=1,
+            coalesce=True,
         )
         scheduler.start()
 
@@ -1022,6 +1036,40 @@ def health_ready():
     return {"status": status, "checks": checks}
 
 
+@app.get("/executive/timeline")
+def get_executive_timeline(
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_role)] = "viewer",
+):
+    row = db.execute(
+        text("SELECT value FROM app_settings WHERE key = :key"),
+        {"key": "executive_timeline"},
+    ).mappings().first()
+    return {"items": row["value"] if row else []}
+
+
+@app.put("/executive/timeline")
+def save_executive_timeline(
+    items: list[dict] = Body(...),
+    db: Session = Depends(get_db),
+    _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
+):
+    db.execute(
+        text(
+            """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES (:key, CAST(:value AS jsonb), now())
+            ON CONFLICT (key) DO UPDATE SET
+                value = EXCLUDED.value,
+                updated_at = now()
+            """
+        ),
+        {"key": "executive_timeline", "value": json.dumps(items)},
+    )
+    db.commit()
+    return {"items": items}
+
+
 @app.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest):
     if not verify_local_admin(payload.username, payload.password):
@@ -1031,13 +1079,12 @@ def login(payload: LoginRequest):
 
 @app.post("/fortiweb/server-policy/collect")
 def collect_fortiweb_server_policy(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _: Annotated[str, Depends(require_analyst_or_admin)] = "analyst",
 ):
-    backup_database()
-    devices = db.query(ManagedDevice).order_by(ManagedDevice.id.desc()).all()
-    fetch_and_store_server_policies_by_device(db, devices)
-    return {"payload": load_server_policies_from_db(db)}
+    background_tasks.add_task(run_collection_job)
+    return {"payload": load_server_policies_from_db(db), "collection_started": True}
 
 
 @app.get("/fortiweb/server-policy/latest")

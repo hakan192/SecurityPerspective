@@ -10,6 +10,40 @@ const API_BASE =
     : configuredApiBase || `http://${resolvedHost}:8000`
 
 const SERVER_POLICY_ENDPOINT = '/fortiweb/server-policy/latest'
+const EXECUTIVE_TIMELINE_ENDPOINT = '/executive/timeline'
+
+const CACHE_TTL_MS = 60_000
+const WAF_RESPONSE_CACHE_KEY = 'securityPerspective.wafResponse'
+const DEVICES_CACHE_KEY = 'securityPerspective.devices'
+const EXECUTIVE_TIMELINE_STORAGE_KEY = 'securityPerspective.executiveTimelineItems'
+
+const readStoredJson = (key, fallback = null) => {
+  try {
+    const rawValue = window.localStorage.getItem(key)
+    return rawValue ? JSON.parse(rawValue) : fallback
+  } catch (err) {
+    return fallback
+  }
+}
+
+const writeStoredJson = (key, value) => {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  } catch (err) {
+    // Ignore storage quota/privacy errors; live state remains available.
+  }
+}
+
+const getCachedValue = (key, ttlMs = CACHE_TTL_MS) => {
+  const cached = readStoredJson(key)
+  if (!cached || typeof cached.cachedAt !== 'number') return null
+  if (Date.now() - cached.cachedAt > ttlMs) return null
+  return cached.value ?? null
+}
+
+const setCachedValue = (key, value) => {
+  writeStoredJson(key, { cachedAt: Date.now(), value })
+}
 
 const getCertificateCommonName = (subject) => {
   if (!subject) return ''
@@ -22,11 +56,6 @@ const navItems = [
     id: 'waf',
     label: 'WAF Configuration',
     description: 'Policies, gaps, and remediation priorities'
-  },
-  {
-    id: 'automation',
-    label: 'Automation',
-    description: 'Security automation controls and quick actions'
   },
   {
     id: 'overview',
@@ -88,7 +117,6 @@ const executiveMaturityCards = [
     level: 'Optimized',
     tone: 'strong',
     summary: 'Protection is consistently enforced across core application tiers with mature policy coverage and response-ready controls.',
-    trend: { direction: 'improved', value: '+6 pts', label: 'Improved this quarter' },
     signals: ['Policy coverage 91%', 'Attack signatures current', 'Bot controls aligned']
   },
   {
@@ -112,7 +140,7 @@ const executiveMaturityCards = [
     level: 'Optimized',
     tone: 'strong',
     summary: 'Ankara maintains enterprise-grade coverage while final planned services move through monitoring-to-blocking readiness.',
-    trend: { direction: 'decreased', value: '-2 pts', label: 'Normalized this quarter' },
+    trend: { direction: 'stable', value: 'Host protection', label: 'Current host posture' },
     signals: ['Blocking migration active', 'Profiles normalized', 'High-priority apps covered']
   }
 ]
@@ -2245,12 +2273,141 @@ function ScoringPage({ selectedScoreId, scoringLocation, onBack, onOpenDetails, 
 }
 
 
-function ExecutiveOverviewPage({ onDeepDive }) {
-  const [overallCard, ...siteCards] = executiveMaturityCards
-  const [timelineItems, setTimelineItems] = useState(executiveTimelineItems)
+
+const getExecutiveLocationKey = (policy) => {
+  const location = String(policy?._deviceLocation || policy?.location || policy?.region || '').trim().toLowerCase()
+  if (location.includes('pendik')) return 'pendik'
+  if (location.includes('ankara')) return 'ankara'
+  return ''
+}
+
+const getPolicyMaturityScore = (policy) => {
+  const score = Number(policy?.maturity_score ?? policy?.maturity_assessment?.percentage)
+  return Number.isFinite(score) ? score : null
+}
+
+const getMaturityLevel = (score) => {
+  if (score >= 85) return 'Optimized'
+  if (score >= 70) return 'Managed'
+  if (score >= 50) return 'Developing'
+  if (score > 0) return 'At Risk'
+  return 'No Data'
+}
+
+function ExecutiveOverviewPage({ onDeepDive, policies = [] }) {
+  const [overallCard, ...baseSiteCards] = executiveMaturityCards
+  const [timelineItems, setTimelineItems] = useState(() => readStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, executiveTimelineItems))
   const [timelineEditMode, setTimelineEditMode] = useState(false)
   const [overviewTabs, setOverviewTabs] = useState([{ id: 'executive-overview-main', title: 'Executive Overview', type: 'main' }])
   const [activeOverviewTabId, setActiveOverviewTabId] = useState('executive-overview-main')
+
+  const maturityStatsByLocation = useMemo(() => {
+    const stats = {
+      pendik: { total: 0, count: 0 },
+      ankara: { total: 0, count: 0 }
+    }
+
+    policies.forEach((policy) => {
+      const locationKey = getExecutiveLocationKey(policy)
+      if (!locationKey) return
+
+      const score = getPolicyMaturityScore(policy)
+      if (score === null) return
+
+      stats[locationKey].total += score
+      stats[locationKey].count += 1
+    })
+
+    return Object.fromEntries(
+      Object.entries(stats).map(([locationKey, stat]) => [
+        locationKey,
+        {
+          ...stat,
+          average: stat.count > 0 ? Math.round(stat.total / stat.count) : 0
+        }
+      ])
+    )
+  }, [policies])
+
+  const hostStatusCountsByLocation = useMemo(() => {
+    const counts = {
+      pendik: { blocking: 0, monitoring: 0, notProtected: 0 },
+      ankara: { blocking: 0, monitoring: 0, notProtected: 0 }
+    }
+
+    policies.forEach((policy) => {
+      const locationKey = getExecutiveLocationKey(policy)
+      if (!locationKey) return
+
+      const hostnames = Array.isArray(policy.allow_hosts_entries)
+        ? policy.allow_hosts_entries.map((entry) => String(entry?.host || '').trim()).filter(Boolean)
+        : []
+      const hostCount = new Set(hostnames).size
+      if (hostCount === 0) return
+
+      const status = getPolicyProtectionStatus(policy)
+      counts[locationKey][status] += hostCount
+    })
+
+    return counts
+  }, [policies])
+
+  const siteCards = useMemo(
+    () => baseSiteCards.map((card) => {
+      const stat = maturityStatsByLocation[card.id] || { average: 0, count: 0 }
+      return {
+        ...card,
+        score: stat.average,
+        level: getMaturityLevel(stat.average),
+        summary: stat.count > 0
+          ? `${card.location} maturity is calculated from ${stat.count} collected server ${stat.count === 1 ? 'policy' : 'policies'}.`
+          : `${card.location} has no collected server policies yet.`,
+        hostStatusCounts: hostStatusCountsByLocation[card.id] || { blocking: 0, monitoring: 0, notProtected: 0 },
+        trend: { ...card.trend, direction: 'stable' }
+      }
+    }),
+    [baseSiteCards, hostStatusCountsByLocation, maturityStatsByLocation]
+  )
+
+  const derivedOverallCard = useMemo(() => {
+    const pendikAverage = maturityStatsByLocation.pendik?.average || 0
+    const ankaraAverage = maturityStatsByLocation.ankara?.average || 0
+    const overallAverage = Math.round((pendikAverage + ankaraAverage) / 2)
+
+    return {
+      ...overallCard,
+      score: overallAverage,
+      level: getMaturityLevel(overallAverage),
+      summary: 'Overall maturity is the average of Pendik and Ankara WAF maturity scores.'
+    }
+  }, [maturityStatsByLocation, overallCard])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadSavedTimeline = async () => {
+      try {
+        const response = await fetch(`${API_BASE}${EXECUTIVE_TIMELINE_ENDPOINT}`)
+        if (!response.ok) return
+        const data = await response.json()
+        if (!cancelled && Array.isArray(data.items) && data.items.length > 0) {
+          setTimelineItems(data.items)
+          writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, data.items)
+        }
+      } catch (err) {
+        // Keep locally cached/default timeline if the shared timeline cannot be loaded.
+      }
+    }
+
+    loadSavedTimeline()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, timelineItems)
+  }, [timelineItems])
 
   const handleTimelineChange = (id, field, value) => {
     setTimelineItems((items) => (
@@ -2296,8 +2453,26 @@ function ExecutiveOverviewPage({ onDeepDive }) {
     }
   }
 
-  const saveTimeline = () => {
-    setTimelineEditMode(false)
+  const saveTimeline = async () => {
+    writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, timelineItems)
+    try {
+      const response = await fetch(`${API_BASE}${EXECUTIVE_TIMELINE_ENDPOINT}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+        body: JSON.stringify(timelineItems)
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (Array.isArray(data.items)) {
+          setTimelineItems(data.items)
+          writeStoredJson(EXECUTIVE_TIMELINE_STORAGE_KEY, data.items)
+        }
+      }
+    } catch (err) {
+      // Keep local edits available even if shared save is temporarily unavailable.
+    } finally {
+      setTimelineEditMode(false)
+    }
   }
 
   const activeOverviewTab = overviewTabs.find((tab) => tab.id === activeOverviewTabId) || overviewTabs[0]
@@ -2344,7 +2519,7 @@ function ExecutiveOverviewPage({ onDeepDive }) {
         />
       ) : (
         <div className="maturity-layout" aria-label="WAF protection maturity levels">
-          <MaturityCard card={overallCard} featured />
+          <MaturityCard card={derivedOverallCard} featured />
           <div className="maturity-site-grid">
             {siteCards.map((card) => (
               <MaturityCard key={card.id} card={card} showDeepDive onDeepDive={onDeepDive} />
@@ -2500,6 +2675,33 @@ function TrendArrowIcon({ direction }) {
   )
 }
 
+function getPolicyProtectionStatus(policy) {
+  const ip = typeof policy === 'string' ? '' : (policy?.ip || '').trim()
+  if (!ip) return 'notProtected'
+  const monitorMode = typeof policy === 'string' ? '' : String(policy?.['monitor-mode'] ?? policy?.monitor_mode ?? '').toLowerCase()
+  if (monitorMode === 'enable') return 'monitoring'
+  return 'blocking'
+}
+
+function HostProtectionCounts({ counts }) {
+  const items = [
+    { key: 'blocking', label: 'Blocking', value: counts?.blocking || 0 },
+    { key: 'monitoring', label: 'Monitoring', value: counts?.monitoring || 0 },
+    { key: 'not-protected', label: 'Not protected', value: counts?.notProtected || 0 }
+  ]
+
+  return (
+    <div className="host-protection-counts" aria-label="Host protection status totals">
+      {items.map((item) => (
+        <span key={item.key} className={`host-protection-count ${item.key}`}>
+          <strong>{item.value}</strong>
+          <small>{item.label}</small>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive, contentWrapped = true }) {
   const cardContent = (
     <>
@@ -2520,13 +2722,21 @@ function MaturityCard({ card, featured = false, showDeepDive = false, onDeepDive
           <p>{card.summary}</p>
         </div>
 
-        <div className={`maturity-trend ${card.trend.direction}`}>
-          <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
-          <span className="maturity-trend-copy">
-            <strong>{card.trend.value}</strong>
-            <small>{card.trend.label}</small>
-          </span>
-        </div>
+        {card.trend && (
+          <div className={`maturity-trend ${card.trend.direction}`}>
+            {card.hostStatusCounts ? (
+              <HostProtectionCounts counts={card.hostStatusCounts} />
+            ) : (
+              <>
+                <span className="maturity-trend-icon"><TrendArrowIcon direction={card.trend.direction} /></span>
+                <span className="maturity-trend-copy">
+                  <strong>{card.trend.value}</strong>
+                  <small>{card.trend.label}</small>
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
       {showDeepDive && (
         <div className="maturity-card-actions">
@@ -2559,7 +2769,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [searchResult, setSearchResult] = useState('')
-  const [wafResponse, setWafResponse] = useState(null)
+  const [wafResponse, setWafResponse] = useState(() => getCachedValue(WAF_RESPONSE_CACHE_KEY))
   const [loadingWaf, setLoadingWaf] = useState(false)
   const [wafError, setWafError] = useState('')
   const [selectedLocation, setSelectedLocation] = useState('All')
@@ -2570,7 +2780,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   const [expandedAutomationCard, setExpandedAutomationCard] = useState('')
   const [automationTabs, setAutomationTabs] = useState([{ id: MAIN_AUTOMATION_TAB_ID, title: 'Automation', type: 'main' }])
   const [activeAutomationTabId, setActiveAutomationTabId] = useState(MAIN_AUTOMATION_TAB_ID)
-  const [devices, setDevices] = useState([])
+  const [devices, setDevices] = useState(() => getCachedValue(DEVICES_CACHE_KEY) || [])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceStatusFilter, setDeviceStatusFilter] = useState('All')
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false)
@@ -2587,6 +2797,14 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     apikey: ''
   })
   const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (wafResponse) setCachedValue(WAF_RESPONSE_CACHE_KEY, wafResponse)
+  }, [wafResponse])
+
+  useEffect(() => {
+    if (devices.length > 0) setCachedValue(DEVICES_CACHE_KEY, devices)
+  }, [devices])
 
   const username = useMemo(() => session?.username || 'admin', [session])
   const wafText = useMemo(() => JSON.stringify(wafResponse || {}), [wafResponse])
@@ -2673,19 +2891,11 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const loadWafResponse = async () => {
-    setLoadingWaf(true)
-    setWafError('')
-    try {
-      const res = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
-      if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
-      const data = await res.json()
-      setWafResponse(data.payload)
-    } catch (err) {
-      setWafError(err.message)
-    } finally {
-      setLoadingWaf(false)
-    }
+  const loadLatestWafPayload = async () => {
+    const res = await fetch(`${API_BASE}${SERVER_POLICY_ENDPOINT}`)
+    if (!res.ok) throw new Error('No WAF API response found. Collect from WAF first.')
+    const data = await res.json()
+    return data.payload
   }
 
   const collectWafResponse = async () => {
@@ -2696,9 +2906,32 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
         method: 'POST',
         headers: { 'X-Role': 'admin' }
       })
-      if (!response.ok) throw new Error('Failed to collect WAF data from FortiWeb')
+      if (!response.ok) throw new Error('Failed to start WAF collection')
       const data = await response.json()
       setWafResponse(data.payload)
+      setCachedValue(WAF_RESPONSE_CACHE_KEY, data.payload)
+      return data.payload
+    } catch (err) {
+      setWafError(err.message)
+      return null
+    } finally {
+      setLoadingWaf(false)
+    }
+  }
+
+  const loadWafResponse = async () => {
+    setLoadingWaf(true)
+    setWafError('')
+    try {
+      const cachedPayload = getCachedValue(WAF_RESPONSE_CACHE_KEY)
+      if (cachedPayload) {
+        setWafResponse(cachedPayload)
+        return
+      }
+
+      const payload = await loadLatestWafPayload()
+      setWafResponse(payload)
+      setCachedValue(WAF_RESPONSE_CACHE_KEY, payload)
     } catch (err) {
       setWafError(err.message)
     } finally {
@@ -2707,7 +2940,9 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'waf' || activeNav === 'home' || activePage === 'scoring') loadWafResponse()
+    if (activeNav === 'waf' || activeNav === 'home' || activeNav === 'overview' || activePage === 'scoring') {
+      loadWafResponse()
+    }
   }, [activeNav, activePage])
 
   useEffect(() => {
@@ -2718,10 +2953,17 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
     setLoadingDevices(true)
     setDeviceError('')
     try {
+      const cachedDevices = getCachedValue(DEVICES_CACHE_KEY)
+      if (cachedDevices) {
+        setDevices(cachedDevices)
+        return
+      }
+
       const res = await fetch(`${API_BASE}/devices`)
       if (!res.ok) throw new Error('Failed to load devices')
       const data = await res.json()
       setDevices(data)
+      setCachedValue(DEVICES_CACHE_KEY, data)
     } catch (err) {
       setDeviceError(err.message)
     } finally {
@@ -2730,7 +2972,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
   }
 
   useEffect(() => {
-    if (activeNav === 'device-config') loadDevices()
+    if (activeNav === 'device-config' || activeNav === 'overview') loadDevices()
   }, [activeNav])
 
   useEffect(() => {
@@ -3322,7 +3564,7 @@ function AppShell({ session, onLogout, darkMode, onToggleTheme }) {
               </section>
             )}
 
-            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} />}
+            {activePage !== 'scoring' && activeNav === 'overview' && <ExecutiveOverviewPage onDeepDive={openScoringPage} policies={wafPolicies} />}
             {activePage !== 'scoring' && activeNav === 'device-config' && (
               <section className="device-page">
                 <div className="device-topbar">
